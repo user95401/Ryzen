@@ -13,7 +13,9 @@ public:
     string name;
     string developer;
     string description;
+    CCMenu* menu;
     CCMenuItemSprite* logoBtn;
+    CCMenuItemSpriteExtra* Ryzen_DownloadBtn_001;
     static ModItem* create(string id) {
         ModItem* pRet = new ModItem();
         pRet->id = id;
@@ -34,6 +36,12 @@ public:
         CCScale9Sprite_->setOpacity(75);
         addChild(CCScale9Sprite_, -2);
         setContentSize(CCScale9Sprite_->getContentSize());
+        //menu
+        menu = CCMenu::create();
+        menu->setAnchorPoint(CCPointZero);
+        menu->setPosition(CCPointZero);
+        menu->setContentSize(getContentSize());
+        addChild(menu, 10);
         //getModJson
         addChild(CCLabelTTF::create("Downloading mod.json ...", "arial", 8.f), 0, 8642);
         CCHttpRequest* CCHttpRequest_ = new CCHttpRequest;
@@ -73,6 +81,20 @@ public:
         CCHttpRequest_->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
         CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?logo&id=" + id).c_str());
         CCHttpRequest_->setResponseCallback(this, httpresponse_selector(ModItem::getModLogo));
+        CCHttpClient::getInstance()->send(CCHttpRequest_);
+        CCHttpRequest_->release();
+        //Ryzen_DownloadBtn_001
+        Ryzen_DownloadBtn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("Ryzen_DownloadBtn_001.png"), this, menu_selector(ModItem::getModDownload));
+        Ryzen_DownloadBtn_001->setPositionX(155.000f);
+        menu->addChild(Ryzen_DownloadBtn_001);
+    }
+    void getModDownload(CCObject*) {
+        Ryzen_DownloadBtn_001->runAction(CCRepeatForever::create(CCSequence::create(CCFadeTo::create(0.3, 90), CCFadeTo::create(0.3, 160), nullptr)));
+        //getModDownload
+        CCHttpRequest* CCHttpRequest_ = new CCHttpRequest;
+        CCHttpRequest_->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
+        CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?download&id=" + id).c_str());
+        CCHttpRequest_->setResponseCallback(this, httpresponse_selector(ModItem::downloadMod));
         CCHttpClient::getInstance()->send(CCHttpRequest_);
         CCHttpRequest_->release();
     }
@@ -134,6 +156,22 @@ public:
         else {
         }
     }
+    void downloadMod(CCHttpClient* client, CCHttpResponse* response) {
+        Ryzen_DownloadBtn_001->stopAllActions();
+        Ryzen_DownloadBtn_001->runAction(CCFadeTo::create(0.1f, 90));
+        //get response str
+        std::vector<char>* responseData = response->getResponseData();
+        std::string responseString(responseData->begin(), responseData->end());
+        if (S_OK == URLDownloadToFile(NULL,
+            responseString.c_str(),
+            ("geode/mods/" + id + ".geode").c_str(),
+            0, NULL))
+        {
+            Ryzen_DownloadBtn_001->runAction(CCFadeOut::create(0.3f));
+        }
+        else {
+        }
+    }
 };
 
 void RyzenLayer::getModsResponse(CCHttpClient* client, CCHttpResponse* response) {
@@ -170,7 +208,7 @@ void RyzenLayer::getMods(CCObject*) {
     if (getChildByTag(6302)) return;//LoadingContainer
     CCHttpRequest* CCHttpRequest_ = new CCHttpRequest;
     CCHttpRequest_->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
-    CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?list&page=" + to_string(Page)).c_str());
+    CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?list&page=" + to_string(Page) + "&idquery=" + idInput->getString()).c_str());
     CCHttpRequest_->setResponseCallback(this, httpresponse_selector(RyzenLayer::getModsResponse));
     CCHttpClient::getInstance()->send(CCHttpRequest_);
     CCHttpRequest_->release();
@@ -228,6 +266,43 @@ void RyzenLayer::OpenUpSearchSetup(CCObject* object) {
 bool RyzenLayer::init() {
     setKeypadEnabled(true);
     setTouchEnabled(true);
+    //search layer
+    if (SearchLayer = CCLayer::create()) {
+        SearchLayer->setPositionX(CCDirector::sharedDirector()->getWinSize().width);
+        addChild(SearchLayer, 20, 3206);
+        CCMenu* SearchLayer_Menu = CCMenu::create();
+        SearchLayer_Menu->setPositionX(0.0f);
+        SearchLayer->addChild(SearchLayer_Menu);
+        CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square01_001.png");
+        CCScale9Sprite_->setContentSize({ 1360.000f, 300.000f });
+        CCScale9Sprite_->setAnchorPoint({ 0.0f, 0.5f });
+        SearchLayer_Menu->addChild(CCScale9Sprite_, -5);
+        //arrow
+        auto SearchLayer_leftBtn_spr = ModUtils::createSprite("edit_leftBtn_001.png");
+        SearchLayer_leftBtn_spr->setScaleX(0.600f);
+        SearchLayer_leftBtn = CCMenuItemSpriteExtra::create(SearchLayer_leftBtn_spr, this, menu_selector(RyzenLayer::OpenUpSearchSetup));
+        SearchLayer_leftBtn->setPositionX(-(SearchLayer_leftBtn->getContentSize().width + 6.0f));
+        SearchLayer_leftBtn->CCMenuItemSpriteExtra::setScale(1.5f);
+        SearchLayer_Menu->addChild(SearchLayer_leftBtn);
+        //idInputTitle
+        CCLabelBMFont* idInputTitle = CCLabelBMFont::create("Mod ID:", "goldFont.fnt", 900, CCTextAlignment::kCCTextAlignmentLeft);
+        idInputTitle->setPosition({ 65.000f, 118.000f });
+        idInputTitle->setScale(0.750f);
+        SearchLayer_Menu->addChild(idInputTitle);
+        //idInput
+        &ValueSetupPopup::init;
+        idInput = CCTextInputNode::create("", this, "chatFont.fnt", 160.f, 20.f);//"developer.modname"
+        idInput->getTextField()->setHorizontalAlignment(CCTextAlignment::kCCTextAlignmentLeft);
+        idInput->setPosition({ 198.000f, 116.000f });
+        SearchLayer_Menu->addChild(idInput);
+        //inputbg
+        CCScale9Sprite* idInputBG = CCScale9Sprite::create("square02_001.png");
+        idInputBG->setContentSize({ idInput->getContentSize().width * 2 + 20, idInput->getContentSize().height * 2 + 15 });
+        idInputBG->setScale(0.5f);
+        idInputBG->setOpacity(60);
+        idInputBG->setPosition(idInput->getPosition());
+        SearchLayer_Menu->addChild(idInputBG, -1);
+    }
     //play music
     GameManager::sharedState()->fadeInMusic("Graham Kartna - Browser History.mp3");
     //bg
@@ -317,25 +392,6 @@ bool RyzenLayer::init() {
         });
     GJ_replayBtn_001->CCMenuItemSpriteExtra::setScale(0.7f);
     CCMenu_->addChild(GJ_replayBtn_001);//add GJ_replayBtn_001
-    //search layer
-    if (SearchLayer = CCLayer::create()) {
-        SearchLayer->setPositionX(CCDirector::sharedDirector()->getWinSize().width);
-        addChild(SearchLayer, 10, 3206);
-        CCMenu* SearchLayer_Menu = CCMenu::create();
-        SearchLayer_Menu->setPositionX(0.0f);
-        SearchLayer->addChild(SearchLayer_Menu);
-        CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square01_001.png");
-        CCScale9Sprite_->setContentSize({ 1360.000f, 300.000f });
-        CCScale9Sprite_->setAnchorPoint({ 0.0f, 0.5f });
-        SearchLayer_Menu->addChild(CCScale9Sprite_);
-        //arrow
-        auto SearchLayer_leftBtn_spr = ModUtils::createSprite("edit_leftBtn_001.png");
-        SearchLayer_leftBtn_spr->setScaleX(0.600f);
-        SearchLayer_leftBtn = CCMenuItemSpriteExtra::create(SearchLayer_leftBtn_spr, this, menu_selector(RyzenLayer::OpenUpSearchSetup));
-        SearchLayer_leftBtn->setPositionX(-(SearchLayer_leftBtn->getContentSize().width + 6.0f));
-        SearchLayer_leftBtn->CCMenuItemSpriteExtra::setScale(1.5f);
-        SearchLayer_Menu->addChild(SearchLayer_leftBtn);
-    }
     return true;
 }
 

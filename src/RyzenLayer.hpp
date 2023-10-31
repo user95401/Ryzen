@@ -11,6 +11,7 @@ protected:
     cocos2d::CCLayer* SearchLayer;
     cocos2d::CCSprite* SquareShadow;
     gd::CCMenuItemSpriteExtra* SearchLayer_leftBtn;
+    gd::CCTextInputNode* idInput;
     virtual bool init();
     virtual void keyBackClicked();
     void onBack(cocos2d::CCObject*);
