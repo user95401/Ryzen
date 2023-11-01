@@ -9,8 +9,7 @@ protected:
     cocos2d::CCLabelTTF* PageLbl;
     cocos2d::CCMenu* CCMenu_;
     cocos2d::CCLayer* SearchLayer;
-    cocos2d::CCSprite* SquareShadow;
-    gd::CCMenuItemSpriteExtra* SearchLayer_leftBtn;
+    gd::CCMenuItemSpriteExtra* gj_findBtn;
     gd::CCTextInputNode* idInput;
     virtual bool init();
     virtual void keyBackClicked();
@@ -21,6 +20,7 @@ protected:
     void PageDown(cocos2d::CCObject*);
     void UpdatePageLbl(cocos2d::CCObject*);
     void OpenUpSearchSetup(cocos2d::CCObject*);
+    void addMod(cocos2d::CCObject*);
 public:
     static RyzenLayer* create();
     void openMe(cocos2d::CCObject* object);

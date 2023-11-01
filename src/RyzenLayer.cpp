@@ -7,6 +7,29 @@ using namespace cocos2d::extension;
 using namespace gd;
 using namespace std;
 
+string url_encode(const string& value) {
+    ostringstream escaped;
+    escaped.fill('0');
+    escaped << hex;
+
+    for (string::const_iterator i = value.begin(), n = value.end(); i != n; ++i) {
+        string::value_type c = (*i);
+
+        // Keep alphanumeric and other accepted characters intact
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            escaped << c;
+            continue;
+        }
+
+        // Any other characters are percent-encoded
+        escaped << uppercase;
+        escaped << '%' << setw(2) << int((unsigned char)c);
+        escaped << nouppercase;
+    }
+
+    return escaped.str();
+}
+
 class ModItem : public CCMenuItem {
 public:
     string id;
@@ -106,23 +129,23 @@ public:
         removeChildByTag(8642);//fail to get
         if (responseString == "") return addChild(CCLabelTTF::create(("Failed to get mod.json for " + id + "...").c_str(), "arial", 8.f), 0, 734);
         filesystem::create_directories(filesystem::path("geode/temp/Ryzen/" + id));
-        if (S_OK == URLDownloadToFile(NULL,
+        /*if (S_OK == URLDownloadToFile(NULL,
             responseString.c_str(),
             ("geode/temp/Ryzen/" + id + "/mod.json").c_str(),
             0, NULL))
-        {
-            std::ifstream file("geode/temp/Ryzen/" + id + "/mod.json");
-            std::string content((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
-            name = (jute::parser::parse(content)["name"].as_string());
-            developer = (jute::parser::parse(content)["developer"].as_string());
-            description = (jute::parser::parse(content)["description"].as_string());
-        }
+        {*/
+            /*std::ifstream file("geode/temp/Ryzen/" + id + "/mod.json");
+            std::string content((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));*/
+            name = (jute::parser::parse(responseString)["name"].as_string());
+            developer = (jute::parser::parse(responseString)["developer"].as_string());
+            description = (jute::parser::parse(responseString)["description"].as_string());
+        /*}
         else {
             addChild(CCLabelTTF::create(("Failed to download mod.json from \n" + responseString).c_str(), "arial", 8.f), 0, 521);
             name = "";
             developer = "";
             description = "";
-        }
+        }*/
         setupModInfo(nullptr);
     }
     void getModLogo(CCHttpClient* client, CCHttpResponse* response) {
@@ -208,7 +231,7 @@ void RyzenLayer::getMods(CCObject*) {
     if (getChildByTag(6302)) return;//LoadingContainer
     CCHttpRequest* CCHttpRequest_ = new CCHttpRequest;
     CCHttpRequest_->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
-    CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?list&page=" + to_string(Page) + "&idquery=" + idInput->getString()).c_str());
+    CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?list&page=" + to_string(Page) + "&searhquery=" + url_encode(idInput->getString())).c_str());
     CCHttpRequest_->setResponseCallback(this, httpresponse_selector(RyzenLayer::getModsResponse));
     CCHttpClient::getInstance()->send(CCHttpRequest_);
     CCHttpRequest_->release();
@@ -251,16 +274,22 @@ void RyzenLayer::OpenUpSearchSetup(CCObject* object) {
     if (SearchLayer->numberOfRunningActions() > 0) return;
     if (SearchLayer->getChildByTag(1642)) {
         SearchLayer->removeChildByTag(1642);
-        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(CCDirector::sharedDirector()->getWinSize().width, SearchLayer->getPositionY()))));
-        SearchLayer_leftBtn->runAction(CCEaseExponentialOut::create(CCRotateTo::create(0.3f, 0.000f)));
-        SquareShadow->runAction(CCEaseExponentialOut::create(CCFadeOut::create(0.3f)));
+        //SearchLayer_leftBtn->runAction(CCEaseExponentialOut::create(CCRotateTo::create(0.3f, 0.000f)));
+        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(SearchLayer->getPositionX(), 120.f))));
+        gj_findBtn->setNormalImage(ModUtils::createSprite("gj_findBtn_001.png"));
+        gj_findBtn->setSelectedImage(gj_findBtn->getNormalImage());
     }
     else {
         SearchLayer->addChild(CCNode::create(), 1, 1642);
-        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(CCDirector::sharedDirector()->getScreenLeft() + (SearchLayer_leftBtn->getContentSize().width*2)/0.5, SearchLayer->getPositionY()))));
-        SearchLayer_leftBtn->runAction(CCEaseExponentialOut::create(CCRotateTo::create(0.3f, 180.000f)));
-        SquareShadow->runAction(CCEaseExponentialOut::create(CCFadeIn::create(0.3f)));
+        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint())));
+        //SearchLayer_leftBtn->runAction(CCEaseExponentialOut::create(CCRotateTo::create(0.3f, 180.000f)));
+        gj_findBtn->setNormalImage(ModUtils::createSprite("gj_findBtnOff_001.png"));
+        gj_findBtn->setSelectedImage(gj_findBtn->getNormalImage());
     }
+}
+
+void RyzenLayer::addMod(CCObject* object) {
+    CCApplication::sharedApplication()->openURL("https://user95401.undo.it/Ryzen");
 }
 
 bool RyzenLayer::init() {
@@ -268,32 +297,29 @@ bool RyzenLayer::init() {
     setTouchEnabled(true);
     //search layer
     if (SearchLayer = CCLayer::create()) {
-        SearchLayer->setPositionX(CCDirector::sharedDirector()->getWinSize().width);
+        //SearchLayer->setPositionX(CCDirector::sharedDirector()->getWinSize().width);
         addChild(SearchLayer, 20, 3206);
+        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(SearchLayer->getPositionX(), 120.f))));
         CCMenu* SearchLayer_Menu = CCMenu::create();
-        SearchLayer_Menu->setPositionX(0.0f);
+        SearchLayer_Menu->setPositionY(CCDirector::sharedDirector()->getScreenTop()-52);
         SearchLayer->addChild(SearchLayer_Menu);
+        //SquareShadowCorner
+        CCSprite* SearchLayerShadowCorner = ModUtils::createSprite("groundSquareShadow_001.png");
+        SearchLayerShadowCorner->setScaleX(0.900f);
+        SearchLayerShadowCorner->setScaleY(5.000f);
+        SearchLayerShadowCorner->setRotation(90.000f);
+        SearchLayer_Menu->addChild(SearchLayerShadowCorner, -8);
+        //square01_001
         CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square01_001.png");
-        CCScale9Sprite_->setContentSize({ 1360.000f, 300.000f });
-        CCScale9Sprite_->setAnchorPoint({ 0.0f, 0.5f });
+        CCScale9Sprite_->setContentSize({ 416.000f, 2300.000f });
+        CCScale9Sprite_->setAnchorPoint({ 0.5f, 0.0f });
         SearchLayer_Menu->addChild(CCScale9Sprite_, -5);
-        //arrow
-        auto SearchLayer_leftBtn_spr = ModUtils::createSprite("edit_leftBtn_001.png");
-        SearchLayer_leftBtn_spr->setScaleX(0.600f);
-        SearchLayer_leftBtn = CCMenuItemSpriteExtra::create(SearchLayer_leftBtn_spr, this, menu_selector(RyzenLayer::OpenUpSearchSetup));
-        SearchLayer_leftBtn->setPositionX(-(SearchLayer_leftBtn->getContentSize().width + 6.0f));
-        SearchLayer_leftBtn->CCMenuItemSpriteExtra::setScale(1.5f);
-        SearchLayer_Menu->addChild(SearchLayer_leftBtn);
-        //idInputTitle
-        CCLabelBMFont* idInputTitle = CCLabelBMFont::create("Mod ID:", "goldFont.fnt", 900, CCTextAlignment::kCCTextAlignmentLeft);
-        idInputTitle->setPosition({ 65.000f, 118.000f });
-        idInputTitle->setScale(0.750f);
-        SearchLayer_Menu->addChild(idInputTitle);
         //idInput
         &ValueSetupPopup::init;
-        idInput = CCTextInputNode::create("", this, "chatFont.fnt", 160.f, 20.f);//"developer.modname"
+        idInput = CCTextInputNode::create("", this, "chatFont.fnt", 290.f, 20.f);//"developer.modname"
         idInput->getTextField()->setHorizontalAlignment(CCTextAlignment::kCCTextAlignmentLeft);
-        idInput->setPosition({ 198.000f, 116.000f });
+        idInput->setAllowedChars(" !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~");
+        idInput->setPosition({ -40.000f, 30.000f });
         SearchLayer_Menu->addChild(idInput);
         //inputbg
         CCScale9Sprite* idInputBG = CCScale9Sprite::create("square02_001.png");
@@ -302,6 +328,12 @@ bool RyzenLayer::init() {
         idInputBG->setOpacity(60);
         idInputBG->setPosition(idInput->getPosition());
         SearchLayer_Menu->addChild(idInputBG, -1);
+        auto btn1Sprite = ButtonSprite::create("Reload", 0, false, "goldFont.fnt", "GJ_button_05.png", 0, 0.6);
+        auto btn1 = CCMenuItemSpriteExtra::create(btn1Sprite, this, menu_selector(RyzenLayer::getMods));
+        btn1->setPositionY(30.000f);
+        btn1->setPositionX(158.000f);
+        btn1->CCMenuItemSprite::setScale(0.900f);
+        SearchLayer_Menu->addChild(btn1);
     }
     //play music
     GameManager::sharedState()->fadeInMusic("Graham Kartna - Browser History.mp3");
@@ -315,24 +347,17 @@ bool RyzenLayer::init() {
     addChild(backgroundSprite, -2);
     //SquareShadowCorner1
     CCSprite* SquareShadowCorner1 = ModUtils::createSprite("groundSquareShadow_001.png");
-    SquareShadowCorner1->setScaleX(0.080);
+    SquareShadowCorner1->setScaleX(0.10);
     SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
     SquareShadowCorner1->setAnchorPoint({ 0, 0 });
     addChild(SquareShadowCorner1, 10);
     //SquareShadowCorner2
     CCSprite* SquareShadowCorner2 = ModUtils::createSprite("groundSquareShadow_001.png");
-    SquareShadowCorner2->setScaleX(-0.080);
+    SquareShadowCorner2->setScaleX(-0.10);
     SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
     SquareShadowCorner2->setAnchorPoint({ 0, 0 });
     SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
     addChild(SquareShadowCorner2, 10);
-    //SquareShadow
-    SquareShadow = ModUtils::createSprite("groundSquareShadow_001.png");
-    SquareShadow->setScaleX(CCDirector::sharedDirector()->getWinSize().width / SquareShadow->getContentSize().width);
-    SquareShadow->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadow->getContentSize().height);
-    SquareShadow->setAnchorPoint({ 0, 0 });
-    SquareShadow->runAction(CCFadeOut::create(0.0f));
-    addChild(SquareShadow, 10);
     //gauntletCorner_001
     CCSprite* gauntletCorner_001 = ModUtils::createSprite("gauntletCorner_001.png");
     gauntletCorner_001->setPosition({0, 0});
@@ -385,13 +410,22 @@ bool RyzenLayer::init() {
     CCMenuPage->addChild(edit_rightBtn_001);//add edit_rightBtn_001
     CCMenuPage->alignItemsHorizontallyWithPadding(360.f + 20);
     //reloadmodsbtn
-    CCMenuItemSpriteExtra* GJ_replayBtn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("GJ_replayBtn_001.png"), this, menu_selector(RyzenLayer::getMods));
-    GJ_replayBtn_001->setPosition({
+    CCMenuItemSpriteExtra* Ryzen_ReloadBtn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("Ryzen_ReloadBtn_001.png", 4.0f), this, menu_selector(RyzenLayer::getMods));
+    Ryzen_ReloadBtn_001->setPosition({
         (CCDirector::sharedDirector()->getWinSize().width / 2) - 35,
         (CCDirector::sharedDirector()->getWinSize().height / -2) + 35
         });
-    GJ_replayBtn_001->CCMenuItemSpriteExtra::setScale(0.7f);
-    CCMenu_->addChild(GJ_replayBtn_001);//add GJ_replayBtn_001
+    Ryzen_ReloadBtn_001->CCMenuItemSpriteExtra::setScale(0.7f);
+    CCMenu_->addChild(Ryzen_ReloadBtn_001);//add GJ_replayBtn_001
+    //gj_findBtn
+    gj_findBtn = CCMenuItemSpriteExtra::create(ModUtils::createSprite("gj_findBtn_001.png"), this, menu_selector(RyzenLayer::OpenUpSearchSetup));
+    gj_findBtn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
+    CCMenu_->addChild(gj_findBtn);//add GJ_replayBtn_001
+    //addmodbtn
+    CCMenuItemSpriteExtra* GJ_plus3Btn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("GJ_plus3Btn_001.png"), this, menu_selector(RyzenLayer::addMod));
+    GJ_plus3Btn_001->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
+    GJ_plus3Btn_001->CCMenuItemSpriteExtra::setScale(1.700f);
+    CCMenu_->addChild(GJ_plus3Btn_001);//add GJ_replayBtn_001
     return true;
 }
 
