@@ -193,30 +193,34 @@ public:
         //get response str
         std::vector<char>* responseData = response->getResponseData();
         std::string responseString(responseData->begin(), responseData->end());
+        if (responseString == "") return;
         //search path
         filesystem::create_directories(filesystem::path("geode/temp/Ryzen/" + id));
-        CCFileUtils::sharedFileUtils()->addSearchPath(filesystem::path("geode/temp/Ryzen/" + id).string().c_str());
-        if (S_OK == URLDownloadToFile(NULL,
-            responseString.c_str(),
-            ("geode/temp/Ryzen/" + id + "/" + id + ".png").c_str(), 
-            0, NULL))
-        {
-            CCTextureCache::sharedTextureCache()->reloadTexture((id + ".png").c_str());
-            CCSprite* logo = ModUtils::createSprite((id + ".png").c_str());
-            if (logo->getContentSize().width > logo->getContentSize().height)
-                logo->setScale(logoBtn->getContentSize().width / logo->getContentSize().width);
-            else
-                logo->setScale(logoBtn->getContentSize().height / logo->getContentSize().height);
-            logo->setPosition({ logoBtn->getContentSize().width / 2, logoBtn->getContentSize().height / 2 });
-            logoBtn->addChild(logo);
-            CCSprite* hiddenNode = dynamic_cast<CCSprite*>(logoBtn->getNormalImage());
-            hiddenNode->runAction(CCRepeatForever::create(CCFadeOut::create(0.f)));
-            logoBtn->setNormalImage(hiddenNode);
-            logoBtn->setSelectedImage(hiddenNode);
-            logoBtn->runAction(CCFadeIn::create(0.1f));
-        }
-        else {
-        }
+        CCFileUtils::sharedFileUtils()->addSearchPath(("geode/temp/Ryzen/" + id).c_str());
+        //save img
+        std::ofstream outfile;
+        outfile.open(("geode/temp/Ryzen/" + id + "/" + id + ".png").c_str(), std::ios_base::binary);
+        outfile << responseString;
+        outfile.close();
+        //reloadimg
+        CCTexture2DPixelFormat oldfomat = CCTexture2D::defaultAlphaPixelFormat();
+        CCTexture2DPixelFormat goodformatxd = CCTexture2DPixelFormat::kCCTexture2DPixelFormat_RGBA8888;
+        CCTexture2D::setDefaultAlphaPixelFormat(goodformatxd);//set goodformatxd
+        CCTextureCache::sharedTextureCache()->reloadTexture((id + ".png").c_str());//reload texture
+        //create spr and append to btn
+        CCSprite* logo = ModUtils::createSprite((id + ".png").c_str());//sprite
+        CCTexture2D::setDefaultAlphaPixelFormat(oldfomat); // setoldformat
+        if (logo->getContentSize().width > logo->getContentSize().height)
+            logo->setScale(logoBtn->getContentSize().width / logo->getContentSize().width);
+        else
+            logo->setScale(logoBtn->getContentSize().height / logo->getContentSize().height);
+        logo->setPosition({ logoBtn->getContentSize().width / 2, logoBtn->getContentSize().height / 2 });
+        logoBtn->addChild(logo);
+        CCSprite* hiddenNode = dynamic_cast<CCSprite*>(logoBtn->getNormalImage());
+        hiddenNode->runAction(CCRepeatForever::create(CCFadeOut::create(0.f)));
+        logoBtn->setNormalImage(hiddenNode);
+        logoBtn->setSelectedImage(hiddenNode);
+        logoBtn->runAction(CCFadeIn::create(0.1f));
     }
     void downloadMod(CCHttpClient* client, CCHttpResponse* response) {
         menu->setTouchEnabled(1);
