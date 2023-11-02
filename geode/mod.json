@@ -19,10 +19,33 @@
 		]
 	},
 	"settings": {
-		"inf": {
-			"name": "Configure in ini file!",
-			"description": "You can configure this mod\n<cr>only by .ini file</c> that located at\n<co>[your_game]/geode/config</c>",
-			"type": "string"
+		"header": {
+			"name": "                    ",
+			"type": "color",
+			"default": "#1d1d1d"
+		},
+		"sprites_list.ini": {
+			"name": "Ryzen.ini (load mod first)",
+			"description": "open up Ryzen.ini",
+			"type": "color",
+			"default": "#1d1d1d"
+		},
+		"Auto calculation": {
+			"name": "dntloadmods 6525",
+			"description": "open up dntloadmods value popup...",
+			"type": "color",
+			"default": "#1d1d1d"
+		},
+		"Disable auto updating": {
+			"name": "dntupadatemod 6525",
+			"description": "open up dntupadatemod value popup...",
+			"type": "color",
+			"default": "#1d1d1d"
+		},
+		"footer": {
+			"name": "                    ",
+			"type": "color",
+			"default": "#1d1d1d"
 		}
 	}
 }

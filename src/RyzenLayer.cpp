@@ -86,6 +86,7 @@ public:
         CCHttpRequest_->setResponseCallback(this, httpresponse_selector(ModItem::getModJson));
         CCHttpClient::getInstance()->send(CCHttpRequest_);
         CCHttpRequest_->release();
+        menu->setTouchEnabled(0);
         return true;
     }
     void setupModInfo(CCObject*) {
@@ -141,11 +142,24 @@ public:
         CCHttpRequest_->release();
     }
     void deleteMe(CCObject*) {
+        //remove geode/mods/[id].geode
         std::remove(("geode/mods/"+id+".geode").c_str());
+        ModUtils::log(("geode/mods/" + id + ".geode removed"));
+        //free lib out
+        //cancelled bec its crashing
+        /*auto ModuleHandle = GetModuleHandleA((id + ".dll").c_str());
+        if(ModuleHandle) FreeLibrary(ModuleHandle);
+        else ModUtils::log(("Cant get module geode/unzipped/" + id + ".dll"));//fail
+        if (ModuleHandle) ModUtils::log(("geode/unzipped/" + id + ".dll freed with exit code 0"));//log*/
+        //remove geode/unzipped/[id] folder
+        std::remove(("geode/unzipped/" + id + "").c_str());
+        ModUtils::log(("geode/unzipped/" + id + " removed"));//log
         removeAllChildren();
         init();
+        ModUtils::log(("ModItem \"" + id + "\" recreated"));//log
     }
     void getModJson(CCHttpClient* client, CCHttpResponse* response) {
+        menu->setTouchEnabled(1);
         //get response str
         std::vector<char>* responseData = response->getResponseData();
         std::string responseString(responseData->begin(), responseData->end());
@@ -173,6 +187,7 @@ public:
         setupModInfo(nullptr);
     }
     void getModLogo(CCHttpClient* client, CCHttpResponse* response) {
+        menu->setTouchEnabled(1);
         logoBtn->stopAllActions();
         logoBtn->runAction(CCFadeTo::create(0.1f, 90));
         //get response str
@@ -204,6 +219,7 @@ public:
         }
     }
     void downloadMod(CCHttpClient* client, CCHttpResponse* response) {
+        menu->setTouchEnabled(1);
         Ryzen_DownloadBtn_001->stopAllActions();
         Ryzen_DownloadBtn_001->runAction(CCFadeTo::create(0.1f, 90));
         //get response str
@@ -214,9 +230,14 @@ public:
             ("geode/mods/" + id + ".geode").c_str(),
             0, NULL))
         {
-            int arg = 2;
-            zip_extract(("geode/mods/" + id + ".geode").c_str(), ("geode/unzipped/" + id + "").c_str(), on_extract_entry, &arg);
-            
+            ModUtils::log(("geode/mods/" + id + ".geode downloaded"));
+            //Dont load mods
+            CSimpleIni ini;
+            ini.LoadFile("geode/config/Ryzen.ini");
+            if (!ini.GetBoolValue("Ryzen", "Dont load mods", false)) {//so load mod
+                int arg = 2;
+                zip_extract(("geode/mods/" + id + ".geode").c_str(), ("geode/unzipped/" + id + "").c_str(), on_extract_entry, &arg);
+            }
             //turn download btn to delete btn
             Ryzen_DownloadBtn_001->setNormalImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setSelectedImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
@@ -229,6 +250,7 @@ public:
 };
 
 void RyzenLayer::getModsResponse(CCHttpClient* client, CCHttpResponse* response) {
+    CCMenu_->setTouchEnabled(1);
     //get response str
     std::vector<char>* responseData = response->getResponseData();
     std::string responseString(responseData->begin(), responseData->end());
@@ -267,6 +289,7 @@ void RyzenLayer::getMods(CCObject*) {
     CCHttpRequest_->setResponseCallback(this, httpresponse_selector(RyzenLayer::getModsResponse));
     CCHttpClient::getInstance()->send(CCHttpRequest_);
     CCHttpRequest_->release();
+    CCMenu_->setTouchEnabled(0);
     UpdatePageLbl(PageLbl);
     //LoadingCircle_->fadeAndRemove();
     //LoadingCircle_->show();
