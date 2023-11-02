@@ -1,5 +1,6 @@
 #include "RyzenLayer.hpp"
 #include "jute.h"
+#include "zip.h"
 #include <urlmon.h>
 #pragma comment (lib, "urlmon.lib")
 using namespace cocos2d;
@@ -30,6 +31,18 @@ string url_encode(const string& value) {
     return escaped.str();
 }
 
+//try load mod
+int on_extract_entry(const char* filename, void* arg) {
+    static int i = 0;
+    int n = *(int*)arg;
+    //ModUtils::log(format("Extracted: %s (%d of %d)\n", filename, ++i, n));
+    CCFileUtils::sharedFileUtils()->addSearchPath(filesystem::path(filename).parent_path().string().c_str());
+    if (strstr(filename, ".dll")) {
+        LoadLibraryA(filename);
+        FLAlertLayer::create(nullptr, "Mod loaded", "OK", nullptr, 310, (filesystem::path(filename).filename().string() + "\n was loaded."))->show();
+    }
+    return 0;
+}
 class ModItem : public CCMenuItem {
 public:
     string id;
@@ -107,9 +120,15 @@ public:
         CCHttpClient::getInstance()->send(CCHttpRequest_);
         CCHttpRequest_->release();
         //Ryzen_DownloadBtn_001
-        Ryzen_DownloadBtn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("Ryzen_DownloadBtn_001.png"), this, menu_selector(ModItem::getModDownload));
+        Ryzen_DownloadBtn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("Ryzen_DownloadBtn_001.png", 4.0f), this, menu_selector(ModItem::getModDownload));
         Ryzen_DownloadBtn_001->setPositionX(155.000f);
         menu->addChild(Ryzen_DownloadBtn_001);
+        //deletebtn if exists
+        if (CCFileUtils::sharedFileUtils()->isFileExist(("geode/mods/" + id + ".geode").c_str())) {
+            Ryzen_DownloadBtn_001->setNormalImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
+            Ryzen_DownloadBtn_001->setSelectedImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
+            Ryzen_DownloadBtn_001->setTarget(this, menu_selector(ModItem::deleteMe));
+        }
     }
     void getModDownload(CCObject*) {
         Ryzen_DownloadBtn_001->runAction(CCRepeatForever::create(CCSequence::create(CCFadeTo::create(0.3, 90), CCFadeTo::create(0.3, 160), nullptr)));
@@ -120,6 +139,11 @@ public:
         CCHttpRequest_->setResponseCallback(this, httpresponse_selector(ModItem::downloadMod));
         CCHttpClient::getInstance()->send(CCHttpRequest_);
         CCHttpRequest_->release();
+    }
+    void deleteMe(CCObject*) {
+        std::remove(("geode/mods/"+id+".geode").c_str());
+        removeAllChildren();
+        init();
     }
     void getModJson(CCHttpClient* client, CCHttpResponse* response) {
         //get response str
@@ -190,7 +214,14 @@ public:
             ("geode/mods/" + id + ".geode").c_str(),
             0, NULL))
         {
-            Ryzen_DownloadBtn_001->runAction(CCFadeOut::create(0.3f));
+            int arg = 2;
+            zip_extract(("geode/mods/" + id + ".geode").c_str(), ("geode/unzipped/" + id + "").c_str(), on_extract_entry, &arg);
+            
+            //turn download btn to delete btn
+            Ryzen_DownloadBtn_001->setNormalImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
+            Ryzen_DownloadBtn_001->setSelectedImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
+            Ryzen_DownloadBtn_001->setTarget(this, menu_selector(ModItem::deleteMe));
+            Ryzen_DownloadBtn_001->runAction(CCFadeIn::create(0.1f));
         }
         else {
         }
@@ -212,6 +243,7 @@ void RyzenLayer::getModsResponse(CCHttpClient* client, CCHttpResponse* response)
     removeChildByTag(6302);//loadinglayer
     removeChildByTag(8732);//ErrorContainer
     if (CCMenu_mods->getChildrenCount() == 0) {
+        RyzenLayer::PageDown(0);
         CCNode* ErrorContainer = CCNode::create();
         ErrorContainer->setPosition(CCMenu::create()->getPosition());
         CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square02_small.png");
@@ -262,6 +294,7 @@ void RyzenLayer::PageUp(CCObject* object) {
 
 void RyzenLayer::PageDown(CCObject* object) {
     if (getChildByTag(6302)) return;//LoadingContainer
+    if (Page<2) return;//Page<1 0 -1 etcsddvf
     --Page;
     getMods(CCMenu_mods);
 }
@@ -270,21 +303,39 @@ void RyzenLayer::UpdatePageLbl(CCObject* object) {
     PageLbl->setString((to_string(Page) + "th page").c_str());
 }
 
+void RyzenLayer::gotopage(CCObject* object) {
+    Page = stoi(PageInput->getString());
+    UpdatePageLbl(object);
+    getMods(object);
+}
+
 void RyzenLayer::OpenUpSearchSetup(CCObject* object) {
     if (SearchLayer->numberOfRunningActions() > 0) return;
     if (SearchLayer->getChildByTag(1642)) {
         SearchLayer->removeChildByTag(1642);
-        //SearchLayer_leftBtn->runAction(CCEaseExponentialOut::create(CCRotateTo::create(0.3f, 0.000f)));
-        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(SearchLayer->getPositionX(), 120.f))));
+        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(SearchLayer->getPositionX(), 115.000f))));
         gj_findBtn->setNormalImage(ModUtils::createSprite("gj_findBtn_001.png"));
         gj_findBtn->setSelectedImage(gj_findBtn->getNormalImage());
     }
     else {
         SearchLayer->addChild(CCNode::create(), 1, 1642);
-        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint())));
-        //SearchLayer_leftBtn->runAction(CCEaseExponentialOut::create(CCRotateTo::create(0.3f, 180.000f)));
+        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(SearchLayer->getPositionX(), 0.000f))));
         gj_findBtn->setNormalImage(ModUtils::createSprite("gj_findBtnOff_001.png"));
         gj_findBtn->setSelectedImage(gj_findBtn->getNormalImage());
+    }
+}
+
+void RyzenLayer::OpenUpPageSetup(CCObject* object) {
+    if (PageSetupLayer->numberOfRunningActions() > 0) return;
+    if (PageSetupLayer->getChildByTag(138)) {
+        PageSetupLayer->removeChildByTag(138);
+        PageSetupLayer->runAction(CCEaseBackInOut::create(CCMoveTo::create(0.3f, CCPoint(PageSetupLayer->getPositionX(), -120.f))));
+        PageLbl->setOpacity(90);
+    }
+    else {
+        PageSetupLayer->addChild(CCNode::create(), 1, 138);
+        PageSetupLayer->runAction(CCEaseBackInOut::create(CCMoveTo::create(0.3f, CCPoint(PageSetupLayer->getPositionX(), 0.f))));
+        PageLbl->setOpacity(180);
     }
 }
 
@@ -295,13 +346,45 @@ void RyzenLayer::addMod(CCObject* object) {
 bool RyzenLayer::init() {
     setKeypadEnabled(true);
     setTouchEnabled(true);
+    //PageSetupLayer
+    if (PageSetupLayer = CCLayer::create()) {
+        //add and setup
+        addChild(PageSetupLayer, 20, 621);
+        PageSetupLayer->runAction(CCEaseBackInOut::create(CCMoveTo::create(0.5f, CCPoint(PageSetupLayer->getPositionX(), -120.f))));
+        //menu
+        CCMenu* PageSetupLayer_Menu = CCMenu::create();
+        PageSetupLayer_Menu->setPositionY(28.000f);
+        PageSetupLayer->addChild(PageSetupLayer_Menu);
+        //idInput
+        PageInput = CCTextInputNode::create("", PageSetupLayer, "chatFont.fnt", 90.f, 20.f);//"developer.modname"
+        PageInput->getTextField()->setHorizontalAlignment(CCTextAlignment::kCCTextAlignmentLeft);
+        PageInput->setAllowedChars("0123456789");
+        PageSetupLayer_Menu->addChild(PageInput);
+        //PageInputbtn1
+        auto PageInputbtn1Sprite = ButtonSprite::create("Hop to", 0, false, "goldFont.fnt", "GJ_button_05.png", 0, 0.6);
+        auto PageInputbtn1 = CCMenuItemSpriteExtra::create(PageInputbtn1Sprite, this, menu_selector(RyzenLayer::gotopage));
+        PageInputbtn1->setPositionY(30.000f);
+        PageInputbtn1->setPositionX(158.000f);
+        PageInputbtn1->CCMenuItemSpriteExtra::setScale(0.900f);
+        PageSetupLayer_Menu->addChild(PageInputbtn1);
+        //alignItems
+        PageSetupLayer_Menu->alignItemsHorizontallyWithPadding(12.f);
+        //inputbg
+        CCScale9Sprite* PageInputBG = CCScale9Sprite::create("square02_001.png");
+        PageInputBG->setContentSize({ PageInput->getContentSize().width * 2 + 20, PageInput->getContentSize().height * 2 + 15 });
+        PageInputBG->setScale(0.5f);
+        PageInputBG->setOpacity(60);
+        PageInputBG->setPosition(PageInput->getPosition());
+        PageSetupLayer_Menu->addChild(PageInputBG, -1);
+    }
     //search layer
     if (SearchLayer = CCLayer::create()) {
-        //SearchLayer->setPositionX(CCDirector::sharedDirector()->getWinSize().width);
+        //add and setup
         addChild(SearchLayer, 20, 3206);
-        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.3f, CCPoint(SearchLayer->getPositionX(), 120.f))));
+        SearchLayer->runAction(CCEaseExponentialOut::create(CCMoveTo::create(0.5f, CCPoint(SearchLayer->getPositionX(), 115.000f))));
+        //menu
         CCMenu* SearchLayer_Menu = CCMenu::create();
-        SearchLayer_Menu->setPositionY(CCDirector::sharedDirector()->getScreenTop()-52);
+        SearchLayer_Menu->setPositionY(CCDirector::sharedDirector()->getScreenTop()-51);
         SearchLayer->addChild(SearchLayer_Menu);
         //SquareShadowCorner
         CCSprite* SearchLayerShadowCorner = ModUtils::createSprite("groundSquareShadow_001.png");
@@ -315,9 +398,7 @@ bool RyzenLayer::init() {
         CCScale9Sprite_->setAnchorPoint({ 0.5f, 0.0f });
         SearchLayer_Menu->addChild(CCScale9Sprite_, -5);
         //idInput
-        &ValueSetupPopup::init;
-        idInput = CCTextInputNode::create("", this, "chatFont.fnt", 290.f, 20.f);//"developer.modname"
-        idInput->getTextField()->setHorizontalAlignment(CCTextAlignment::kCCTextAlignmentLeft);
+        idInput = CCTextInputNode::create("", SearchLayer, "chatFont.fnt", 290.f, 20.f);//"developer.modname"
         idInput->setAllowedChars(" !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~");
         idInput->setPosition({ -40.000f, 30.000f });
         SearchLayer_Menu->addChild(idInput);
@@ -328,12 +409,12 @@ bool RyzenLayer::init() {
         idInputBG->setOpacity(60);
         idInputBG->setPosition(idInput->getPosition());
         SearchLayer_Menu->addChild(idInputBG, -1);
-        auto btn1Sprite = ButtonSprite::create("Reload", 0, false, "goldFont.fnt", "GJ_button_05.png", 0, 0.6);
-        auto btn1 = CCMenuItemSpriteExtra::create(btn1Sprite, this, menu_selector(RyzenLayer::getMods));
-        btn1->setPositionY(30.000f);
-        btn1->setPositionX(158.000f);
-        btn1->CCMenuItemSprite::setScale(0.900f);
-        SearchLayer_Menu->addChild(btn1);
+        auto SearchLayerbtn1Sprite = ButtonSprite::create("Reload", 0, false, "goldFont.fnt", "GJ_button_05.png", 0, 0.6);
+        auto SearchLayerbtn1 = CCMenuItemSpriteExtra::create(SearchLayerbtn1Sprite, this, menu_selector(RyzenLayer::getMods));
+        SearchLayerbtn1->setPositionY(30.000f);
+        SearchLayerbtn1->setPositionX(158.000f);
+        SearchLayerbtn1->CCMenuItemSpriteExtra::setScale(0.900f);
+        SearchLayer_Menu->addChild(SearchLayerbtn1);
     }
     //play music
     GameManager::sharedState()->fadeInMusic("Graham Kartna - Browser History.mp3");
@@ -393,10 +474,11 @@ bool RyzenLayer::init() {
     addChild(menuBack);
     //Page
     Page = Page < 1 ? 1 : Page;//if Page<1 Page=1
-    PageLbl = CCLabelTTF::create((to_string(Page) + "th page").c_str(), "Arial", 10.f);
+    PageLbl = CCMenuItemLabel::create(CCLabelTTF::create((to_string(Page) + "th page").c_str(), "Arial", 10.f), this, menu_selector(RyzenLayer::OpenUpPageSetup));
     PageLbl->setAnchorPoint({ 0.5f, -0.15f });
-    PageLbl->setPosition({ CCDirector::sharedDirector()->getWinSize().width/2, 0.f });
-    addChild(PageLbl);//add lbl to layer
+    PageLbl->setPositionY(CCDirector::sharedDirector()->getWinSize().height / -2);
+    PageLbl->setOpacity(90);
+    CCMenu_->addChild(PageLbl);//add lbl to layer
     //mods menu
     CCMenu_mods = CCMenu::create();
     addChild(CCMenu_mods);
