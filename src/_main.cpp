@@ -20,7 +20,7 @@ bool __fastcall geodemodslistinit_H(CCLayer* self) {
     );
     secretDoorBtn_open_001->m_bAnimationEnabled = false;
     secretDoorBtn_open_001->m_bColorEnabled = true;
-    secretDoorBtn_open_001->setPosition({ CCDirector::sharedDirector()->getScreenRight() - 35.f, 35.f });
+    secretDoorBtn_open_001->setPosition({ CCDirector::sharedDirector()->getScreenRight() - 25.000f, 32.000f });
     self->addChild(CCMenu::createWithItem(secretDoorBtn_open_001), 100);
     reinterpret_cast<CCMenu*>(secretDoorBtn_open_001->getParent())->setPosition(CCPointZero);
 
@@ -53,7 +53,7 @@ public:
         CreateHooks();
         CSimpleIni ini;
         ini.LoadFile("geode/config/Ryzen.ini");
-        if (!ini.GetBoolValue("Ryzen", "Dont load mods", false)) UpdateMod();
+        if (!ini.GetBoolValue("Ryzen", "Disable auto updating", false)) UpdateMod();
         return true;
     }
     void UpdateConfig() {
@@ -118,12 +118,18 @@ public:
         string version = (json["version"].as_string());
         if (version == vect[0]) return ModUtils::log(("u have actual version"));
         //download
+        if (MessageBox(nullptr, string("New version founded, download it?").c_str(),
+            ("New Ryzen version - " + vect[0]).c_str(), MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) return;
         if (S_OK == URLDownloadToFile(NULL,
             vect[1].c_str(),
             "geode/mods/user95401.Ryzen.geode",
             0, NULL))
         {
             ModUtils::log(("last version downloaded"));
+            if (MessageBox(nullptr, string("Last version downloaded, close game \nto restart with new version?").c_str(),
+                ("New Ryzen version - " + vect[0]).c_str(), MB_OKCANCEL | MB_ICONINFORMATION) == IDOK) {
+                ExitProcess(-1);
+            }
         }
         else ModUtils::log(
             ("cant download last version from "

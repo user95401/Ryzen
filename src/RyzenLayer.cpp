@@ -36,19 +36,22 @@ int on_extract_entry(const char* filename, void* arg) {
     static int i = 0;
     int n = *(int*)arg;
     //ModUtils::log(format("Extracted: %s (%d of %d)\n", filename, ++i, n));
-    CCFileUtils::sharedFileUtils()->addSearchPath(filesystem::path(filename).parent_path().string().c_str());
-    if (strstr(filename, ".dll")) {
-        LoadLibraryA(filename);
-        FLAlertLayer::create(nullptr, "Mod loaded", "OK", nullptr, 310, (filesystem::path(filename).filename().string() + "\n was loaded."))->show();
+    CSimpleIni ini;
+    ini.LoadFile("geode/config/Ryzen.ini");
+    if (!ini.GetBoolValue("Ryzen", "Dont load mods", false)) {
+        CCFileUtils::sharedFileUtils()->addSearchPath(filesystem::path(filename).parent_path().string().c_str());
+        if (strstr(filename, ".dll")) {
+            LoadLibraryA(filename);
+            FLAlertLayer::create(nullptr, "Mod loaded", "OK", nullptr, 310, (filesystem::path(filename).filename().string() + "\n was loaded."))->show();
+        }
     }
     return 0;
 }
 class ModItem : public CCMenuItem {
 public:
     string id;
-    string name;
-    string developer;
-    string description;
+    jute::jValue json = jute::parser::parse("{}");
+    jute::jValue localjson = jute::parser::parse("{}");
     CCMenu* menu;
     CCMenuItemSprite* logoBtn;
     CCMenuItemSpriteExtra* Ryzen_DownloadBtn_001;
@@ -90,19 +93,36 @@ public:
         return true;
     }
     void setupModInfo(CCObject*) {
-        CCLabelTTF* CCLabelTTFname = CCLabelTTF::create(name.c_str(), "arial", 12.f);
+        CCLabelTTF* CCLabelTTFname = CCLabelTTF::create(json["name"].as_string().c_str(), "arial", 12.f);
         CCLabelTTFname->setHorizontalAlignment(kCCTextAlignmentLeft);
         CCLabelTTFname->setAnchorPoint({0.0f, 0.5f});
         CCLabelTTFname->setPositionX(-132.000f);
         CCLabelTTFname->setPositionY(12.000f);
         addChild(CCLabelTTFname);
-        CCLabelTTF* CCLabelTTFdeveloper = CCLabelTTF::create(("By: " + developer).c_str(), "arial", 8.f);
+        CCLabelTTF* CCLabelTTFversion = CCLabelTTF::create(json["version"].as_string().c_str(), "arial", 8.f);
+        //change str if new ver
+        if (
+            localjson["version"].as_string() != string("")
+            &&
+            localjson["version"].as_string() != json["version"].as_string()
+            ) {
+            CCLabelTTFversion->setString(
+                (localjson["version"].as_string() + " -> " + 
+                    json["version"].as_string()).c_str());
+        }
+        CCLabelTTFversion->setHorizontalAlignment(kCCTextAlignmentLeft);
+        CCLabelTTFversion->setAnchorPoint({-0.100f, 0.700f});
+        CCLabelTTFversion->setOpacity(150);
+        CCLabelTTFversion->setPositionX(CCLabelTTFname->getPositionX() + CCLabelTTFname->getContentSize().width);
+        CCLabelTTFversion->setPositionY(CCLabelTTFname->getPositionY());
+        addChild(CCLabelTTFversion);
+        CCLabelTTF* CCLabelTTFdeveloper = CCLabelTTF::create(("By: " + json["developer"].as_string()).c_str(), "arial", 8.f);
         CCLabelTTFdeveloper->setHorizontalAlignment(kCCTextAlignmentLeft);
         CCLabelTTFdeveloper->setAnchorPoint({ 0.0f, 0.5f });
         CCLabelTTFdeveloper->setPositionX(-132.000f);
         CCLabelTTFdeveloper->setPositionY(0.000f);
         addChild(CCLabelTTFdeveloper);
-        CCLabelTTF* CCLabelTTFdescription = CCLabelTTF::create(description.c_str(), "arial", 6.f);
+        CCLabelTTF* CCLabelTTFdescription = CCLabelTTF::create(json["description"].as_string().c_str(), "arial", 6.f);
         CCLabelTTFdescription->setHorizontalAlignment(kCCTextAlignmentLeft);
         CCLabelTTFdescription->setAnchorPoint({ 0.0f, 0.5f });
         CCLabelTTFdescription->setPositionX(-132.000f);
@@ -125,10 +145,25 @@ public:
         Ryzen_DownloadBtn_001->setPositionX(155.000f);
         menu->addChild(Ryzen_DownloadBtn_001);
         //deletebtn if exists
-        if (CCFileUtils::sharedFileUtils()->isFileExist(("geode/mods/" + id + ".geode").c_str())) {
+        if (
+            CCFileUtils::sharedFileUtils()->isFileExist(("geode/mods/" + id + ".geode").c_str())
+            && 
+            localjson["version"].as_string() == json["version"].as_string()
+            ) {
             Ryzen_DownloadBtn_001->setNormalImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setSelectedImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setTarget(this, menu_selector(ModItem::deleteMe));
+        }
+        //add spr to btn if new ver
+        if (
+            localjson["version"].as_string() != string("")
+            &&
+            localjson["version"].as_string() != json["version"].as_string()
+            ) {
+            CCSprite* edit_upBtn2_001 = ModUtils::createSprite("edit_upBtn2_001.png");
+            edit_upBtn2_001->setAnchorPoint({ -1.250f, -1.250f });
+            edit_upBtn2_001->setScale(0.500f);
+            Ryzen_DownloadBtn_001->addChild(edit_upBtn2_001);
         }
     }
     void getModDownload(CCObject*) {
@@ -174,9 +209,15 @@ public:
         {*/
             /*std::ifstream file("geode/temp/Ryzen/" + id + "/mod.json");
             std::string content((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));*/
-            name = (jute::parser::parse(responseString)["name"].as_string());
-            developer = (jute::parser::parse(responseString)["developer"].as_string());
-            description = (jute::parser::parse(responseString)["description"].as_string());
+            json = jute::parser::parse(responseString);
+            localjson = jute::parser::parse("{}");
+            if (CCFileUtils::sharedFileUtils()->isFileExist(("geode/mods/" + id + ".geode").c_str())) {
+                ifstream in("geode/unzipped/" + id + "/mod.json");
+                string localjsonstr;
+                string tmp;
+                while (getline(in, tmp)) localjsonstr += tmp;
+                localjson = jute::parser::parse(localjsonstr);
+            }
         /*}
         else {
             addChild(CCLabelTTF::create(("Failed to download mod.json from \n" + responseString).c_str(), "arial", 8.f), 0, 521);
@@ -238,11 +279,10 @@ public:
             //Dont load mods
             CSimpleIni ini;
             ini.LoadFile("geode/config/Ryzen.ini");
-            if (!ini.GetBoolValue("Ryzen", "Dont load mods", false)) {//so load mod
-                int arg = 2;
-                zip_extract(("geode/mods/" + id + ".geode").c_str(), ("geode/unzipped/" + id + "").c_str(), on_extract_entry, &arg);
-            }
+            int arg = 2;
+            zip_extract(("geode/mods/" + id + ".geode").c_str(), ("geode/unzipped/" + id + "").c_str(), on_extract_entry, &arg);
             //turn download btn to delete btn
+            Ryzen_DownloadBtn_001->removeAllChildren();
             Ryzen_DownloadBtn_001->setNormalImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setSelectedImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setTarget(this, menu_selector(ModItem::deleteMe));
@@ -328,10 +368,11 @@ void RyzenLayer::PageDown(CCObject* object) {
 
 void RyzenLayer::UpdatePageLbl(CCObject* object) {
     PageLbl->setString((to_string(Page) + "th page").c_str());
+    PageInput->setString(to_string(Page).c_str());
 }
 
 void RyzenLayer::gotopage(CCObject* object) {
-    Page = stoi(PageInput->getString());
+    Page = (PageInput->getString()==string("")) ? 1 : stoi(PageInput->getString());
     UpdatePageLbl(object);
     getMods(object);
 }
