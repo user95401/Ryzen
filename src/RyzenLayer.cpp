@@ -96,13 +96,13 @@ public:
             localjson["version"].as_string() != json["version"].as_string()
             ) {
             CCLabelTTFversion->setString(
-                (localjson["version"].as_string() + " -> " + 
+                (localjson["version"].as_string() + " >> " + 
                     json["version"].as_string()).c_str());
         }
         CCLabelTTFversion->setHorizontalAlignment(kCCTextAlignmentLeft);
-        CCLabelTTFversion->setAnchorPoint({-0.100f, 0.700f});
+        CCLabelTTFversion->setAnchorPoint({-0.000f, 0.700f});
         CCLabelTTFversion->setOpacity(150);
-        CCLabelTTFversion->setPositionX(CCLabelTTFname->getPositionX() + CCLabelTTFname->getContentSize().width);
+        CCLabelTTFversion->setPositionX(CCLabelTTFname->getPositionX() + CCLabelTTFname->getContentSize().width + 3.f);
         CCLabelTTFversion->setPositionY(CCLabelTTFname->getPositionY());
         addChild(CCLabelTTFversion);
         CCLabelTTF* CCLabelTTFdeveloper = CCLabelTTF::create(("By: " + json["developer"].as_string()).c_str(), "arial", 8.f);
@@ -472,8 +472,6 @@ bool RyzenLayer::init() {
         SearchLayerbtn1->CCMenuItemSpriteExtra::setScale(0.900f);
         SearchLayer_Menu->addChild(SearchLayerbtn1);
     }
-    //play music
-    GameManager::sharedState()->fadeInMusic("Graham Kartna - Browser History.mp3");
     //bg
     CCSprite* backgroundSprite = ModUtils::createSprite("GJ_gradientBG.png");
     backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
@@ -572,6 +570,8 @@ RyzenLayer* RyzenLayer::create() {
     ret->oldfomat = CCTexture2D::defaultAlphaPixelFormat();
     ret->goodformatxd = CCTexture2DPixelFormat::kCCTexture2DPixelFormat_RGBA8888;
     CCTexture2D::setDefaultAlphaPixelFormat(ret->goodformatxd);//set goodformatxd
+    //play music
+    GameManager::sharedState()->fadeInMusic("MenuLoop_GrahamKartnaBrowserHistory.mp3");
     if (ret && ret->init()) {
         ret->autorelease();
     } else {
