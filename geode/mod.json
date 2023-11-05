@@ -1,5 +1,5 @@
 {
-	"geode": "1.0.0-beta.16",
+	"geode": "1.3.6",
 	"version": "${version}",
 	"id": "${developer}.${PROJECT_NAME}",
 	"name": "${PROJECT_NAME}",

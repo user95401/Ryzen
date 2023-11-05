@@ -23,7 +23,6 @@ bool __fastcall geodemodslistinit_H(CCLayer* self) {
     secretDoorBtn_open_001->setPosition({ CCDirector::sharedDirector()->getScreenRight() - 25.000f, 32.000f });
     self->addChild(CCMenu::createWithItem(secretDoorBtn_open_001), 100);
     reinterpret_cast<CCMenu*>(secretDoorBtn_open_001->getParent())->setPosition(CCPointZero);
-
     return true;
 }
 

@@ -5,6 +5,9 @@
 class RyzenLayer : public cocos2d::CCLayer {
 protected:
 
+    cocos2d::CCTexture2DPixelFormat oldfomat;
+    cocos2d::CCTexture2DPixelFormat goodformatxd;
+
     cocos2d::CCMenu* CCMenu_;
     cocos2d::CCMenu* CCMenu_mods;
 

@@ -8,29 +8,6 @@ using namespace cocos2d::extension;
 using namespace gd;
 using namespace std;
 
-string url_encode(const string& value) {
-    ostringstream escaped;
-    escaped.fill('0');
-    escaped << hex;
-
-    for (string::const_iterator i = value.begin(), n = value.end(); i != n; ++i) {
-        string::value_type c = (*i);
-
-        // Keep alphanumeric and other accepted characters intact
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-            escaped << c;
-            continue;
-        }
-
-        // Any other characters are percent-encoded
-        escaped << uppercase;
-        escaped << '%' << setw(2) << int((unsigned char)c);
-        escaped << nouppercase;
-    }
-
-    return escaped.str();
-}
-
 //try load mod
 int on_extract_entry(const char* filename, void* arg) {
     static int i = 0;
@@ -81,6 +58,19 @@ public:
         menu->setPosition(CCPointZero);
         menu->setContentSize(getContentSize());
         addChild(menu, 10);
+        //Ryzen_InfoBtn_001
+        CCMenuItemSpriteExtra* Ryzen_InfoBtn_001 = CCMenuItemSpriteExtra::create(ModUtils::createSprite("Ryzen_InfoBtn_001.png", 4.0f), this, menu_selector(ModItem::openModInfoPage));
+        Ryzen_InfoBtn_001->setPositionX(172.000f);
+        Ryzen_InfoBtn_001->setPositionY(16.000f);
+        menu->addChild(Ryzen_InfoBtn_001);
+        //id
+        CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(id.c_str(), "arial", 6.f);
+        CCLabelTTFid->setOpacity(60);
+        CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
+        CCLabelTTFid->setAnchorPoint({ 1.0f, 1.0f });
+        CCLabelTTFid->setPositionX(177.000f);
+        CCLabelTTFid->setPositionY(-16.000f);
+        menu->addChild(CCLabelTTFid);
         //getModJson
         addChild(CCLabelTTF::create("Downloading mod.json ...", "arial", 8.f), 0, 8642);
         CCHttpRequest* CCHttpRequest_ = new CCHttpRequest;
@@ -89,7 +79,6 @@ public:
         CCHttpRequest_->setResponseCallback(this, httpresponse_selector(ModItem::getModJson));
         CCHttpClient::getInstance()->send(CCHttpRequest_);
         CCHttpRequest_->release();
-        menu->setTouchEnabled(0);
         return true;
     }
     void setupModInfo(CCObject*) {
@@ -165,6 +154,9 @@ public:
             edit_upBtn2_001->setScale(0.500f);
             Ryzen_DownloadBtn_001->addChild(edit_upBtn2_001);
         }
+    }
+    void openModInfoPage(CCObject*) {
+        CCApplication::sharedApplication()->openURL(("https://user95401.undo.it/Ryzen/mod.php?id=" + id).c_str());
     }
     void getModDownload(CCObject*) {
         Ryzen_DownloadBtn_001->runAction(CCRepeatForever::create(CCSequence::create(CCFadeTo::create(0.3, 90), CCFadeTo::create(0.3, 160), nullptr)));
@@ -244,13 +236,9 @@ public:
         outfile << responseString;
         outfile.close();
         //reloadimg
-        CCTexture2DPixelFormat oldfomat = CCTexture2D::defaultAlphaPixelFormat();
-        CCTexture2DPixelFormat goodformatxd = CCTexture2DPixelFormat::kCCTexture2DPixelFormat_RGBA8888;
-        CCTexture2D::setDefaultAlphaPixelFormat(goodformatxd);//set goodformatxd
         CCTextureCache::sharedTextureCache()->reloadTexture((id + ".png").c_str());//reload texture
         //create spr and append to btn
         CCSprite* logo = ModUtils::createSprite((id + ".png").c_str());//sprite
-        CCTexture2D::setDefaultAlphaPixelFormat(oldfomat); // setoldformat
         if (logo->getContentSize().width > logo->getContentSize().height)
             logo->setScale(logoBtn->getContentSize().width / logo->getContentSize().width);
         else
@@ -314,12 +302,12 @@ void RyzenLayer::getModsResponse(CCHttpClient* client, CCHttpResponse* response)
         ErrorContainer->setPosition(CCMenu::create()->getPosition());
         CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square02_small.png");
         CCScale9Sprite_->setContentSize({ 360.000f, 290.000f });
-        CCScale9Sprite_->setOpacity(100);
+        CCScale9Sprite_->setOpacity(180);
         ErrorContainer->addChild(CCScale9Sprite_);
         auto deleteFilter_none_001 = ModUtils::createSprite("deleteFilter_none_001.png");
         deleteFilter_none_001->setScale(2.0f);
         ErrorContainer->addChild(deleteFilter_none_001);
-        ErrorContainer->addChild(CCLabelTTF::create("\n \n \n \n \n \nCant get any mods", "arial", 12.f));
+        ErrorContainer->addChild(CCLabelTTF::create("\n \n \n \n \n \n \n \n \nCant get any mods", "arial", 12.f));
         addChild(ErrorContainer, 10, 8732);
     }
 }
@@ -329,7 +317,7 @@ void RyzenLayer::getMods(CCObject*) {
     if (getChildByTag(6302)) return;//LoadingContainer
     CCHttpRequest* CCHttpRequest_ = new CCHttpRequest;
     CCHttpRequest_->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
-    CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?list&page=" + to_string(Page) + "&searhquery=" + url_encode(idInput->getString())).c_str());
+    CCHttpRequest_->setUrl(("https://user95401.undo.it/Ryzen/get.php?list&page=" + to_string(Page) + "&searhquery=" + ModUtils::url_encode(idInput->getString())).c_str());
     CCHttpRequest_->setResponseCallback(this, httpresponse_selector(RyzenLayer::getModsResponse));
     CCHttpClient::getInstance()->send(CCHttpRequest_);
     CCHttpRequest_->release();
@@ -342,7 +330,7 @@ void RyzenLayer::getMods(CCObject*) {
         LoadingContainer->setPosition(CCMenu::create()->getPosition());
         CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square02_small.png");
         CCScale9Sprite_->setContentSize({ 360.000f, 290.000f });
-        CCScale9Sprite_->setOpacity(100);
+        CCScale9Sprite_->setOpacity(180);
         LoadingContainer->addChild(CCScale9Sprite_);
         auto loadingCircle = ModUtils::createSprite("loadingCircle-hd.png", 2.8f);
         loadingCircle->setBlendFunc({ GL_ONE, GL_ONE });
@@ -455,7 +443,7 @@ bool RyzenLayer::init() {
         SearchLayer_Menu->setPositionY(CCDirector::sharedDirector()->getScreenTop()-51);
         SearchLayer->addChild(SearchLayer_Menu);
         //SquareShadowCorner
-        CCSprite* SearchLayerShadowCorner = ModUtils::createSprite("groundSquareShadow_001.png");
+        CCSprite* SearchLayerShadowCorner = ModUtils::createSprite("Ryzen_SquareShadow_001.png", 8.f);
         SearchLayerShadowCorner->setScaleX(0.900f);
         SearchLayerShadowCorner->setScaleY(5.000f);
         SearchLayerShadowCorner->setRotation(90.000f);
@@ -495,14 +483,14 @@ bool RyzenLayer::init() {
     backgroundSprite->runAction(CCRepeatForever::create(CCSequence::create(CCTintTo::create(5.0, 70, 80, 90), CCTintTo::create(5.0, 60, 70, 80), CCTintTo::create(5.0, 70, 80, 80), nullptr)));
     addChild(backgroundSprite, -2);
     //SquareShadowCorner1
-    CCSprite* SquareShadowCorner1 = ModUtils::createSprite("groundSquareShadow_001.png");
-    SquareShadowCorner1->setScaleX(0.10);
+    CCSprite* SquareShadowCorner1 = ModUtils::createSprite("Ryzen_SquareShadow_001.png", 8.f);
+    SquareShadowCorner1->setScaleX(0.050f);
     SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
     SquareShadowCorner1->setAnchorPoint({ 0, 0 });
     addChild(SquareShadowCorner1, 10);
     //SquareShadowCorner2
-    CCSprite* SquareShadowCorner2 = ModUtils::createSprite("groundSquareShadow_001.png");
-    SquareShadowCorner2->setScaleX(-0.10);
+    CCSprite* SquareShadowCorner2 = ModUtils::createSprite("Ryzen_SquareShadow_001.png", 8.f);
+    SquareShadowCorner2->setScaleX(-0.050f);
     SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
     SquareShadowCorner2->setAnchorPoint({ 0, 0 });
     SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
@@ -581,6 +569,9 @@ bool RyzenLayer::init() {
 
 RyzenLayer* RyzenLayer::create() {
     auto ret = new RyzenLayer();
+    ret->oldfomat = CCTexture2D::defaultAlphaPixelFormat();
+    ret->goodformatxd = CCTexture2DPixelFormat::kCCTexture2DPixelFormat_RGBA8888;
+    CCTexture2D::setDefaultAlphaPixelFormat(ret->goodformatxd);//set goodformatxd
     if (ret && ret->init()) {
         ret->autorelease();
     } else {
@@ -591,8 +582,9 @@ RyzenLayer* RyzenLayer::create() {
 }
 
 void RyzenLayer::keyBackClicked() {
-    CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
     GameManager::sharedState()->fadeInMusic("menuLoop.mp3");
+    CCTexture2D::setDefaultAlphaPixelFormat(oldfomat); // setoldformat
+    CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
 }
 
 void RyzenLayer::onBack(CCObject* object) {
