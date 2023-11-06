@@ -1,3 +1,8 @@
+# v1.0.1
+
+ * fix "selected" sprite bug for delete button
+ * support info added
+
 # v1.0.0
 
  * distribute state

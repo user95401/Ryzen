@@ -152,7 +152,7 @@ public:
             CCSprite* edit_upBtn2_001 = ModUtils::createSprite("edit_upBtn2_001.png");
             edit_upBtn2_001->setAnchorPoint({ -1.250f, -1.250f });
             edit_upBtn2_001->setScale(0.500f);
-            Ryzen_DownloadBtn_001->addChild(edit_upBtn2_001);
+            Ryzen_DownloadBtn_001->addChild(edit_upBtn2_001, 5, 857);
         }
     }
     void openModInfoPage(CCObject*) {
@@ -270,7 +270,7 @@ public:
             int arg = 2;
             zip_extract(("geode/mods/" + id + ".geode").c_str(), ("geode/unzipped/" + id + "").c_str(), on_extract_entry, &arg);
             //turn download btn to delete btn
-            Ryzen_DownloadBtn_001->removeAllChildren();
+            Ryzen_DownloadBtn_001->removeChildByTag(857);//update mark
             Ryzen_DownloadBtn_001->setNormalImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setSelectedImage(ModUtils::createSprite("edit_delBtnSmall_001.png"));
             Ryzen_DownloadBtn_001->setTarget(this, menu_selector(ModItem::deleteMe));

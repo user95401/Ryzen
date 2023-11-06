@@ -1,0 +1,5 @@
+- distribute mod
+- [add mods](https://user95401.undo.it/Ryzen)
+- report bugs
+- suggest ideas
+- contribute to [source code](https://github.com/user95401/Ryzen)
