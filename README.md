@@ -1,5 +1,5 @@
 # Ryzen
-Ryzen its Geode modification (fuck u dumbass that mean modding geode loaer it self 😘) that brings a standalone catalog for any mods
+Ryzen its Geode modification (fuck u dumbass that mean modding geode loader it self 😘) that brings a standalone catalog for any mods
 
 Made with curly-eureka, only for Windows.
 
