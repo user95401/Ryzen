@@ -10,6 +10,9 @@
 	"resources": {
 		"files": [
 			"resources/*"
-		]
+		], 
+		"sprites": [
+			"resources/*.png"
+		] 
 	}
 }
