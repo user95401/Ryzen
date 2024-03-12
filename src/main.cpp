@@ -79,21 +79,21 @@ public:
             p = (PageInput->getString().c_str() == "") ? 1 : atoi(PageInput->getString().data());
             p = p > 0 ? p : 0;
             auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
-            if (PageLbl) PageLbl->setString(std::format("{}th page", p).c_str());
+            if (PageLbl) PageLbl->setString(fmt::format("{}th page", p).c_str());
             loadMods(0.f);
         };
         if (what->getID() == "PageDown") {
             --p;
             p = p > 0 ? p : 0;
             auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
-            if (PageLbl) PageLbl->setString(std::format("{}th page", p).c_str());
+            if (PageLbl) PageLbl->setString(fmt::format("{}th page", p).c_str());
             loadMods(0.f);
         }
         if (what->getID() == "PageUp") {
             ++p;
             p = p > 0 ? p : 0;
             auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
-            if (PageLbl) PageLbl->setString(std::format("{}th page", p).c_str());
+            if (PageLbl) PageLbl->setString(fmt::format("{}th page", p).c_str());
             loadMods(0.f);
         }
         //CC_SAFE_RELEASE(pCCObject);
@@ -104,7 +104,7 @@ public:
             Notification::create("Loading...", NotificationIcon::Loading), 1, 580
         );
         web::AsyncWebRequest()
-            .fetch(std::format("http://ryzen.user95401.undo.it/api/mods-list.php?p={}&q={}", p, q))
+            .fetch(fmt::format("http://ryzen.user95401.undo.it/api/mods-list.php?p={}&q={}", p, q))
             .text()
             .then([this, modsMenu](std::string const& data)
                 {
@@ -275,7 +275,7 @@ public:
                     CCMenuPage->alignItemsHorizontallyWithPadding(360.f + 20);
                     //PageLbl
                     auto PageLbl = CCMenuItemLabel::create(
-                        CCLabelTTF::create(std::format("{}th page", ret->p).c_str(), "Arial", 10.f),
+                        CCLabelTTF::create(fmt::format("{}th page", ret->p).c_str(), "Arial", 10.f),
                         ret, menu_selector(RyzenLayer::onBtn)
                     );
                     PageLbl->setID("OpenUpPageSetup");
