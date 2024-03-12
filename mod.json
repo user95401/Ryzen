@@ -1,19 +1,14 @@
 {
 	"geode": "2.0.0-beta.20",
 	"gd": "*",
-	"version": "v1.0.0-beta",
+	"version": "v0.0.0",
 	"id": "user95401.ryzen",
 	"name": "Ryzen",
 	"developer": "user95401",
 	"description": "Brings a standalone catalog for any mods and resource packs.",
 	"repository": "https://github.com/user95401/Ryzen",
 	"resources": {
-		"files": [
-			"resources/*"
-		], 
-		"sprites": [
-			"resources/*.png", 
-			"*.png"
-		] 
+		"files": [ "files/*" ],
+		"sprites": [ "sprites/*.png", "*.png" ] 
 	}
 }

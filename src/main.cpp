@@ -139,6 +139,11 @@ public:
         scene->addChild(create());
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
+    void openMeForPacks(cocos2d::CCObject* object) {
+        auto scene = CCScene::create();
+        scene->addChild(create());
+        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
+    };
     void onBack(CCObject* object) {
         keyBackClicked();
     }
@@ -156,50 +161,73 @@ class $modify(MenuLayerExt, MenuLayer) {
 	}
 };
 
-class ModListLayer : public CCLayer, public TextInputDelegate {};
-class PackSelectLayer : public CCLayer {};
+class ModListLayer : public CCLayer, public TextInputDelegate {
+public:
+    GJListLayer* m_list = nullptr;
+    CCClippingNode* m_tabsGradientNode = nullptr;
+    CCSprite* m_tabsGradientSprite = nullptr;
+    CCSprite* m_tabsGradientStencil = nullptr;
+    CCLabelBMFont* m_listLabel;
+    CCLabelBMFont* m_indexUpdateLabel;
+    CCMenu* m_menu;
+    CCMenu* m_topMenu;
+    CCMenuItemToggler* m_installedTabBtn;
+    CCMenuItemToggler* m_downloadTabBtn;
+    CCMenuItemToggler* m_featuredTabBtn;
+    CCMenuItemSpriteExtra* m_searchBtn;
+    CCMenuItemSpriteExtra* m_searchClearBtn;
+    CCMenuItemSpriteExtra* m_checkForUpdatesBtn = nullptr;
+    CCNode* m_searchBG = nullptr;
+    CCTextInputNode* m_searchInput = nullptr;
+    LoadingCircle* m_loadingCircle = nullptr;
+    CCMenuItemSpriteExtra* m_filterBtn;
+    //ModListQuery m_query;
+    //ModListDisplay m_display = ModListDisplay::Concise;
+    //EventListener<IndexUpdateFilter> m_indexListener;
+    void tryCustomSetup(float) {
+        if (!this) return;
+        //if (this->m_menu) this->m_menu->setRotation(12.f);
+        //RyzenLayerBtn
+        auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
+            CCSprite::create("Ryzen_LogoBtn_001.png"_spr),
+            this, menu_selector(RyzenLayer::openMe)
+        );
+        RyzenLayerBtn->getNormalImage()->setScale(0.6f);
+        RyzenLayerBtn->setPosition(-210.f, -33.f);
+        this->m_topMenu->addChild(RyzenLayerBtn, 999, 5819);
+    }
+};
+class PackSelectLayer : public CCLayer {
+public:
+    ScrollLayer* m_availableList = nullptr;
+    ScrollLayer* m_appliedList = nullptr;
+    void tryCustomSetup(float) {
+        if (!this) return;
+        //RyzenLayerBtn
+        auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
+            CCSprite::create("Ryzen_LogoBtn_001.png"_spr),
+            this,
+            menu_selector(RyzenLayer::openMeForPacks)
+        );
+        RyzenLayerBtn->m_animationEnabled = 0;
+        RyzenLayerBtn->m_colorEnabled = 1;
+        this->addChild(CCMenu::createWithItem(RyzenLayerBtn));
+        RyzenLayerBtn->getParent()->setAnchorPoint(CCPointZero);
+        RyzenLayerBtn->getParent()->setPosition(CCDirector::get()->getScreenRight(), 0.f);
+        RyzenLayerBtn->getParent()->setScale(0.6f);
+        RyzenLayerBtn->setPosition(-35.0f, 100.f);
+    }
+};
 #include <Geode/modify/CCLayer.hpp>
 class $modify(CCLayerExt, CCLayer) {
     bool init() {
         auto rtn = CCLayer::init();
         //ModListLayer
         ModListLayer* pModListLayer = typeinfo_cast<ModListLayer*>(this);
-        if (pModListLayer) {
-            //RyzenLayerBtn
-            auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
-                CCSprite::create("logo.png"_spr),
-                this,
-                menu_selector(RyzenLayer::openMe)
-            );
-            RyzenLayerBtn->m_animationEnabled = 0;
-            RyzenLayerBtn->m_colorEnabled = 1;
-            pModListLayer->addChild(CCMenu::create(), 999, 5819);
-            pModListLayer->getChildByTag(5819)->setAnchorPoint(CCPointZero);
-            pModListLayer->getChildByTag(5819)->addChild(CCMenu::createWithItem(RyzenLayerBtn));
-            RyzenLayerBtn->getParent()->setAnchorPoint(CCPointZero);
-            RyzenLayerBtn->getParent()->setPosition(-210.f, -33.f);
-            RyzenLayerBtn->getParent()->setScale(0.625f);
-            RyzenLayerBtn->getParent()->setZOrder(10);
-        }
+        if (pModListLayer) pModListLayer->scheduleOnce(schedule_selector(ModListLayer::tryCustomSetup), 0.001f);
         //PackSelectLayer
         PackSelectLayer* pPackSelectLayer = typeinfo_cast<PackSelectLayer*>(this);
-        if (pPackSelectLayer) {
-            //RyzenLayerBtn
-            auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
-                CCSprite::create("logo.png"_spr),
-                this,
-                menu_selector(RyzenLayer::openMe)
-            );
-            RyzenLayerBtn->m_animationEnabled = 0;
-            RyzenLayerBtn->m_colorEnabled = 1;
-            pPackSelectLayer->addChild(CCMenu::create(), 999, 5819);
-            pPackSelectLayer->getChildByTag(5819)->setAnchorPoint(CCPointZero);
-            pPackSelectLayer->getChildByTag(5819)->addChild(CCMenu::createWithItem(RyzenLayerBtn));
-            RyzenLayerBtn->getParent()->setAnchorPoint(CCPointZero);
-            RyzenLayerBtn->getParent()->setPosition(-18.f, 110.f);
-            RyzenLayerBtn->getParent()->setScale(0.35f);
-            RyzenLayerBtn->getParent()->setZOrder(10);
-        }
+        if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
         return rtn;
     };
 };
