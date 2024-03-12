@@ -1,8 +1,11 @@
 #include <Geode/Geode.hpp>
+#include <Geode/utils/web.hpp>
 using namespace geode::prelude;
 
 class RyzenLayer : public CCLayer {
 public:
+    int p = 0;
+    std::string q;
     class ModItem : public CCMenuItem {
     public:
         matjson::Value json;
@@ -12,6 +15,7 @@ public:
             if (pRet) {
                 pRet->id = sId;
                 pRet->autorelease();
+                pRet->init();
                 {
                     //square bg
                     CCScale9Sprite* CCScale9Sprite_ = CCScale9Sprite::create("square02_small.png");
@@ -26,7 +30,7 @@ public:
                     menu->setContentSize(pRet->getContentSize());
                     pRet->addChild(menu, 10);
                     //Ryzen_InfoBtn_001
-                    CCMenuItemSpriteExtra* Ryzen_InfoBtn_001 = CCMenuItemSpriteExtra::create(CCSprite::create("Ryzen_InfoBtn_001.png"_spr), pRet, /*menu_selector(ModItem::openModInfoPage)*/nullptr);
+                    CCMenuItemSpriteExtra* Ryzen_InfoBtn_001 = CCMenuItemSpriteExtra::create(CCSprite::create("Ryzen_InfoBtn_001.png"_spr), pRet, nullptr);
                     Ryzen_InfoBtn_001->setPositionX(172.000f);
                     Ryzen_InfoBtn_001->setPositionY(16.000f);
                     menu->addChild(Ryzen_InfoBtn_001);
@@ -48,19 +52,109 @@ public:
             }
         }
     };
-    void loadMods() {
+    void onBtn(CCObject* pCCObject) {
+        auto what = dynamic_cast<CCNode*>(pCCObject);
+        if (not what) return;
+        if (what->getID() == "reload") loadMods(0.f);
+        if (what->getID() == "OpenUpPageSetup") {
+            auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
+            auto PageSetupLayer = typeinfo_cast<CCLayer*>(this->getChildByIDRecursive("PageSetupLayer"));
+            if (not PageLbl) return;
+            if (not PageSetupLayer) return;
+            if (PageSetupLayer->numberOfRunningActions() > 0) return;
+            if (PageSetupLayer->getChildByTag(138)) {
+                PageSetupLayer->removeChildByTag(138);
+                PageSetupLayer->runAction(CCEaseBackIn::create(CCMoveTo::create(0.3f, CCPoint(PageSetupLayer->getPositionX(), -120.f))));
+                PageLbl->setOpacity(90);
+            }
+            else {
+                PageSetupLayer->addChild(CCNode::create(), 1, 138);
+                PageSetupLayer->runAction(CCEaseBackOut::create(CCMoveTo::create(0.3f, CCPoint(PageSetupLayer->getPositionX(), 0.f))));
+                PageLbl->setOpacity(180);
+            }
+        }
+        if (what->getID() == "gotopage") {
+            auto PageInput = typeinfo_cast<CCTextInputNode*>(this->getChildByIDRecursive("PageInput"));
+            if (not PageInput) return;
+            p = (PageInput->getString().c_str() == "") ? 1 : atoi(PageInput->getString().data());
+            p = p > 0 ? p : 0;
+            auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
+            if (PageLbl) PageLbl->setString(std::format("{}th page", p).c_str());
+            loadMods(0.f);
+        };
+        if (what->getID() == "PageDown") {
+            --p;
+            p = p > 0 ? p : 0;
+            auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
+            if (PageLbl) PageLbl->setString(std::format("{}th page", p).c_str());
+            loadMods(0.f);
+        }
+        if (what->getID() == "PageUp") {
+            ++p;
+            p = p > 0 ? p : 0;
+            auto PageLbl = typeinfo_cast<CCLabelTTF*>(this->getChildByIDRecursive("PageLbl"));
+            if (PageLbl) PageLbl->setString(std::format("{}th page", p).c_str());
+            loadMods(0.f);
+        }
+        //CC_SAFE_RELEASE(pCCObject);
+    }
+    void loadMods(float) {
         auto modsMenu = typeinfo_cast<CCMenu*>(this->getChildByID("modsMenu"));
-        modsMenu->addChild(ModItem::create("mod1.asd"));
-        modsMenu->addChild(ModItem::create("mod2.asd"));
-        modsMenu->addChild(ModItem::create("mod3.asd"));
-        modsMenu->addChild(ModItem::create("mod4.asd"));
-        modsMenu->addChild(ModItem::create("mod5.asd"));
-        modsMenu->alignItemsVerticallyWithPadding(10.0f);
+        if (!modsMenu->getChildByTag(580)) modsMenu->addChild(
+            Notification::create("Loading...", NotificationIcon::Loading), 1, 580
+        );
+        web::AsyncWebRequest()
+            .fetch(std::format("http://ryzen.user95401.undo.it/api/mods-list.php?p={}&q={}", p, q))
+            .text()
+            .then([this, modsMenu](std::string const& data)
+                {
+                    auto BtnCmd = CCNode::create();
+                    BtnCmd->setID("PageDown");
+                    if (data.empty()) {
+                        if (p > 0) 
+                            this->onBtn(BtnCmd);
+                        if (!modsMenu->getChildByTag(521)) modsMenu->addChild(
+                            Notification::create("Mods wasnt founded...", NotificationIcon::Error), 1, 521
+                        );
+                    }
+                    else {
+                        // parse resulting data :3
+                        std::string tmp;
+                        std::stringstream ss(data);
+                        std::vector<std::string> mods;
+                        while (std::getline(ss, tmp, ',')) {
+                            mods.push_back(tmp);
+                        }
+                        modsMenu->removeAllChildren();
+                        for (auto mod : mods) {
+                            auto entry = ModItem::create(mod);
+                            if (rand() % 2 == 0)
+                                entry->runAction(CCSequence::create(
+                                    CCMoveBy::create(0.0f, CCPoint(500, 0)),
+                                    CCEaseExponentialOut::create(CCMoveBy::create(0.5f, CCPoint(-500, 0))),
+                                    nullptr
+                                ));
+                            else
+                                entry->runAction(CCSequence::create(
+                                    CCMoveBy::create(0.0f, CCPoint(-500, 0)),
+                                    CCEaseExponentialOut::create(CCMoveBy::create(0.5f, CCPoint(500, 0))),
+                                    nullptr
+                                ));
+                            modsMenu->addChild(entry);
+                        }
+                        modsMenu->alignItemsVerticallyWithPadding(10.0f);
+                    };
+                }
+            )
+            .expect([](std::string const& error) {
+                    // something went wrong with our web request Q~Q
+                });
     };
     static RyzenLayer* create() {
         auto ret = new RyzenLayer();
         if (ret) {
             ret->autorelease();
+            ret->init();
             {
                 {
                     //play music
@@ -113,7 +207,6 @@ public:
                     gauntletCorner_003->setRotation(180.f);
                     gauntletCorner_003->setAnchorPoint({ 0.f,0.f });
                     ret->addChild(gauntletCorner_003);//add gauntletCorner_003
-                    /**/
                     //backBtn
                     auto menuBack = CCMenu::createWithItem(
                         CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png"), ret, menu_selector(RyzenLayer::onBack))
@@ -125,7 +218,111 @@ public:
                 auto modsMenu = CCMenu::create();
                 modsMenu->setID("modsMenu");
                 ret->addChild(modsMenu);
-                ret->loadMods();
+                ret->loadMods(0.f);
+                //menu
+                auto menu = CCMenu::create();
+                ret->addChild(menu);
+                //toprightbar
+                {
+                    //reloadmodsbtn
+                    CCMenuItemSpriteExtra* Ryzen_ReloadBtn_001 = CCMenuItemSpriteExtra::create(
+                        CCSprite::create("Ryzen_ReloadBtn_001.png"_spr),
+                        ret, menu_selector(RyzenLayer::onBtn)
+                    );
+                    Ryzen_ReloadBtn_001->setID("reload");
+                    Ryzen_ReloadBtn_001->setPosition({
+                        (CCDirector::sharedDirector()->getWinSize().width / 2) - 35,
+                        (CCDirector::sharedDirector()->getWinSize().height / -2) + 35
+                        });
+                    Ryzen_ReloadBtn_001->getNormalImage()->setScale(0.7f);
+                    menu->addChild(Ryzen_ReloadBtn_001);//add GJ_replayBtn_001
+                    //gj_findBtn
+                    auto gj_findBtn = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("gj_findBtn_001.png"),
+                        ret, menu_selector(RyzenLayer::onBtn)
+                    );
+                    gj_findBtn->setID("find");
+                    gj_findBtn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
+                    menu->addChild(gj_findBtn);//add GJ_replayBtn_001
+                    //addmodbtn
+                    CCMenuItemSpriteExtra* GJ_plus3Btn_001 = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("GJ_plus3Btn_001.png"),
+                        ret, menu_selector(RyzenLayer::onBtn)
+                    );
+                    gj_findBtn->setID("add_link");
+                    GJ_plus3Btn_001->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
+                    GJ_plus3Btn_001->getNormalImage()->setScale(1.700f);
+                    menu->addChild(GJ_plus3Btn_001);//add GJ_replayBtn_001
+                };
+                //pagination
+                {
+                    //pagebtns
+                    CCMenu* CCMenuPage = CCMenu::create();
+                    CCMenuPage->setID("CCMenuPage");
+                    ret->addChild(CCMenuPage);//add menu to layer
+                    CCMenuItemSpriteExtra* edit_leftBtn_001 = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("edit_leftBtn_001.png"),
+                        ret, menu_selector(RyzenLayer::onBtn)
+                    );
+                    edit_leftBtn_001->setID("PageDown");
+                    CCMenuPage->addChild(edit_leftBtn_001);//add edit_rightBtn_001
+                    CCMenuItemSpriteExtra* edit_rightBtn_001 = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("edit_rightBtn_001.png"),
+                        ret, menu_selector(RyzenLayer::onBtn)
+                    );
+                    edit_rightBtn_001->setID("PageUp");
+                    CCMenuPage->addChild(edit_rightBtn_001);//add edit_rightBtn_001
+                    CCMenuPage->alignItemsHorizontallyWithPadding(360.f + 20);
+                    //PageLbl
+                    auto PageLbl = CCMenuItemLabel::create(
+                        CCLabelTTF::create(std::format("{}th page", ret->p).c_str(), "Arial", 10.f),
+                        ret, menu_selector(RyzenLayer::onBtn)
+                    );
+                    PageLbl->setID("OpenUpPageSetup");
+                    PageLbl->getLabel()->setID("PageLbl");
+                    PageLbl->setAnchorPoint({ 0.5f, -0.15f });
+                    PageLbl->setPositionY(CCDirector::sharedDirector()->getWinSize().height / -2);
+                    PageLbl->setOpacity(90);
+                    CCMenuPage->addChild(PageLbl);//add lbl to menu
+                };
+                //layers
+                {
+                    //PageSetupLayer
+                    auto PageSetupLayer = CCLayer::create();
+                    if (PageSetupLayer->init()) {
+                        //add and setup
+                        ret->addChild(PageSetupLayer, 20, 621);
+                        PageSetupLayer->setID("PageSetupLayer");
+                        PageSetupLayer->runAction(CCEaseBackInOut::create(CCMoveTo::create(0.5f, CCPoint(PageSetupLayer->getPositionX(), -120.f))));
+                        //menu
+                        CCMenu* PageSetupLayer_Menu = CCMenu::create();
+                        PageSetupLayer_Menu->setPositionY(28.000f);
+                        PageSetupLayer->addChild(PageSetupLayer_Menu);
+                        //idInput
+                        auto PageInput = CCTextInputNode::create(90.f, 20.f, "", 12, "chatFont.fnt");//"developer.modname"
+                        PageInput->m_textField->setHorizontalAlignment(CCTextAlignment::kCCTextAlignmentLeft);
+                        PageInput->setAllowedChars("0123456789");
+                        PageInput->setID("PageInput");
+                        PageSetupLayer_Menu->addChild(PageInput);
+                        //PageInputbtn1
+                        auto PageInputbtn1Sprite = ButtonSprite::create("Hop to", 0, false, "goldFont.fnt", "GJ_button_05.png", 0, 0.6);
+                        auto PageInputbtn1 = CCMenuItemSpriteExtra::create(PageInputbtn1Sprite, ret, menu_selector(RyzenLayer::onBtn));
+                        PageInputbtn1->setID("gotopage");
+                        PageInputbtn1->setPositionY(30.000f);
+                        PageInputbtn1->setPositionX(158.000f);
+                        PageInputbtn1->CCMenuItemSpriteExtra::setScale(0.900f);
+                        PageSetupLayer_Menu->addChild(PageInputbtn1);
+                        //alignItems
+                        PageSetupLayer_Menu->alignItemsHorizontallyWithPadding(12.f);
+                        //inputbg
+                        CCScale9Sprite* PageInputBG = CCScale9Sprite::create("square02_001.png");
+                        PageInputBG->setContentSize({ PageInput->getContentSize().width * 2 + 20, PageInput->getContentSize().height * 2 + 15 });
+                        PageInputBG->setScale(0.5f);
+                        PageInputBG->setOpacity(60);
+                        PageInputBG->setPosition(PageInput->getPosition());
+                        PageSetupLayer_Menu->addChild(PageInputBG, -1);
+                    }
+                }
             };
         }
         else {
@@ -136,12 +333,12 @@ public:
     }
     void openMe(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        scene->addChild(create());
+        scene->addChild(RyzenLayer::create(), 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void openMeForPacks(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        scene->addChild(create());
+        scene->addChild(RyzenLayer::create(), 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void onBack(CCObject* object) {
