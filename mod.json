@@ -1,7 +1,7 @@
 {
 	"geode": "2.0.0-beta.20",
-	"gd": "2.204",
-	"version": "v1.0.0",
+	"gd": "*",
+	"version": "v1.0.0-beta",
 	"id": "user95401.ryzen",
 	"name": "Ryzen",
 	"developer": "user95401",
@@ -13,6 +13,7 @@
 		], 
 		"sprites": [
 			"resources/*.png"
+			"*.png"
 		] 
 	}
 }
