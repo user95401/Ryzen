@@ -3,7 +3,6 @@
 Brings a standalone catalog for any mods and resource packs.
 
 - explore and download mods and resource packs
-- load downloaded mods without game reload
 - post mods and packs instantly (no moderation)
 - livefully loading per each page and download item
 
