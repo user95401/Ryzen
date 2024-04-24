@@ -102,7 +102,7 @@ public:
                     if (not dynamic_cast<RyzenLayer*>(this)) return;
                     auto mods_scroll = typeinfo_cast<ScrollLayer*>(this->getChildByID("mods_scroll"));
                     if (not mods_scroll) return;
-                    for (auto catgirl : catgirls.as_array()) {
+                    for (auto catgirl : catgirls[0].as_array()) {
                         mods_scroll->m_contentLayer->addChild(ModItem::create(catgirl));
                         mods_scroll->m_contentLayer->updateLayout();
                     }
