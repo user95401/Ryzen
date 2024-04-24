@@ -62,7 +62,7 @@ public:
                     CCLabelTTFid->setPositionY(-16.000f);
                     menu->addChild(CCLabelTTFid);
                     //name
-                    CCLabelTTF* name = CCLabelTTF::create(pJson["title"].to_string().c_str(), "arial", 12.f);
+                    CCLabelTTF* name = CCLabelTTF::create(pJson["title"].as_string().c_str(), "arial", 12.f);
                     name->setHorizontalAlignment(kCCTextAlignmentLeft);
                     name->setAnchorPoint({ 0.0f, 0.5f });
                     name->setPositionX(-132.000f);
