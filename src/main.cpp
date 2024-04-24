@@ -103,7 +103,7 @@ public:
                     auto mods_scroll = typeinfo_cast<ScrollLayer*>(this->getChildByID("mods_scroll"));
                     if (not mods_scroll) return;
                     for (auto catgirl : catgirls.as_array()) {
-                        geode::createQuickPopup(
+                        geode::MDPopup::create(
                             "catgirl",
                             catgirl.dump(),
                             "ok", nullptr, nullptr
