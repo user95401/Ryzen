@@ -83,10 +83,16 @@ public:
                     }
                 }
             )
-            .expect([this](std::string const& error) {
-                    // something went wrong with our web request Q~Q
-                });
-    }
+            .expect(
+[this](std::string const& error) 
+{// something went wrong with our web request Q~Q
+    geode::createQuickPopup(
+        "ReqExc",
+        error.data(),
+        "Nah", nullptr, nullptr
+    );
+}
+            );
     static RyzenLayer* create() {
         auto rtn = new RyzenLayer();
         if (rtn) {
