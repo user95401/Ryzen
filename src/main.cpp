@@ -54,7 +54,7 @@ public:
                     Ryzen_InfoBtn_001->setPositionY(16.000f);
                     menu->addChild(Ryzen_InfoBtn_001);
                     //id
-                    CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(pJson["id"].().c_str(), "arial", 6.f);
+                    CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(fmt::to_string(pJson["id"].as_int()).c_str(), "arial", 6.f);
                     CCLabelTTFid->setOpacity(60);
                     CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
                     CCLabelTTFid->setAnchorPoint({ 1.0f, 1.0f });
