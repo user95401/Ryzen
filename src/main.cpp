@@ -30,7 +30,7 @@ public:
                     Ryzen_InfoBtn_001->setPositionY(16.000f);
                     menu->addChild(Ryzen_InfoBtn_001);
                     //id
-                    CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(pJson["tag"].as_string().c_str(), "arial", 6.f);
+                    CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(pJson["id"].as_string().c_str(), "arial", 6.f);
                     CCLabelTTFid->setOpacity(60);
                     CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
                     CCLabelTTFid->setAnchorPoint({ 1.0f, 1.0f });
@@ -38,7 +38,7 @@ public:
                     CCLabelTTFid->setPositionY(-16.000f);
                     menu->addChild(CCLabelTTFid);
                     //name
-                    CCLabelTTF* name = CCLabelTTF::create(pJson["name"].as_string().c_str(), "arial", 12.f);
+                    CCLabelTTF* name = CCLabelTTF::create(pJson["title"].as_string().c_str(), "arial", 12.f);
                     name->setHorizontalAlignment(kCCTextAlignmentLeft);
                     name->setAnchorPoint({ 0.0f, 0.5f });
                     name->setPositionX(-132.000f);
@@ -69,16 +69,15 @@ public:
     }
     void loadMods() {
         web::AsyncWebRequest()
-            .fetch("https://ungh.cc/repos/user95401/Ryzen-Mods/releases")
+            .fetch("https://api.github.com/repos/user95401/Ryzen-Mods/issues")
             .json()
             .then(
                 [this](matjson::Value const& catgirls) {
                     // do something with the catgirls :3
-                    if (not catgirls.contains("releases")) return;
                     if (not dynamic_cast<RyzenLayer*>(this)) return;
                     auto mods_scroll = typeinfo_cast<ScrollLayer*>(this->getChildByID("mods_scroll"));
                     if (not mods_scroll) return;
-                    for (auto catgirl : catgirls["releases"].as_array()) {
+                    for (auto catgirl : catgirls.as_array()) {
                         mods_scroll->m_contentLayer->addChild(ModItem::create(catgirl));
                         mods_scroll->m_contentLayer->updateLayout();
                     }
