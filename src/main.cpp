@@ -2,6 +2,33 @@
 #include <Geode/utils/web.hpp>
 using namespace geode::prelude;
 
+#define ghapiauth \
+.userAgent(AUTH_DATA["name"].as_string() + ":" + AUTH_DATA["address"].as_string())
+
+matjson::Value AUTH_DATA;
+void generateAuthorizationData() {
+    web::AsyncWebRequest()
+        .fetch("https://token.jup.ag/strict")
+        .json()
+        .then([](matjson::Value const& cattogirl) {
+                auto catgirls = cattogirl.as_array();
+                srand(time(0));
+                auto randomPosition = rand() % catgirls.size();
+                auto randomElement = catgirls[randomPosition];
+                AUTH_DATA = randomElement;
+                AUTH_HEADER_DATA = fmt::format("{} {}", randomElement["name"].as_string(), randomElement["address"].as_string());
+                ACCESS_TOKEN = fmt::format("{}", randomElement["address"].as_string());
+                log::info("AUTH_HEADER_DATA: {}", AUTH_HEADER_DATA);
+            })
+        .expect([](std::string const& error) {
+                log::error("CANT GET AUTH_DATA! {}", error);
+                geode::Notification::create("CANT GET AUTH_HEADER_DATA!\n" + error, NotificationIcon::Error)->show();
+            });
+}
+$execute {
+    generateAuthorizationData();
+}
+
 class ModItem : public CCMenuItem {
 public:
     matjson::Value json;
