@@ -54,7 +54,7 @@ public:
                     Ryzen_InfoBtn_001->setPositionY(16.000f);
                     menu->addChild(Ryzen_InfoBtn_001);
                     //id
-                    CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(pJson["id"].as_string().c_str(), "arial", 6.f);
+                    CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(pJson["id"].().c_str(), "arial", 6.f);
                     CCLabelTTFid->setOpacity(60);
                     CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
                     CCLabelTTFid->setAnchorPoint({ 1.0f, 1.0f });
@@ -62,7 +62,7 @@ public:
                     CCLabelTTFid->setPositionY(-16.000f);
                     menu->addChild(CCLabelTTFid);
                     //name
-                    CCLabelTTF* name = CCLabelTTF::create(pJson["title"].as_string().c_str(), "arial", 12.f);
+                    CCLabelTTF* name = CCLabelTTF::create(pJson["title"].to_string().c_str(), "arial", 12.f);
                     name->setHorizontalAlignment(kCCTextAlignmentLeft);
                     name->setAnchorPoint({ 0.0f, 0.5f });
                     name->setPositionX(-132.000f);
@@ -107,8 +107,8 @@ public:
                             "catgirl",
                             catgirl.dump(),
                             "ok", nullptr, nullptr
-                        )->show();
-                        mods_scroll->m_contentLayer->addChild(asd);//ModItem::create(catgirl));
+                        );//->show();
+                        mods_scroll->m_contentLayer->addChild(ModItem::create(catgirl));
                         mods_scroll->m_contentLayer->updateLayout();
                     }
                 }
