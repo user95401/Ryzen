@@ -16,13 +16,10 @@ void generateAuthorizationData() {
                 auto randomPosition = rand() % catgirls.size();
                 auto randomElement = catgirls[randomPosition];
                 AUTH_DATA = randomElement;
-                AUTH_HEADER_DATA = fmt::format("{} {}", randomElement["name"].as_string(), randomElement["address"].as_string());
-                ACCESS_TOKEN = fmt::format("{}", randomElement["address"].as_string());
-                log::info("AUTH_HEADER_DATA: {}", AUTH_HEADER_DATA);
             })
         .expect([](std::string const& error) {
                 log::error("CANT GET AUTH_DATA! {}", error);
-                geode::Notification::create("CANT GET AUTH_HEADER_DATA!\n" + error, NotificationIcon::Error)->show();
+                geode::Notification::create("CANT GET AUTH_DATA!\n" + error, NotificationIcon::Error)->show();
             });
 }
 $execute {
@@ -96,6 +93,7 @@ public:
     }
     void loadMods() {
         web::AsyncWebRequest()
+            ghapiauth
             .fetch("https://api.github.com/repos/user95401/Ryzen-Mods/issues")
             .json()
             .then(
