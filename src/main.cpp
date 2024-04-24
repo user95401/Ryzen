@@ -92,7 +92,8 @@ public:
         "Nah", nullptr, nullptr
     );
 }
-            );
+           );
+    }
     static RyzenLayer* create() {
         auto rtn = new RyzenLayer();
         if (rtn) {
