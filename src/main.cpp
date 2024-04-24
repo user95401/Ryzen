@@ -107,7 +107,7 @@ public:
                             "catgirl",
                             catgirl.dump(),
                             "ok", nullptr, nullptr
-                        );
+                        )->show();
                         //mods_scroll->m_contentLayer->addChild(ModItem::create(catgirl));
                         //mods_scroll->m_contentLayer->updateLayout();
                     }
