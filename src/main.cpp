@@ -270,7 +270,7 @@ public:
                 pRtn->addChild(menu, 10);
                 //square bg
                 auto pCCLayerColor = CCLayerColor::create({ 0,0,0,75 });
-                pCCLayerColor->setContentSize({ 420.f, 60.f });//THE SIZE OF ITEM GOES HERE
+                pCCLayerColor->setContentSize({ pScrollLayer->getContentWidth(), 60.f});//THE SIZE OF ITEM GOES HERE
                 pCCLayerColor->setPosition(-(pCCLayerColor->getContentSize() / 2));
                 menu->addChild(pCCLayerColor, -1);//add bg
                 menu->setPosition(pCCLayerColor->getContentSize() / 2);//center the menu
@@ -396,11 +396,6 @@ public:
                 menu->addChild(desc);
             }
             if (pContentLayer) pContentLayer->addChild(pRtn);
-            if (pScrollLayer) {
-                auto asd = pScrollLayer->getContentSize().width / pRtn->getContentSize().width;
-                //log::debug("{}/{}={}", pScrollLayer->getContentSize().width, pRtn->getContentSize().width, asd);
-                pRtn->setScale(asd);
-            }
             return pRtn;
         }
         else {
@@ -461,6 +456,7 @@ public:
         }
         //upd
         scroll->m_contentLayer->updateLayout();
+        //scroll->m_contentLayer->setContentWidth(scroll->getContentWidth());
         scroll->moveToTop();
     }
     void downloadMods() {
