@@ -299,8 +299,8 @@ public:
                     menu->addChild(ViewBtn);
                     //bg
                     auto grad = CCLayerGradient::create(
-                        ccColor4B(10, 10, 10, 90),
-                        ccColor4B(10, 10, 10, 60)
+                        ccColor4B(10, 10, 10, 130),
+                        ccColor4B(10, 10, 10, 90)
                     );
                     auto padding = 5.f;
                     grad->setContentSize(View->getContentSize() + CCPoint(padding, padding));
@@ -322,7 +322,7 @@ public:
                     container->setAnchorPoint({ 0.0f, -0.8f });
                     container->setPositionX(10 - POINTING_SIZE.width);
                     container->setPositionY(.9f);
-                    container->setContentWidth(330.f);
+                    container->setContentWidth(SIZE.width - 90.f);
                     container->setLayout(
                         RowLayout::create()
                         ->setGap(5.f)
@@ -382,7 +382,7 @@ public:
                 desc->setAnchorPoint({ 0.0f, 0.6f });
                 desc->setOpacity(180);
                 /*fitlinesscale*/ {
-                    auto max_width = 570.f;
+                    auto max_width = (SIZE.width*2) - 260.f;
                     auto node = desc->m_label;
                     for (int i = 0; i < node->getChildrenCount(); i++) {
                         auto inode = cocos::getChild(node, i);
@@ -650,18 +650,22 @@ public:
                         CCScale9Sprite* l = CCScale9Sprite::createWithSpriteFrameName("edit_vLine_001.png");
                         header->addChild(l);
                         l->setPosition(
-                            1, 
+                            0,
                             header->getContentSize().height
                         );
                         l->setColor(ccBLACK);
+                        l->setScaleX(1.5f);
+                        l->setAnchorPoint({ 0.0, 0.5f });
                         l->setScaleY((CCDirector::get()->getScreenTop() * 2) / l->getContentSize().height);
                         CCScale9Sprite* r = CCScale9Sprite::createWithSpriteFrameName("edit_vLine_001.png");
                         header->addChild(r);
                         r->setPosition(
-                            header->getContentSize().width - 1,
+                            header->getContentSize().width,
                             header->getContentSize().height
                         );
                         r->setColor(ccBLACK);
+                        r->setScaleX(1.5f);
+                        r->setAnchorPoint({ 1.0, 0.5f });
                         r->setScaleY((CCDirector::get()->getScreenTop() * 2) / r->getContentSize().height);
                     }
                     //not actually header child ever
