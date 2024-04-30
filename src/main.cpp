@@ -10,15 +10,10 @@ public:
     matjson::Value json;
     void onInfo(CCObject*) {
         auto asd = std::stringstream("asd");
-        /**/asd << "```json";
+        /**/asd << "```\n";
         asd << json.dump();
-        asd << "```";
-        auto pop = geode::createQuickPopup("Json data", "\n \n \n \n \n \n \n \n \n \n", "Yes", nullptr, 390.f, nullptr, 0);
-        TextArea* desc = TextArea::create(asd.str(), "chatFont.fnt", 0.6f, 340.f, {0.0f, 1.0f}, 10.0f, false);
-        auto scroll = ScrollLayer::create({ 380.f, 260.f });
-        scroll->m_contentLayer->addChild(desc);
-        scroll->setPositionX(340.f / 2);
-        pop->m_buttonMenu->addChild(scroll);
+        asd << "\n```";
+        auto pop = geode::MDPopup::create("Json data", asd.str(), "Yes");
         pop->show();
     }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
@@ -49,6 +44,27 @@ public:
                 Ryzen_InfoBtn_001->setPositionX(POINTING_SIZE.width - 8);
                 Ryzen_InfoBtn_001->setPositionY(POINTING_SIZE.height - 8);
                 menu->addChild(Ryzen_InfoBtn_001);
+                /*ViewBtn*/ {
+                    //text
+                    CCLabelTTF* View = CCLabelTTF::create("   View   ", "Comic Sans MS.ttf"_spr, 12.f);
+                    //btn
+                    CCMenuItemSpriteExtra* ViewBtn = CCMenuItemSpriteExtra::create(
+                        View, pRtn, menu_selector(IssueItem::onInfo)
+                    );
+                    ViewBtn->setPositionX(POINTING_SIZE.width - 8);
+                    ViewBtn->setAnchorPoint({ 1.0f, .5f });
+                    ViewBtn->m_colorEnabled = true;
+                    menu->addChild(ViewBtn);
+                    //bg
+                    auto grad = CCLayerGradient::create(
+                        ccColor4B(10, 10, 10, 90),
+                        ccColor4B(10, 10, 10, 60)
+                    );
+                    auto padding = 5.f;
+                    grad->setContentSize(View->getContentSize() + CCPoint(padding, padding));
+                    grad->setPosition(CCPoint(-padding, -padding) / 2);
+                    View->addChild(grad, -1, 57290);
+                }
                 //id
                 CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(fmt::format("#{}", pJson["number"].as_int()).c_str(), "arial", 8.f);
                 CCLabelTTFid->setOpacity(60);
@@ -57,17 +73,47 @@ public:
                 CCLabelTTFid->setPositionX(POINTING_SIZE.width - 4);
                 CCLabelTTFid->setPositionY(3 - POINTING_SIZE.height);
                 menu->addChild(CCLabelTTFid);
-                //name
-                CCLabelTTF* name = CCLabelTTF::create(pJson["title"].as_string().c_str(), "arial", 10.f);
-                name->setHorizontalAlignment(kCCTextAlignmentLeft);
-                name->setAnchorPoint({ 0.0f, -0.8f });
-                name->setPositionX(10 - POINTING_SIZE.width);
-                /*fit up name scale if big*/ {
-                    auto node = name;
-                    float maxwith = 280.f;
-                    if (node->getContentSize().width > maxwith) node->setScale(maxwith / node->getContentSize().width);
+                //name and tags
+                {
+                    //container
+                    auto container = CCNode::create();
+                    container->setAnchorPoint({ 0.0f, -0.8f });
+                    container->setPositionX(10 - POINTING_SIZE.width);
+                    container->setPositionY(.9f);
+                    container->setContentWidth(330.f);
+                    container->setLayout(
+                        RowLayout::create()
+                        ->setGap(5.f)
+                        ->setAxisAlignment(AxisAlignment::Start)
+                    );
+                    menu->addChild(container);
+                    //name
+                    CCLabelTTF* name = CCLabelTTF::create(pJson["title"].as_string().c_str(), "arial", 10.f);
+                    name->setHorizontalAlignment(kCCTextAlignmentLeft);
+                    name->setAnchorPoint(CCPointZero);
+                    container->addChild(name);
+                    //tags
+                    for (auto catgirl : pJson["labels"].as_array()) {
+                        CCLabelTTF* tag = CCLabelTTF::create(catgirl["name"].as_string().c_str(), "arial", 8.f);
+                        tag->setHorizontalAlignment(kCCTextAlignmentLeft);
+                        tag->setAnchorPoint(CCPointZero);
+                        tag->setColor(cocos::cc3bFromHexString(catgirl["color"].as_string()).value_or(ccColor3B(190,190,200)));
+                        tag->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                        container->addChild(tag);
+                        auto color = cocos::cc3bFromHexString(catgirl["color"].as_string()).value_or(ccColor3B(190, 190, 200));
+                        auto grad = CCLayerGradient::create(
+                            ccColor4B(color.r, color.g, color.b, 60),
+                            ccColor4B(color.r - 40, color.g - 40, color.b - 40, 10)
+                        );
+                        auto padding = 3.f;
+                        grad->setContentSize(tag->getContentSize() + CCPoint(padding, padding));
+                        grad->setPosition(CCPoint(-padding, -padding) / 2);
+                        grad->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                        tag->addChild(grad, -1, 57290);
+                    }
+                    //post update
+                    container->updateLayout();
                 };
-                menu->addChild(name);
                 //desc
                 auto issue_ini = new CSimpleIni;
                 issue_ini->LoadData(pJson["body"].as_string());
