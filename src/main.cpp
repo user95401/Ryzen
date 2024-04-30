@@ -1,10 +1,241 @@
-#include <Geode/Geode.hpp>
+﻿#include <Geode/Geode.hpp>
 #include <Geode/utils/web.hpp>
 #include "ghapiauth.h"
 using namespace geode::prelude;
 
 #include "SimpleIni.h"
+class ModViewLayer : public CCLayer {
+public:
+    enum ModType { Undef = 1510, Mod = 1511, Pack = 1512 };
+    static auto create(matjson::Value pJson) {
+        auto rtn = new ModViewLayer;
+        rtn->autorelease();
+        rtn->init();
+        /* text containers 💀 */ {
+            //issueJson
+            auto issueJson = CCLabelTTF::create(pJson.dump().data(), "arial", 0.f);
+            issueJson->setVisible(0);
+            issueJson->setID("issueJson");
+            rtn->addChild(issueJson, 999);
+            //repoJson
+            auto repoJson = CCLabelTTF::create("{}", "arial", 0.f);
+            repoJson->setVisible(0);
+            repoJson->setID("repoJson");
+            rtn->addChild(repoJson, 999);
+            //ini
+            auto ini = CCLabelTTF::create(pJson["body"].as_string().data(), "arial", 0.f);
+            ini->setVisible(0);
+            ini->setID("ini");
+            rtn->addChild(ini, 999);
+            //detect type
+            auto labels_str = pJson["labels"].dump();
+            ModType type = ModType::Undef;
+            if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos) type = ModType::Mod;
+            if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) type = ModType::Pack;
+            auto typeMark = CCLabelTTF::create("Undef:1510,Mod:1511,Pack:1512", "arial", 0.f);
+            typeMark->setID("type");
+            typeMark->setVisible(0);
+            rtn->addChild(typeMark, 999, type);
+            //path
+            auto the_path = dirs::getGeodeDir() / "ryzen" / "mods" / fmt::to_string(pJson["number"]);
+            ghc::filesystem::create_directories(the_path);
+            auto path = CCLabelTTF::create(the_path.string().data(), "arial", 0.f);
+            path->setVisible(0);
+            path->setID("path");
+            rtn->addChild(path, 999);
+        }
+        /*base shit*/ {
+            {
+                //setup
+                rtn->setKeypadEnabled(true);
+                rtn->setTouchEnabled(true);
+                /*bg*/ {
+                    CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
+                    backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
+                    backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
+                    backgroundSprite->setAnchorPoint({ 0, 0 });
+                    backgroundSprite->setColor({ 70, 80, 90 });
+                    backgroundSprite->runAction(CCRepeatForever::create(CCSequence::create(CCTintTo::create(5.0, 70, 80, 90), CCTintTo::create(5.0, 60, 70, 80), CCTintTo::create(5.0, 70, 80, 80), nullptr)));
+                    rtn->addChild(backgroundSprite, -2);
+                };
+                /*SquareShadowCorners*/ {
+                    //SquareShadowCorner1
+                    CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                    SquareShadowCorner1->setScaleX(0.050f);
+                    SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
+                    SquareShadowCorner1->setAnchorPoint({ 0, 0 });
+                    rtn->addChild(SquareShadowCorner1, -1);
+                    //SquareShadowCorner2
+                    CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                    SquareShadowCorner2->setScaleX(-0.050f);
+                    SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
+                    SquareShadowCorner2->setAnchorPoint({ 0, 0 });
+                    SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
+                    rtn->addChild(SquareShadowCorner2, -1);
+                };
+                /*gauntletCorners*/ {
+                    //gauntletCorner_001
+                    CCSprite* gauntletCorner_001 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+                    gauntletCorner_001->setPosition({ 0, 0 });
+                    gauntletCorner_001->setRotation(0);
+                    gauntletCorner_001->setAnchorPoint({ 0.f,0.f });
+                    rtn->addChild(gauntletCorner_001);//add gauntletCorner_001
+                    //gauntletCorner_002
+                    CCSprite* gauntletCorner_002 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+                    gauntletCorner_002->setPosition({
+                        CCDirector::sharedDirector()->getWinSize().width,
+                        0.f
+                        });
+                    gauntletCorner_002->setScaleX(-1.f);
+                    gauntletCorner_002->setAnchorPoint({ 0.f,0.f });
+                    rtn->addChild(gauntletCorner_002);//add gauntletCorner_002
+                    //gauntletCorner_003
+                    CCSprite* gauntletCorner_003 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+                    gauntletCorner_003->setPosition({
+                        (CCDirector::sharedDirector()->getWinSize().width),
+                        (CCDirector::sharedDirector()->getWinSize().height)
+                        });
+                    gauntletCorner_003->setRotation(180.f);
+                    gauntletCorner_003->setAnchorPoint({ 0.f,0.f });
+                    rtn->addChild(gauntletCorner_003);//add gauntletCorner_003
+                };
+                /*backBtn*/ {
+                    auto back = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png"),
+                        rtn,
+                        menu_selector(ModViewLayer::onBtn)
+                    );
+                    back->setID("back");
+                    auto menuBack = CCMenu::createWithItem(back);
+                    menuBack->setPosition({ 25, CCDirector::sharedDirector()->getWinSize().height - 25 });
+                    rtn->addChild(menuBack);
+                };
+            };
+        }
+        rtn->loadDataMain();
+        return rtn;
+    }
+    void loadDataMain() {
+        //prepare ntfy and other ui mayb
+        auto loading = Notification::create("Step 1: Loading repo...", NotificationIcon::Loading, 0.f);
+        loading->setPosition(getContentSize() / 2);
+        loading->setID("loading");
+        addChild(loading);
+        //letsgo
+        loadDataStep1();
+    }
+    void loadDataStep1() {
+        //vars prepare
+        auto step = dynamic_cast<Notification*>(getChildByIDRecursive("loading"));
+        auto repoJson = dynamic_cast<CCLabelTTF*>(getChildByIDRecursive("repoJson"));
+        auto endpoint = fmt::format("https://api.github.com/repos/{}", ini()->GetValue("mod", "repo"));
+        auto file = workindir() / "repo.json";
+        //req
+        if (ghc::filesystem::exists(file)) {
+            auto filestream = std::ifstream(file);
+            if (filestream.is_open())
+            {
+                std::string line;
+                std::stringstream stream;
+                while (std::getline(filestream, line)) {
+                    stream << line;
+                };
+                repoJson->setString(stream.str().data());
+                step->setString("Loaded local");
+            }
+        }
+        else {
+            web::AsyncWebRequest()
+                ghapiauth
+                .fetch(endpoint)
+                .json()
+                .then(
+                    [this, step, file, repoJson](matjson::Value const& catgirls) {
+                        repoJson->setString(catgirls.dump().data());
+                        std::ofstream(file.string().c_str()) << catgirls.dump();
+                        step->setString("Loaded");
+                    })
+                .expect(
+                    [this, step](std::string const& error) {
+                        auto message = error;
+                        auto asd = geode::createQuickPopup(
+                            "Request exception",
+                            message,
+                            "Nah", nullptr, 420.f, nullptr, false
+                        );
+                        asd->m_scene = this;
+                        asd->show();
+                    });
+        };
 
+    }
+    void customSetup() {
+        /*top center card*/ {
+            auto menu = CCMenu::create();
+            menu->setID("card");
+            addChild(menu);
+            menu->setPositionX(CCDirector::get()->getScreenRight() / 2);
+            menu->setPositionY(CCDirector::get()->getScreenTop() - 52.f);
+            menu->setLayout(
+                RowLayout::create()
+            );
+            /*some fun stuff*/ {
+
+            }
+            menu->updateLayout();
+        }
+        /*bottom inf text*/ {
+            auto inf_label = CCLabelTTF::create(
+                fmt::format(
+                    "repo: {}, release: {}",
+                    ini()->GetValue("mod", "repo"),
+                    ini()->GetValue("mod", "release_tag")
+                ).data(),
+                "arial", 8.f
+            );
+            inf_label->setID("inf_label");
+            inf_label->setOpacity(120);
+            inf_label->setAnchorPoint({ 0.5f, 0.f });
+            inf_label->setPositionX(CCDirector::get()->getScreenRight() / 2);
+            addChild(inf_label);
+        }
+    }
+    //data gettinga
+    ghc::filesystem::path workindir() {
+        auto path = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("path"));
+        return path->getString();
+    }
+    ModType type() {
+        auto type = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("type"));
+        return (ModType)type->getTag();
+    }
+    matjson::Value issueJson() {
+        auto json = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("issueJson"));
+        return matjson::parse(json->getString());
+    }
+    CSimpleIni* ini() {
+        auto ini = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("ini"));
+        auto rtn = new CSimpleIni;
+        rtn->LoadData(ini->getString());
+        return rtn;
+    }
+    //other shit
+    void onBtn(CCObject* pCCObject) {
+        auto what = dynamic_cast<CCNode*>(pCCObject);
+        if (not what) return;
+        if (what->getID() == "reload");
+        if (what->getID() == "back") keyBackClicked();
+    }
+    static void openMe(matjson::Value pJson) {
+        auto scene = CCScene::create();
+        auto pModViewLayer = ModViewLayer::create(pJson);
+        scene->addChild(pModViewLayer, 0, pJson["number"].as_int());
+        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
+    };
+    void keyBackClicked() {
+        CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
+    }
+};
 class IssueItem : public CCMenuItem {
 public:
     matjson::Value json;
@@ -15,6 +246,17 @@ public:
         asd << "\n```";
         auto pop = geode::MDPopup::create("Json data", asd.str(), "Yes");
         pop->show();
+    }
+    void view(CCObject*) {
+        auto labels_str = json["labels"].dump();
+        if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos) return ModViewLayer::openMe(json);
+        if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) return ModViewLayer::openMe(json);
+        auto pop = createQuickPopup(
+            "No Labels!", 
+            "This <cg>issue item</c> <cr>has not</c> <cb>\"mod\"</c> or <co>\"pack\"</c> label!",
+            "Oh ok", nullptr, 
+            360.f, nullptr, true
+        );
     }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
         auto pRtn = new IssueItem();
@@ -49,7 +291,7 @@ public:
                     CCLabelTTF* View = CCLabelTTF::create("   View   ", "Comic Sans MS.ttf"_spr, 12.f);
                     //btn
                     CCMenuItemSpriteExtra* ViewBtn = CCMenuItemSpriteExtra::create(
-                        View, pRtn, menu_selector(IssueItem::onInfo)
+                        View, pRtn, menu_selector(IssueItem::view)
                     );
                     ViewBtn->setPositionX(POINTING_SIZE.width - 8);
                     ViewBtn->setAnchorPoint({ 1.0f, .5f });
@@ -94,16 +336,25 @@ public:
                     container->addChild(name);
                     //tags
                     for (auto catgirl : pJson["labels"].as_array()) {
+                        auto color = cocos::cc3bFromHexString(catgirl["color"].as_string()).value_or(ccColor3B(190, 190, 200));
+                        auto lighter_color_dark_amount = 70;
+                        auto lighter_color_boost = 60;
+                        auto lighter_color = /*color;*/ ccColor3B(
+                            color.r < lighter_color_dark_amount ? color.r + lighter_color_boost : color.r,
+                            color.g < lighter_color_dark_amount ? color.g + lighter_color_boost : color.g,
+                            color.b < lighter_color_dark_amount ? color.b + lighter_color_boost : color.b
+                        );
+                        //label
                         CCLabelTTF* tag = CCLabelTTF::create(catgirl["name"].as_string().c_str(), "arial", 8.f);
                         tag->setHorizontalAlignment(kCCTextAlignmentLeft);
                         tag->setAnchorPoint(CCPointZero);
-                        tag->setColor(cocos::cc3bFromHexString(catgirl["color"].as_string()).value_or(ccColor3B(190,190,200)));
+                        tag->setColor(lighter_color);
                         tag->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
                         container->addChild(tag);
-                        auto color = cocos::cc3bFromHexString(catgirl["color"].as_string()).value_or(ccColor3B(190, 190, 200));
+                        //bg
                         auto grad = CCLayerGradient::create(
-                            ccColor4B(color.r, color.g, color.b, 60),
-                            ccColor4B(color.r - 40, color.g - 40, color.b - 40, 10)
+                            ccColor4B(lighter_color.r, lighter_color.g, lighter_color.b, 60),
+                            ccColor4B(lighter_color.r - 20, lighter_color.g - 20, lighter_color.b - 20, 10)
                         );
                         auto padding = 3.f;
                         grad->setContentSize(tag->getContentSize() + CCPoint(padding, padding));
@@ -130,6 +381,18 @@ public:
                 desc->setPositionX(10 - POINTING_SIZE.width);
                 desc->setAnchorPoint({ 0.0f, 0.6f });
                 desc->setOpacity(180);
+                /*fitlinesscale*/ {
+                    auto max_width = 570.f;
+                    auto node = desc->m_label;
+                    for (int i = 0; i < node->getChildrenCount(); i++) {
+                        auto inode = cocos::getChild(node, i);
+                        if (inode) {
+                            if (inode->getContentSize().width >= max_width) {
+                                inode->setScale((max_width) / (inode->getContentSize().width / inode->getScale()));
+                            }
+                        }
+                    }
+                }
                 menu->addChild(desc);
             }
             if (pContentLayer) pContentLayer->addChild(pRtn);
@@ -261,15 +524,19 @@ public:
                         rtn->addChild(backgroundSprite, -2);
                     };
                     /*SquareShadowCorners*/ {
+                        auto scale = 1.f;
+                        auto opacity = 160;
                         //SquareShadowCorner1
                         CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                        SquareShadowCorner1->setScaleX(0.050f);
+                        SquareShadowCorner1->setScaleX(scale);
+                        SquareShadowCorner1->setOpacity(opacity);
                         SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
                         SquareShadowCorner1->setAnchorPoint({ 0, 0 });
                         rtn->addChild(SquareShadowCorner1, -1);
                         //SquareShadowCorner2
                         CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                        SquareShadowCorner2->setScaleX(-0.050f);
+                        SquareShadowCorner2->setScaleX(-scale);
+                        SquareShadowCorner2->setOpacity(opacity);
                         SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
                         SquareShadowCorner2->setAnchorPoint({ 0, 0 });
                         SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
