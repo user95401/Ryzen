@@ -118,7 +118,7 @@ public:
                 auto issue_ini = new CSimpleIni;
                 issue_ini->LoadData(pJson["body"].as_string());
                 TextArea* desc = TextArea::create(
-                    std::format(
+                    fmt::format(
                         "By: {} ({})\n{}\nfile: {}, repo: {}, release_tag: {}",
                         pJson["user"]["login"].as_string(),
                         pJson["user"]["id"].as_int(),
