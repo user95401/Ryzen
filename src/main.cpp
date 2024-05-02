@@ -3,6 +3,45 @@
 #include "ghapiauth.h"
 using namespace geode::prelude;
 
+template <typename T>
+bool checkExistence(T filename)
+{
+    std::ifstream Infield(filename);
+    return Infield.good();
+}
+std::string convertSize(size_t size) {
+    static const char* SIZES[] = { "B", "KB", "MB", "GB" };
+    int div = 0;
+    size_t rem = 0;
+    while (size >= 1024 && div < (sizeof SIZES / sizeof * SIZES)) {
+        rem = (size % 1024);
+        div++;
+        size /= 1024;
+    }
+    //roundOff size_d
+    double size_d = (float)size + (float)rem / 1024.0;
+    double d = size_d * 100.0;
+    int i = d + 0.5;
+    d = (float)i / 100.0;
+    //result
+    std::string result = fmt::to_string(d) + "" + SIZES[div];
+    return result;
+}
+std::string abbreviateNumber(int num) {
+    double n = static_cast<double>(num);
+    char suffix = 0;
+    if (num >= 1000000) {
+        n /= 1000000;
+        suffix = 'M';
+    }
+    else if (num >= 1000) {
+        n /= 1000;
+        suffix = 'K';
+    }
+    else return fmt::format("{}", num);
+    return fmt::format("{:.1f}{}", n, suffix);
+}
+
 #include "SimpleIni.h"
 class ModViewLayer : public CCLayer {
 public:
@@ -22,6 +61,16 @@ public:
             repoJson->setVisible(0);
             repoJson->setID("repoJson");
             rtn->addChild(repoJson, 999);
+            //metaJson
+            auto metaJson = CCLabelTTF::create("{}", "arial", 0.f);
+            metaJson->setVisible(0);
+            metaJson->setID("metaJson");
+            rtn->addChild(metaJson, 999);
+            //releaseJson
+            auto releaseJson = CCLabelTTF::create("{}", "arial", 0.f);
+            releaseJson->setVisible(0);
+            releaseJson->setID("releaseJson");
+            rtn->addChild(releaseJson, 999);
             //ini
             auto ini = CCLabelTTF::create(pJson["body"].as_string().data(), "arial", 0.f);
             ini->setVisible(0);
@@ -55,19 +104,30 @@ public:
                     backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
                     backgroundSprite->setAnchorPoint({ 0, 0 });
                     backgroundSprite->setColor({ 70, 80, 90 });
-                    backgroundSprite->runAction(CCRepeatForever::create(CCSequence::create(CCTintTo::create(5.0, 70, 80, 90), CCTintTo::create(5.0, 60, 70, 80), CCTintTo::create(5.0, 70, 80, 80), nullptr)));
+                    backgroundSprite->runAction(CCRepeatForever::create(
+                        CCSequence::create(
+                            CCTintTo::create(5.0, 100, 100, 100),
+                            CCTintTo::create(5.0, 100, 100, 110),
+                            CCTintTo::create(5.0, 105, 100, 110),
+                            nullptr
+                        )
+                    ));
                     rtn->addChild(backgroundSprite, -2);
                 };
                 /*SquareShadowCorners*/ {
+                    auto scale = 1.f;
+                    auto opacity = 160;
                     //SquareShadowCorner1
                     CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                    SquareShadowCorner1->setScaleX(0.050f);
+                    SquareShadowCorner1->setScaleX(scale);
+                    SquareShadowCorner1->setOpacity(opacity);
                     SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
                     SquareShadowCorner1->setAnchorPoint({ 0, 0 });
                     rtn->addChild(SquareShadowCorner1, -1);
                     //SquareShadowCorner2
                     CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                    SquareShadowCorner2->setScaleX(-0.050f);
+                    SquareShadowCorner2->setScaleX(-scale);
+                    SquareShadowCorner2->setOpacity(opacity);
                     SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
                     SquareShadowCorner2->setAnchorPoint({ 0, 0 });
                     SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
@@ -117,57 +177,238 @@ public:
     }
     void loadDataMain() {
         //prepare ntfy and other ui mayb
-        auto loading = Notification::create("Step 1: Loading repo...", NotificationIcon::Loading, 0.f);
-        loading->setPosition(getContentSize() / 2);
-        loading->setID("loading");
-        addChild(loading);
+        auto loadings = CCMenu::create();
+        loadings->setID("loadings");
+        addChild(loadings);
+        auto loading_repo = Notification::create("Loading repo...", NotificationIcon::Loading, 0.f);
+        loading_repo->setID("loading_repo");
+        loadings->addChild(loading_repo);
+        auto loading_logo = Notification::create("Loading logo...", NotificationIcon::Loading, 0.f);
+        loading_logo->setID("loading_logo");
+        loading_logo->setTag(1);
+        loadings->addChild(loading_logo);
+        auto loading_meta = Notification::create("Loading meta...", NotificationIcon::Loading, 0.f);
+        loading_meta->setID("loading_meta");
+        loadings->addChild(loading_meta);
+        auto loading_release = Notification::create("Loading release...", NotificationIcon::Loading, 0.f);
+        loading_release->setID("loading_release");
+        loadings->addChild(loading_release);
+        loadings->alignItemsVerticallyWithPadding(32.f);
         //letsgo
-        loadDataStep1();
+        loadRepo();
     }
-    void loadDataStep1() {
+    void loadStep2() {
+        loadLogo();
+        loadMeta();
+        loadRelease();
+        waitForCustomSetup();
+    }
+    //loaders
+    void loadRepo() {
         //vars prepare
-        auto step = dynamic_cast<Notification*>(getChildByIDRecursive("loading"));
+        auto loading_repo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_repo"));
         auto repoJson = dynamic_cast<CCLabelTTF*>(getChildByIDRecursive("repoJson"));
         auto endpoint = fmt::format("https://api.github.com/repos/{}", ini()->GetValue("mod", "repo"));
         auto file = workindir() / "repo.json";
         //req
-        if (ghc::filesystem::exists(file)) {
+        if (checkExistence(file)) {
             auto filestream = std::ifstream(file);
             if (filestream.is_open())
             {
-                std::string line;
                 std::stringstream stream;
-                while (std::getline(filestream, line)) {
-                    stream << line;
+                {
+                    std::string line;
+                    while (std::getline(filestream, line)) {
+                        stream << line;
+                    };
                 };
                 repoJson->setString(stream.str().data());
-                step->setString("Loaded local");
+                loading_repo->setString("Repository loaded from local");
+                loading_repo->setIcon(NotificationIcon::Success);
+                loading_repo->setTag(1);
+                loadStep2();
             }
         }
         else {
-            web::AsyncWebRequest()
-                ghapiauth
-                .fetch(endpoint)
-                .json()
+            web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
                 .then(
-                    [this, step, file, repoJson](matjson::Value const& catgirls) {
+                    [this, loading_repo, file, repoJson](matjson::Value const& catgirls) {
                         repoJson->setString(catgirls.dump().data());
                         std::ofstream(file.string().c_str()) << catgirls.dump();
-                        step->setString("Loaded");
+                        loading_repo->setString("Repository loaded");
+                        loading_repo->setIcon(NotificationIcon::Success);
+                        loading_repo->setTag(1);
+                        loadStep2();
                     })
                 .expect(
-                    [this, step](std::string const& error) {
-                        auto message = error;
+                    [this, loading_repo, endpoint](std::string const& what) {
+                        loading_repo->setIcon(NotificationIcon::Error);
                         auto asd = geode::createQuickPopup(
                             "Request exception",
-                            message,
+                            what + "\n" + endpoint,
                             "Nah", nullptr, 420.f, nullptr, false
                         );
                         asd->m_scene = this;
                         asd->show();
                     });
         };
-
+    }
+    void loadRelease() {
+        //vars prepare
+        auto loading_release = dynamic_cast<Notification*>(getChildByIDRecursive("loading_release"));
+        auto releaseJson = dynamic_cast<CCLabelTTF*>(getChildByIDRecursive("releaseJson"));
+        auto endpoint = fmt::format(
+            "https://api.github.com/repos/{}/releases/{}",
+            ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release_tag")
+        );
+        auto file = workindir() / "release.json";
+        //req
+        if (checkExistence(file)) {
+            auto filestream = std::ifstream(file);
+            if (filestream.is_open())
+            {
+                std::stringstream stream;
+                {
+                    std::string line;
+                    while (std::getline(filestream, line)) {
+                        stream << line;
+                    };
+                };
+                releaseJson->setString(stream.str().data());
+                loading_release->setString("Repository loaded from local");
+                loading_release->setIcon(NotificationIcon::Success);
+                loading_release->setTag(1);
+            }
+        }
+        else {
+            web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
+                .then(
+                    [this, loading_release, file, releaseJson](matjson::Value const& catgirls) {
+                        releaseJson->setString(catgirls.dump().data());
+                        std::ofstream(file.string().c_str()) << catgirls.dump();
+                        loading_release->setString("Repository loaded");
+                        loading_release->setIcon(NotificationIcon::Success);
+                        loading_release->setTag(1);
+                    })
+                .expect(
+                    [this, loading_release, endpoint](std::string const& what) {
+                        loading_release->setIcon(NotificationIcon::Error);
+                        auto asd = geode::createQuickPopup(
+                            "Request exception",
+                            what + "\n" + endpoint,
+                            "Nah", nullptr, 420.f, nullptr, false
+                        );
+                        asd->m_scene = this;
+                        asd->show();
+                    });
+        };
+    }
+    void loadMeta() {
+        //vars prepare
+        auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
+        auto metaJson = dynamic_cast<CCLabelTTF*>(getChildByIDRecursive("metaJson"));
+        auto endpoint = fmt::format(
+            "https://raw.githubusercontent.com/{}/{}/{}",
+            ini()->GetValue("mod", "repo"),
+            repoJson()["default_branch"].as_string(),
+            type() == ModType::Mod ? "mod.json" : "pack.json"
+        );
+        auto file = workindir() / "meta.json";
+        //req
+        if (checkExistence(file)) {
+            auto filestream = std::ifstream(file);
+            if (filestream.is_open())
+            {
+                std::stringstream stream;
+                {
+                    std::string line;
+                    while (std::getline(filestream, line)) {
+                        stream << line;
+                    };
+                };
+                metaJson->setString(stream.str().data());
+                loading_meta->setString("Meta loaded from local");
+                loading_meta->setIcon(NotificationIcon::Success);
+                loading_meta->setTag(1);
+            }
+        }
+        else {
+            web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
+                .then(
+                    [this, loading_meta, file, metaJson](matjson::Value const& catgirls) {
+                        metaJson->setString(catgirls.dump().data());
+                        std::ofstream(file.string().c_str()) << catgirls.dump();
+                        loading_meta->setString("Meta loaded");
+                        loading_meta->setIcon(NotificationIcon::Success);
+                        loading_meta->setTag(1);
+                    })
+                .expect(
+                    [this, loading_meta, endpoint](std::string const& what) {
+                        loading_meta->setIcon(NotificationIcon::Error);
+                        auto asd = geode::createQuickPopup(
+                            "Request exception",
+                            what + "\n" + endpoint,
+                            "Nah", nullptr, 420.f, nullptr, false
+                        );
+                        asd->m_scene = this;
+                        asd->show();
+                    });
+        };
+    }
+    void loadLogo() {
+        //vars prepare
+        auto loading_logo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_logo"));
+        auto endpoint = fmt::format(
+            "https://raw.githubusercontent.com/{}/{}/{}", 
+            ini()->GetValue("mod", "repo"), 
+            repoJson()["default_branch"].as_string(),
+            type() == ModType::Mod ? "logo.png" : "pack.png"
+        );
+        auto file = workindir() / "icon.png";
+        //req
+        if (checkExistence(file)) {
+            loading_logo->setString("Logo founded locally");
+            loading_logo->setIcon(CCSprite::create(file.string().c_str()));
+        }
+        else {
+            web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(file)
+                .then(
+                    [this, loading_logo, file](std::monostate const& who) {
+                        loading_logo->setString("Logo loaded");
+                        loading_logo->setIcon(CCSprite::create(file.string().c_str()));
+                    })
+                .expect(
+                    [this, loading_logo, endpoint](std::string const& what) {
+                        loading_logo->setIcon(NotificationIcon::Error);
+                        auto asd = geode::createQuickPopup(
+                            "Request exception",
+                            what + "\n" + endpoint,
+                            "Nah", nullptr, 420.f, nullptr, false
+                        );
+                        asd->m_scene = this;
+                        asd->show();
+                    });
+        };
+    }
+    //customSetup
+    void waitForCustomSetup(float asd = 1337.f) {
+        auto sch = schedule_selector(ModViewLayer::waitForCustomSetup);
+        if (asd == 1337.f) {
+            this->schedule(sch, 0.1f);
+        }
+        else {
+            auto loaded_repo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_repo"))->getTag() == 1;
+            auto loaded_logo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_logo"))->getTag() == 1;
+            auto loaded_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"))->getTag() == 1;
+            auto loaded_release = dynamic_cast<Notification*>(getChildByIDRecursive("loading_release"))->getTag() == 1;
+            if (loaded_repo and loaded_logo and loaded_meta and loaded_release) {
+                dynamic_cast<CCMenu*>(getChildByIDRecursive("loadings"))->runAction(
+                    CCEaseBackOut::create(CCMoveBy::create(0.5f, { 1000.f, 0.f }))
+                );
+                customSetup();
+                this->unschedule(sch);
+            }
+        };
     }
     void customSetup() {
         /*top center card*/ {
@@ -175,12 +416,138 @@ public:
             menu->setID("card");
             addChild(menu);
             menu->setPositionX(CCDirector::get()->getScreenRight() / 2);
-            menu->setPositionY(CCDirector::get()->getScreenTop() - 52.f);
+            menu->setPositionY(CCDirector::get()->getScreenTop() - 35.f);
+            menu->setContentWidth(menu->getContentWidth() - 75.f);
+            menu->setScale(0.85f);
             menu->setLayout(
                 RowLayout::create()
+                ->setGap(15.f)
             );
             /*some fun stuff*/ {
-
+                //icon
+                auto icon = CCSprite::create((workindir() / "icon.png").string().c_str());
+                if (!icon) icon = CCSprite::createWithSpriteFrameName("deleteFilter_none_001.png");
+                if (icon) {
+                    auto icon_size = CCSize(68.f, 68.f);
+                    auto real_size = icon->getContentSize();
+                    icon->setID("icon");
+                    if (real_size.height > icon_size.height) {
+                        icon->setScale(icon_size.height / real_size.height);
+                    }
+                    else {
+                        icon->setScale(icon_size.width / real_size.width);
+                    }
+                    icon->setAnchorPoint(CCPointZero);
+                    auto container = CCNode::create();
+                    container->addChild(icon);
+                    container->setID("icon_container");
+                    container->setContentSize(icon_size);
+                    menu->addChild(container);
+                };
+                //text_part_container
+                if (auto text_part_container = CCMenu::create()) {
+                    auto size = CCSize(186.f, 68.f);
+                    auto parent = text_part_container;
+                    parent->setID("text_part_container");
+                    parent->setContentSize(size);
+                    parent->setLayout(
+                        ColumnLayout::create()
+                        ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                        ->setAxisAlignment(AxisAlignment::Even)
+                        ->setAxisReverse(true)
+                    );
+                    /*title*/ {
+                        auto title = CCLabelTTF::create(
+                            (metaJson()["name"].as_string() + " " + metaJson()["version"].as_string()).c_str(),
+                            "arial", 18.f
+                        );
+                        parent->addChild(title);
+                    }
+                    /*devs*/ {
+                        auto devs = std::stringstream() << "By: ";
+                        if (metaJson().contains("developers")) {
+                            for (auto dev : metaJson()["developers"].as_array()) {
+                                devs << dev.as_string();
+                            }
+                        }
+                        else devs << (type() == ModType::Mod ? metaJson()["developer"].as_string() : metaJson()["author"].as_string());
+                        auto label = CCLabelTTF::create(devs.str().c_str(), "arial", 14.f);
+                        parent->addChild(label);
+                    }
+                    /*description*/ {
+                        auto description = TextArea::create(
+                            metaJson()["description"].as_string().c_str(),
+                            "chatFont.fnt",
+                            1.0f, 500.f, {0.f, 0.5f}, 12.f, false
+                        );
+                        description->setContentWidth(0.f);
+                        parent->addChild(description);
+                    }
+                    parent->updateLayout();
+                    menu->addChild(parent);
+                };
+                //download_part
+                if (auto download_part = CCMenu::create()) {
+                    auto size = CCSize(186.f, 68.f);
+                    auto parent = download_part;
+                    parent->setID("download_part");
+                    parent->setContentSize(size);
+                    parent->setLayout(
+                        ColumnLayout::create()
+                        ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                        ->setAxisAlignment(AxisAlignment::Even)
+                        ->setAxisReverse(true)
+                    );
+                    if (auto downloadBtn = ButtonSprite::create("Download", "goldFont.fnt", "GJ_button_05.png")) {
+                        downloadBtn->setScale(0.8f);
+                        auto item = CCMenuItemSpriteExtra::create(downloadBtn, this, menu_selector(ModViewLayer::onBtn));
+                        item->setID("download");
+                        parent->addChild(item);
+                    }
+                    //statsContainerMenu
+                    {
+                        CCMenu* statsContainerMenu = CCMenu::create();
+                        parent->addChild(statsContainerMenu);
+                        statsContainerMenu->setID("statsContainerMenu");
+                        statsContainerMenu->setContentSize(size);
+                        statsContainerMenu->setLayout(
+                            RowLayout::create()
+                            ->setGap(20.f)
+                            ->setGrowCrossAxis(true)
+                            ->setAxisAlignment(AxisAlignment::Start)
+                        );
+                        /*download_count*/ {
+                            auto download_count = CCLabelTTF::create(
+                                abbreviateNumber(fileJson()["download_count"].as_int()).c_str(),
+                                "arial",
+                                12.f
+                            );
+                            download_count->setID("download_count");
+                            download_count->setAnchorPoint({ 0.f, 0.5f });
+                            download_count->setScale(0.65f);
+                            download_count->addChild(CCSprite::createWithSpriteFrameName("GJ_sDownloadIcon_001.png"), 0, 521);
+                            download_count->getChildByTag(521)->setAnchorPoint({ 1.0f, 0.0f });
+                            statsContainerMenu->addChild(download_count);
+                        }
+                        /*size*/ {
+                            auto size = CCLabelTTF::create(
+                                convertSize(fileJson()["size"].as_int()).c_str(),
+                                "arial",
+                                12.f
+                            );
+                            statsContainerMenu->addChild(size);
+                            size->setID("size");
+                            size->setAnchorPoint({ 0.f, 0.5f });
+                            size->setScale(0.65f);
+                            size->addChild(CCSprite::createWithSpriteFrameName("geode.loader/changelog.png"), 0, 521);
+                            size->getChildByTag(521)->setAnchorPoint({ 1.10f, 0.0f });
+                            size->getChildByTag(521)->setScale(0.6f);
+                        };
+                        statsContainerMenu->updateLayout();
+                    }
+                    parent->updateLayout();
+                    menu->addChild(parent);
+                }
             }
             menu->updateLayout();
         }
@@ -199,6 +566,52 @@ public:
             inf_label->setPositionX(CCDirector::get()->getScreenRight() / 2);
             addChild(inf_label);
         }
+        /*md*/ {
+            auto pMDTextArea = MDTextArea::create(
+                "# Content is loading...",
+                { this->getContentWidth() - 120.f, this->getContentHeight() - 80.f, }
+                );
+            pMDTextArea->setID("pMDTextArea");
+            pMDTextArea->setPositionX(this->getContentWidth() / 2);
+            pMDTextArea->setAnchorPoint({ 0.5f, 0.f });
+            addChild(pMDTextArea, -1, 85290);
+            loadAnyReadme();
+        }
+    }
+    void loadAnyReadme() {
+        //about md
+        {
+            auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByIDRecursive("pMDTextArea"));
+            //vars prepare
+            auto endpoint = fmt::format(
+                "https://raw.githubusercontent.com/{}/{}/{}",
+                ini()->GetValue("mod", "repo"),
+                repoJson()["default_branch"].as_string(),
+                type() == ModType::Mod ? "about.md" : "README.md"
+            );
+            auto file = workindir() / "about.md";
+            //req
+            if (checkExistence(file)) {
+                auto filestream = std::ifstream(file);
+                if (filestream.is_open())
+                {
+                    std::stringstream stream;
+                    {
+                        std::string line;
+                        while (std::getline(filestream, line)) {
+                            stream << line;
+                        };
+                    };
+                    pMDTextArea->setString(stream.str().c_str());
+                }
+            }
+            web::AsyncWebRequest()ghapiauth.fetch(endpoint).text()
+                .then(
+                    [this, file, pMDTextArea](std::string const& catgirlwiki) {
+                        std::ofstream(file.string().c_str()) << catgirlwiki;
+                        pMDTextArea->setString(catgirlwiki.c_str());
+                    });
+        };
     }
     //data gettinga
     ghc::filesystem::path workindir() {
@@ -213,6 +626,26 @@ public:
         auto json = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("issueJson"));
         return matjson::parse(json->getString());
     }
+    matjson::Value repoJson() {
+        auto json = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("repoJson"));
+        return matjson::parse(json->getString());
+    }
+    matjson::Value metaJson() {
+        auto json = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("metaJson"));
+        return matjson::parse(json->getString());
+    }
+    matjson::Value releaseJson() {
+        auto json = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("releaseJson"));
+        return matjson::parse(json->getString());
+    }
+    matjson::Value fileJson() {
+        for (auto asset : releaseJson()["assets"].as_array()) {
+            if (asset["name"].as_string() == ini()->GetValue("mod", "file")) {
+                return asset;
+            };
+        }
+        return releaseJson()["assets"][0];
+    }
     CSimpleIni* ini() {
         auto ini = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("ini"));
         auto rtn = new CSimpleIni;
@@ -225,6 +658,22 @@ public:
         if (not what) return;
         if (what->getID() == "reload");
         if (what->getID() == "back") keyBackClicked();
+        if (what->getID() == "download") {
+            //endpoint
+            auto endpoint = fmt::format(
+                "https://github.com/{}/releases/{}/download/{}",
+                ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release_tag"), ini()->GetValue("mod", "file")
+            );
+            auto pop = geode::MDPopup::create(
+                "Download mod",
+                "\n" + endpoint + "",
+                "Start downloading", nullptr,
+                [this](bool btn2) {
+                    if (btn2);// this->downloadLatest(this);
+                }
+            );
+            pop->show();
+        };
     }
     static void openMe(matjson::Value pJson) {
         auto scene = CCScene::create();
@@ -382,7 +831,7 @@ public:
                 desc->setAnchorPoint({ 0.0f, 0.6f });
                 desc->setOpacity(180);
                 /*fitlinesscale*/ {
-                    auto max_width = (SIZE.width*2) - 260.f;
+                    auto max_width = (SIZE.width*2) - 320.f;
                     auto node = desc->m_label;
                     for (int i = 0; i < node->getChildrenCount(); i++) {
                         auto inode = cocos::getChild(node, i);
@@ -516,7 +965,14 @@ public:
                         backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
                         backgroundSprite->setAnchorPoint({ 0, 0 });
                         backgroundSprite->setColor({ 70, 80, 90 });
-                        backgroundSprite->runAction(CCRepeatForever::create(CCSequence::create(CCTintTo::create(5.0, 70, 80, 90), CCTintTo::create(5.0, 60, 70, 80), CCTintTo::create(5.0, 70, 80, 80), nullptr)));
+                        backgroundSprite->runAction(CCRepeatForever::create(
+                            CCSequence::create(
+                                CCTintTo::create(5.0, 100, 100, 100),
+                                CCTintTo::create(5.0, 100, 100, 110),
+                                CCTintTo::create(5.0, 105, 100, 110),
+                                nullptr
+                            )
+                        ));
                         rtn->addChild(backgroundSprite, -2);
                     };
                     /*SquareShadowCorners*/ {
