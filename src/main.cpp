@@ -48,7 +48,6 @@ public:
     enum ModType { Undef = 1510, Mod = 1511, Pack = 1512 };
     static auto create(matjson::Value pJson) {
         auto rtn = new ModViewLayer;
-        rtn->autorelease();
         rtn->init();
         /* text containers 💀 */ {
             //issueJson
