@@ -839,12 +839,11 @@ public:
                     auto node = desc->m_label;
                     for (int i = 0; i < node->getChildrenCount(); i++) {
                         auto inode = cocos::getChild(node, i);
-                        if (inode) {
+                        if (inode)
                             if (inode->getContentSize().width >= max_width) {
                                 inode->setScale((max_width) / (inode->getContentSize().width / inode->getScale()));
-                        }
-                    }
-                }
+}
+}
                 menu->addChild(desc);
             }
             if (pContentLayer) pContentLayer->addChild(pRtn);
