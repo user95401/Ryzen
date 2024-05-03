@@ -51,27 +51,27 @@ public:
         rtn->init();
         /* text containers 💀 */ {
             //issueJson
-            auto issueJson = CCLabelTTF::create(pJson.dump().data(), "arial", 0.f);
+            auto issueJson = CCLabelTTF::create(pJson.dump().data(), "arial", 6.f);
             issueJson->setVisible(0);
             issueJson->setID("issueJson");
             rtn->addChild(issueJson, 999);
             //repoJson
-            auto repoJson = CCLabelTTF::create("{}", "arial", 0.f);
+            auto repoJson = CCLabelTTF::create("{}", "arial", 6.f);
             repoJson->setVisible(0);
             repoJson->setID("repoJson");
             rtn->addChild(repoJson, 999);
             //metaJson
-            auto metaJson = CCLabelTTF::create("{}", "arial", 0.f);
+            auto metaJson = CCLabelTTF::create("{}", "arial", 6.f);
             metaJson->setVisible(0);
             metaJson->setID("metaJson");
             rtn->addChild(metaJson, 999);
             //releaseJson
-            auto releaseJson = CCLabelTTF::create("{}", "arial", 0.f);
+            auto releaseJson = CCLabelTTF::create("{}", "arial", 6.f);
             releaseJson->setVisible(0);
             releaseJson->setID("releaseJson");
             rtn->addChild(releaseJson, 999);
             //ini
-            auto ini = CCLabelTTF::create(pJson["body"].as_string().data(), "arial", 0.f);
+            auto ini = CCLabelTTF::create(pJson["body"].as_string().data(), "arial", 6.f);
             ini->setVisible(0);
             ini->setID("ini");
             rtn->addChild(ini, 999);
@@ -80,14 +80,14 @@ public:
             ModType type = ModType::Undef;
             if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos) type = ModType::Mod;
             if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) type = ModType::Pack;
-            auto typeMark = CCLabelTTF::create("Undef:1510,Mod:1511,Pack:1512", "arial", 0.f);
+            auto typeMark = CCLabelTTF::create("Undef:1510,Mod:1511,Pack:1512", "arial", 6.f);
             typeMark->setID("type");
             typeMark->setVisible(0);
             rtn->addChild(typeMark, 999, type);
             //path
             auto the_path = dirs::getGeodeDir() / "ryzen" / "mods" / fmt::to_string(pJson["number"]);
             ghc::filesystem::create_directories(the_path);
-            auto path = CCLabelTTF::create(the_path.string().data(), "arial", 0.f);
+            auto path = CCLabelTTF::create(the_path.string().data(), "arial", 6.f);
             path->setVisible(0);
             path->setID("path");
             rtn->addChild(path, 999);
