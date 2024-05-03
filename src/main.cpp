@@ -49,7 +49,6 @@ public:
     static auto create(matjson::Value pJson) {
         auto rtn = new ModViewLayer;
         rtn->init();
-        return rtn;
         /* text containers 💀 */ {
             //issueJson
             auto issueJson = CCLabelTTF::create(pJson.dump().data(), "arial", 0.f);
@@ -93,6 +92,7 @@ public:
             path->setID("path");
             rtn->addChild(path, 999);
         }
+        return rtn;
         /*base shit*/ {
             {
                 //setup
