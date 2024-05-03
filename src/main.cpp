@@ -476,16 +476,11 @@ public:
                         parent->addChild(label);
                     }
                     /*description*/ {
-                        auto description = TextArea::create(
+                        auto description = CCLabelTTF::create(
                             metaJson()["description"].as_string().c_str(),
-                            "chatFont.fnt",
-                            1.0f, 500.f, {0.f, 0.5f}, 12.f, false
+                            "arial", 12.f
                         );
-                        auto inode = description->m_label;
-                        if (inode->getContentSize().width >= parent->getContentWidth()) {
-                            inode->setScale((parent->getContentWidth()) / (inode->getContentSize().width));
-                        }
-                        parent->addChild(inode);
+                        parent->addChild(description);
                     }
                     parent->updateLayout();
                     menu->addChild(parent);
