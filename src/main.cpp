@@ -41,6 +41,30 @@ std::string abbreviateNumber(int num) {
     else return fmt::format("{}", num);
     return fmt::format("{:.1f}{}", n, suffix);
 }
+std::vector<std::string> explode(const std::string& str, const char& ch) {
+    std::string next;
+    std::vector<std::string> result;
+    for (std::string::const_iterator it = str.begin(); it != str.end(); it++) {
+        if (*it == ch) if (!next.empty()) {
+            result.push_back(next);
+            next.clear();
+        }
+        else next += *it;
+    }
+    if (!next.empty()) result.push_back(next);
+    if (result.size() == 0) result.push_back(str);
+    return result;
+}
+bool vecHasStrings(std::vector<std::string> in, std::vector<std::string> the) {
+    bool founded = false;
+    for (auto str_in : in) {
+        for (auto str_tar : the) {
+            if (!founded) founded = str_tar == str_in;
+        }
+        if (!founded) return false;
+    }
+    return founded;
+}
 
 #include "SimpleIni.h"
 class ModViewLayer : public CCLayer {
@@ -305,10 +329,12 @@ public:
         //vars prepare
         auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
         auto metaJson = dynamic_cast<CCLabelTTF*>(getChildByIDRecursive("metaJson"));
+        auto branch = repoJson()["default_branch"].as_string();
+        if(std::string(ini()->GetValue("mod", "release_tag")) != "latest") branch = ini()->GetValue("mod", "release_tag");
         auto endpoint = fmt::format(
             "https://raw.githubusercontent.com/{}/{}/{}",
             ini()->GetValue("mod", "repo"),
-            repoJson()["default_branch"].as_string(),
+            branch,
             type() == ModType::Mod ? "mod.json" : "pack.json"
         );
         auto file = workindir() / "meta.json";
@@ -550,7 +576,8 @@ public:
             }
             menu->updateLayout();
         }
-        /*bottom inf text*/ {
+        /*bottom inf text*/
+        {
             auto inf_label = CCLabelTTF::create(
                 fmt::format(
                     "repo: {}, release: {}",
@@ -564,18 +591,18 @@ public:
             inf_label->setAnchorPoint({ 0.5f, 0.f });
             inf_label->setPositionX(CCDirector::get()->getScreenRight() / 2);
             addChild(inf_label);
-        }
+        };
         /*md*/ {
             auto pMDTextArea = MDTextArea::create(
                 "# Content is loading...",
                 { this->getContentWidth() - 120.f, this->getContentHeight() - 80.f, }
-                );
+            );
             pMDTextArea->setID("pMDTextArea");
             pMDTextArea->setPositionX(this->getContentWidth() / 2);
             pMDTextArea->setAnchorPoint({ 0.5f, 0.f });
             addChild(pMDTextArea, -1, 85290);
             loadAnyReadme();
-        }
+        };
     }
     void loadAnyReadme() {
         //about md
@@ -830,17 +857,17 @@ public:
                 desc->setAnchorPoint({ 0.0f, 0.6f });
                 desc->setOpacity(180);
                 /*fitlinesscale*/ {
-                    auto max_width = (SIZE.width*2) - 320.f;
+                    auto max_width = (SIZE.width * 2) - 320.f;
                     auto node = desc->m_label;
                     for (int i = 0; i < node->getChildrenCount(); i++) {
                         auto inode = cocos::getChild(node, i);
                         if (inode) {
                             if (inode->getContentSize().width >= max_width) {
                                 inode->setScale((max_width) / (inode->getContentSize().width / inode->getScale()));
+                            }
                         }
-                     }
-                    } 
-                }
+                    }
+                };
                 menu->addChild(desc);
             }
             if (pContentLayer) pContentLayer->addChild(pRtn);
@@ -864,19 +891,73 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "reload") downloadMods();
+        if (what->getID() == "search") {
+            auto local_issues_file = dirs::getGeodeDir() / "ryzen" / "issues.json";
+            auto local_issues = std::ifstream(local_issues_file);
+            if (local_issues.is_open())
+            {
+                std::string line;
+                std::stringstream stream;
+                while (std::getline(local_issues, line)) {
+                    stream << line;
+                };
+                setupMods(matjson::parse(stream.str()));
+            }
+            else downloadMods();
+        };
+        if (what->getID() == "add_link") web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
     }
-    void setupMods(matjson::Value const& catgirls) {
+    std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
+        std::vector<matjson::Value> cutestcatgirls;
+        for (auto catgirl : catgirls.as_array()) {
+            bool skip = false;
+            if (auto input = dynamic_cast<CCTextInputNode*>(this->getChildByIDRecursive("input"))) {
+                auto filter_str = std::string(input->getString());
+                //filters
+                auto filters = explode(filter_str, '&');
+                for (auto filter : filters) {
+                    //name
+                    if (filter.find("name:") != std::string::npos) {
+                        auto type = std::string("name:");
+                        auto at = catgirl["title"].as_string();
+                        auto val = filter.replace(filter.find(type), type.size(), "");
+                        skip = at.find(val) == std::string::npos;
+                    }
+                    //by
+                    else if (filter.find("by:") != std::string::npos) {
+                        auto type = std::string("by:");
+                        auto at = catgirl["user"]["login"].as_string();
+                        auto val = filter.replace(filter.find(type), type.size(), "");
+                        skip = at.find(val) == std::string::npos;
+                    }
+                    //labels
+                    else if (filter.find("labels:") != std::string::npos) {
+                        auto type = std::string("labels:");
+                        auto val = filter.replace(filter.find(type), type.size(), "");
+                        log::debug("val: {}", val);
+                        auto labels = explode(val, ',');
+                        bool hasIt = false;
+                        skip = not hasIt;
+                    }
+                    //any
+                    else if (not filter.empty()) {
+                        skip = catgirl.dump().find(filter) == std::string::npos;
+                    }
+                }
+            }
+            if (not skip) cutestcatgirls.push_back(catgirl);
+        }
+        return cutestcatgirls;
+    };
+    void setupMods(matjson::Value catgirls) {
         if (not dynamic_cast<RyzenLayer*>(this)) return;
         auto scroll = dynamic_cast<ScrollLayer*>(this->getChildByID("scroll"));
         if (not scroll) return;
         scroll->m_contentLayer->removeAllChildren();
         scroll->m_contentLayer->setContentHeight(0.f);
         auto index = 0;
-        for (auto catgirl : catgirls.as_array()) {
-            //filter parse
-            {
-
-            }
+        auto cutestcatgirls = filterOutMods(catgirls);
+        for (auto catgirl : cutestcatgirls) {
             //item add
             auto item = IssueItem::create(catgirl, scroll->m_contentLayer, scroll);
             //long down
@@ -884,7 +965,7 @@ public:
                 scroll->m_contentLayer->getContentHeight() + item->getContentHeight()
             );
             //add border if here next item will
-            if (catgirls.as_array().size() > (index + 1)) {
+            if (cutestcatgirls.size() > index + 1) {
                 CCScale9Sprite* border = CCScale9Sprite::createWithSpriteFrameName("floorLine_01_001.png");
                 scroll->m_contentLayer->addChild(border);
                 border->setContentWidth(scroll->getContentWidth());
@@ -954,7 +1035,7 @@ public:
             {
                 {
                     //play music
-                    GameManager::sharedState()->fadeInMusic("Owady nocy.mp3"_spr);
+                    GameManager::sharedState()->fadeInMusic("WhiteNoiseBlackVoid - Night Walk Through the Grayland.mp3"_spr);
                     //setup
                     rtn->setKeypadEnabled(true);
                     rtn->setTouchEnabled(true);
@@ -1046,7 +1127,7 @@ public:
                             CCSprite::createWithSpriteFrameName("gj_findBtn_001.png"),
                             rtn, menu_selector(RyzenLayer::onBtn)
                         );
-                        gj_findBtn->setID("OpenSearchBar");
+                        gj_findBtn->setID("search");
                         gj_findBtn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
                         menu->addChild(gj_findBtn);//add GJ_replayBtn_001
                         //addmodbtn
@@ -1131,6 +1212,9 @@ public:
                             "Filters...",
                             "chatFont.fnt"
                         );
+                        input->m_filterSwearWords = false;
+                        input->m_allowedChars = " !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+                        input->setAllowedChars(input->m_allowedChars);
                         input->setID("input");
                         input->m_placeholderColor = ccColor3B(160, 160, 160);
                         input->m_placeholderLabel->setColor(input->m_placeholderColor);
@@ -1140,18 +1224,7 @@ public:
                     }
                 }
             };
-            auto local_issues_file = dirs::getGeodeDir() / "ryzen" / "issues.json";
-            auto local_issues = std::ifstream(local_issues_file);
-            if (local_issues.is_open())
-            {
-                std::string line;
-                std::stringstream stream;
-                while (std::getline(local_issues, line)) {
-                    stream << line;
-                };
-                rtn->setupMods(matjson::parse(stream.str()));
-            }
-            else rtn->downloadMods();
+            rtn->sendBtnFunc("search");
         }
         else {
             delete rtn;
