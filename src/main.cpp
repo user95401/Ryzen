@@ -92,7 +92,6 @@ public:
             path->setID("path");
             rtn->addChild(path, 999);
         }
-        return rtn;
         /*base shit*/ {
             {
                 //setup
