@@ -184,7 +184,6 @@ public:
         loadings->addChild(loading_repo);
         auto loading_logo = Notification::create("Loading logo...", NotificationIcon::Loading, 0.f);
         loading_logo->setID("loading_logo");
-        loading_logo->setTag(1);
         loadings->addChild(loading_logo);
         auto loading_meta = Notification::create("Loading meta...", NotificationIcon::Loading, 0.f);
         loading_meta->setID("loading_meta");
@@ -368,6 +367,7 @@ public:
         if (checkExistence(file)) {
             loading_logo->setString("Logo founded locally");
             loading_logo->setIcon(CCSprite::create(file.string().c_str()));
+            loading_logo->setTag(1);
         }
         else {
             web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(file)
@@ -375,10 +375,12 @@ public:
                     [this, loading_logo, file](std::monostate const& who) {
                         loading_logo->setString("Logo loaded");
                         loading_logo->setIcon(CCSprite::create(file.string().c_str()));
+                        loading_logo->setTag(1);
                     })
                 .expect(
                     [this, loading_logo, endpoint](std::string const& what) {
                         loading_logo->setIcon(NotificationIcon::Error);
+                        loading_logo->setTag(1);
                         auto asd = geode::createQuickPopup(
                             "Request exception",
                             what + "\n" + endpoint,
