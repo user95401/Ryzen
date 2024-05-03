@@ -483,7 +483,7 @@ public:
                         );
                         auto inode = description->m_label;
                         if (inode->getContentSize().width >= parent->getContentWidth()) {
-                                inode->setScale((parent.getContentWidth()) / (inode->getContentSize().width));
+                            inode->setScale((parent->getContentWidth()) / (inode->getContentSize().width));
                         }
                         parent->addChild(inode);
                     }
