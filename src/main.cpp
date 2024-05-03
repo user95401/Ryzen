@@ -481,8 +481,11 @@ public:
                             "chatFont.fnt",
                             1.0f, 500.f, {0.f, 0.5f}, 12.f, false
                         );
-                        description->setContentWidth(0.f);
-                        parent->addChild(description->m_label);
+                        auto inode = description->m_label;
+                        if (inode->getContentSize().width >= parent.getContentWidth()) {
+                                inode->setScale((parent.getContentWidth()) / (inode->getContentSize().width));
+                        }
+                        parent->addChild(inode);
                     }
                     parent->updateLayout();
                     menu->addChild(parent);
@@ -839,7 +842,6 @@ public:
                         if (inode) {
                             if (inode->getContentSize().width >= max_width) {
                                 inode->setScale((max_width) / (inode->getContentSize().width / inode->getScale()));
-                            }
                         }
                     }
                 }
