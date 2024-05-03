@@ -482,7 +482,7 @@ public:
                             1.0f, 500.f, {0.f, 0.5f}, 12.f, false
                         );
                         description->setContentWidth(0.f);
-                        parent->addChild(description);
+                        parent->addChild(description->m_label);
                     }
                     parent->updateLayout();
                     menu->addChild(parent);
