@@ -1,4 +1,4 @@
-﻿#include <Geode/Geode.hpp>
+#include <Geode/Geode.hpp>
 #include <Geode/utils/web.hpp>
 #include "ghapiauth.h"
 using namespace geode::prelude;
