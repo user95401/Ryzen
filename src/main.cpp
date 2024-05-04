@@ -12,35 +12,8 @@ bool checkExistence(T filename)
 void remove_dir(char* path) {
 #ifdef GEODE_IS_WINDOWS
     std::filesystem::remove_all(path);
-#else //linux code idk a
-    struct dirent* entry = NULL;
-    DIR* dir = NULL;
-    dir = opendir(path);
-    while (entry = readdir(dir))
-    {
-        DIR* sub_dir = NULL;
-        FILE* file = NULL;
-        char* abs_path new char[256];
-        if ((*(entry->d_name) != '.') || ((strlen(entry->d_name) > 1) && (entry->d_name[1] != '.')))
-        {
-            sprintf(abs_path, "%s/%s", path, entry->d_name);
-            if (sub_dir = opendir(abs_path))
-            {
-                closedir(sub_dir);
-                remove_dir(abs_path);
-            }
-            else
-            {
-                if (file = fopen(abs_path, "r"))
-                {
-                    fclose(file);
-                    remove(abs_path);
-                }
-            }
-        }
-        delete[] abs_path;
-    }
-    remove(path);
+#else //lol
+    system(fmt::format("rm -r {}", path).data());
 #endif // !GEODE_IS_WINDOWS
 }
 std::string convertSize(size_t size) {
