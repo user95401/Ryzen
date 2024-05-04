@@ -9,7 +9,8 @@ project(mod VERSION 1.0.0)
 add_library(${PROJECT_NAME} SHARED
     src/main.cpp
     # Add your cpp files here
- "src/ConvertUTF.c")
+ "src/ConvertUTF.c"
+ )
 include_directories(src)
 
 if (NOT DEFINED ENV{GEODE_SDK})

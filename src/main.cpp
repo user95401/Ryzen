@@ -13,7 +13,7 @@ void remove_dir(char* path) {
 #ifdef GEODE_IS_WINDOWS
     std::filesystem::remove_all(path);
 #else //lol
-    system(fmt::format("rm -r {}", path).data());
+    system(fmt::format("rd /s /q \"{}\"", path).data());
 #endif // !GEODE_IS_WINDOWS
 }
 std::string convertSize(size_t size) {
