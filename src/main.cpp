@@ -710,7 +710,7 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "reload") {
-            if (checkExistence(workindir())) ghc::filesystem::remove_all(workindir());
+            if (checkExistence(workindir())) std::filesystem::remove_all(workindir().string());
             auto scene = CCScene::create();
             auto pModViewLayer = ModViewLayer::create(issueJson());
             scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
