@@ -715,7 +715,8 @@ public:
                 workindir().string(),
                 "Oke", nullptr,
                 [this](auto, bool btn2) {
-                    if (checkExistence(workindir())) ghc::filesystem::remove_all(workindir());
+                    std::error_code fFHJAT_TYEFUICITSSTHAT;
+                    if (checkExistence(workindir())) ghc::filesystem::remove_all(workindir(), fFHJAT_TYEFUICITSSTHAT);
                     auto scene = CCScene::create();
                     auto pModViewLayer = ModViewLayer::create(issueJson());
                     scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
