@@ -41,29 +41,102 @@ std::string abbreviateNumber(int num) {
     else return fmt::format("{}", num);
     return fmt::format("{:.1f}{}", n, suffix);
 }
-std::vector<std::string> explode(const std::string& str, const char& ch) {
-    std::string next;
-    std::vector<std::string> result;
-    for (std::string::const_iterator it = str.begin(); it != str.end(); it++) {
-        if (*it == ch) if (!next.empty()) {
-            result.push_back(next);
-            next.clear();
-        }
-        else next += *it;
+std::vector<std::string> explode(std::string separator, std::string input) {
+    std::vector<std::string> vec;
+    for (int i{ 0 }; i < input.length(); ++i) {
+        int pos = input.find(separator, i);
+        if (pos < 0) { vec.push_back(input.substr(i)); break; }
+        int count = pos - i;
+        vec.push_back(input.substr(i, count));
+        i = pos + separator.length() - 1;
     }
-    if (!next.empty()) result.push_back(next);
-    if (result.size() == 0) result.push_back(str);
-    return result;
+    if (vec.size() == 0) vec.push_back(input);/*
+    std::stringstream log;
+    for (auto item : vec)
+        log << std::endl << item << std::endl;
+    log::debug("{}(separator \"{}\", input \"{}\").rtn({})", __FUNCTION__, separator, input, log.str());*/
+    return vec;
 }
-bool vecHasStrings(std::vector<std::string> in, std::vector<std::string> the) {
-    bool founded = false;
-    for (auto str_in : in) {
-        for (auto str_tar : the) {
-            if (!founded) founded = str_tar == str_in;
-        }
-        if (!founded) return false;
-    }
-    return founded;
+
+auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
+    {
+        //setup
+        rtn->setKeypadEnabled(true);
+        rtn->setTouchEnabled(true);
+        /*bg*/ {
+            CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
+            backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
+            backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
+            backgroundSprite->setAnchorPoint({ 0, 0 });
+            backgroundSprite->setColor({ 70, 80, 90 });
+            backgroundSprite->runAction(CCRepeatForever::create(
+                CCSequence::create(
+                    CCTintTo::create(5.0, 100, 100, 100),
+                    CCTintTo::create(5.0, 100, 100, 110),
+                    CCTintTo::create(5.0, 105, 100, 110),
+                    nullptr
+                )
+            ));
+            rtn->addChild(backgroundSprite, -2);
+        };
+        /*SquareShadowCorners*/ {
+            auto scale = 1.f;
+            auto opacity = 160;
+            //SquareShadowCorner1
+            CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+            SquareShadowCorner1->setScaleX(scale);
+            SquareShadowCorner1->setOpacity(opacity);
+            SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
+            SquareShadowCorner1->setAnchorPoint({ 0, 0 });
+            rtn->addChild(SquareShadowCorner1, -1);
+            //SquareShadowCorner2
+            CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+            SquareShadowCorner2->setScaleX(-scale);
+            SquareShadowCorner2->setOpacity(opacity);
+            SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
+            SquareShadowCorner2->setAnchorPoint({ 0, 0 });
+            SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
+            rtn->addChild(SquareShadowCorner2, -1);
+        };
+        /*gauntletCorners*/ {
+            //gauntletCorner_001
+            CCSprite* gauntletCorner_001 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+            gauntletCorner_001->setPosition({ 0, 0 });
+            gauntletCorner_001->setRotation(0);
+            gauntletCorner_001->setAnchorPoint({ 0.f,0.f });
+            rtn->addChild(gauntletCorner_001);//add gauntletCorner_001
+            //gauntletCorner_002
+            CCSprite* gauntletCorner_002 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+            gauntletCorner_002->setPosition({
+                CCDirector::sharedDirector()->getWinSize().width,
+                0.f
+                });
+            gauntletCorner_002->setScaleX(-1.f);
+            gauntletCorner_002->setAnchorPoint({ 0.f,0.f });
+            rtn->addChild(gauntletCorner_002);//add gauntletCorner_002
+            //gauntletCorner_003
+            CCSprite* gauntletCorner_003 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+            gauntletCorner_003->setPosition({
+                (CCDirector::sharedDirector()->getWinSize().width),
+                (CCDirector::sharedDirector()->getWinSize().height)
+                });
+            gauntletCorner_003->setRotation(180.f);
+            gauntletCorner_003->setAnchorPoint({ 0.f,0.f });
+            rtn->addChild(gauntletCorner_003);//add gauntletCorner_003
+        };
+        /*backBtn*/ {
+            auto back = CCMenuItemSpriteExtra::create(
+                CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png"),
+                rtn,
+                onBtnSel
+            );
+            back->setID("back");
+            auto menuBack = CCMenu::createWithItem(back);
+            menuBack->setPosition({ 25, CCDirector::sharedDirector()->getWinSize().height - 25 });
+            rtn->addChild(menuBack);
+        };
+    };
+    return rtn;
 }
 
 #include "SimpleIni.h"
@@ -73,6 +146,7 @@ public:
     static auto create(matjson::Value pJson) {
         auto rtn = new ModViewLayer;
         rtn->init();
+        basicRznLayersInit(rtn, menu_selector(ModViewLayer::onBtn));
         /* text containers 💀 */ {
             //issueJson
             auto issueJson = CCLabelTTF::create(pJson.dump().data(), "arial", 6.f);
@@ -116,84 +190,42 @@ public:
             path->setID("path");
             rtn->addChild(path, 999);
         }
-        /*base shit*/ {
-            {
-                //setup
-                rtn->setKeypadEnabled(true);
-                rtn->setTouchEnabled(true);
-                /*bg*/ {
-                    CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
-                    backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
-                    backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
-                    backgroundSprite->setAnchorPoint({ 0, 0 });
-                    backgroundSprite->setColor({ 70, 80, 90 });
-                    backgroundSprite->runAction(CCRepeatForever::create(
-                        CCSequence::create(
-                            CCTintTo::create(5.0, 100, 100, 100),
-                            CCTintTo::create(5.0, 100, 100, 110),
-                            CCTintTo::create(5.0, 105, 100, 110),
-                            nullptr
-                        )
-                    ));
-                    rtn->addChild(backgroundSprite, -2);
-                };
-                /*SquareShadowCorners*/ {
-                    auto scale = 1.f;
-                    auto opacity = 160;
-                    //SquareShadowCorner1
-                    CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                    SquareShadowCorner1->setScaleX(scale);
-                    SquareShadowCorner1->setOpacity(opacity);
-                    SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
-                    SquareShadowCorner1->setAnchorPoint({ 0, 0 });
-                    rtn->addChild(SquareShadowCorner1, -1);
-                    //SquareShadowCorner2
-                    CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                    SquareShadowCorner2->setScaleX(-scale);
-                    SquareShadowCorner2->setOpacity(opacity);
-                    SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
-                    SquareShadowCorner2->setAnchorPoint({ 0, 0 });
-                    SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
-                    rtn->addChild(SquareShadowCorner2, -1);
-                };
-                /*gauntletCorners*/ {
-                    //gauntletCorner_001
-                    CCSprite* gauntletCorner_001 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
-                    gauntletCorner_001->setPosition({ 0, 0 });
-                    gauntletCorner_001->setRotation(0);
-                    gauntletCorner_001->setAnchorPoint({ 0.f,0.f });
-                    rtn->addChild(gauntletCorner_001);//add gauntletCorner_001
-                    //gauntletCorner_002
-                    CCSprite* gauntletCorner_002 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
-                    gauntletCorner_002->setPosition({
-                        CCDirector::sharedDirector()->getWinSize().width,
-                        0.f
-                        });
-                    gauntletCorner_002->setScaleX(-1.f);
-                    gauntletCorner_002->setAnchorPoint({ 0.f,0.f });
-                    rtn->addChild(gauntletCorner_002);//add gauntletCorner_002
-                    //gauntletCorner_003
-                    CCSprite* gauntletCorner_003 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
-                    gauntletCorner_003->setPosition({
-                        (CCDirector::sharedDirector()->getWinSize().width),
-                        (CCDirector::sharedDirector()->getWinSize().height)
-                        });
-                    gauntletCorner_003->setRotation(180.f);
-                    gauntletCorner_003->setAnchorPoint({ 0.f,0.f });
-                    rtn->addChild(gauntletCorner_003);//add gauntletCorner_003
-                };
-                /*backBtn*/ {
-                    auto back = CCMenuItemSpriteExtra::create(
-                        CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png"),
-                        rtn,
-                        menu_selector(ModViewLayer::onBtn)
-                    );
-                    back->setID("back");
-                    auto menuBack = CCMenu::createWithItem(back);
-                    menuBack->setPosition({ 25, CCDirector::sharedDirector()->getWinSize().height - 25 });
-                    rtn->addChild(menuBack);
-                };
+        /* bottom_inf_text */ {
+            auto inf_label = CCLabelTTF::create(
+                fmt::format(
+                    "repo: {}, release: {}",
+                    rtn->ini()->GetValue("mod", "repo"),
+                    rtn->ini()->GetValue("mod", "release_tag")
+                ).data(),
+                "arial", 8.f
+            );
+            inf_label->setID("inf_label");
+            inf_label->setOpacity(120);
+            inf_label->setAnchorPoint({ 0.5f, 0.f });
+            inf_label->setPositionX(CCDirector::get()->getScreenRight() / 2);
+            rtn->addChild(inf_label);
+        };
+        /* tr buttons */ {
+            CCMenu* menu = CCMenu::create();
+            if (menu) {
+                menu->setPosition(CCDirector::get()->getScreenRight(), 0.f);
+                menu->setAnchorPoint({ 1.f, 0.f });
+                menu->setLayout(
+                    ColumnLayout::create()
+                    ->setAxisAlignment(AxisAlignment::Start)
+                );
+                rtn->addChild(menu);
             };
+            //reloadmodsbtn
+            if (auto sprite = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+                CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
+                    sprite, rtn, menu_selector(ModViewLayer::onBtn)
+                );
+                reload->setID("reload");
+                reload->getNormalImage()->setScale(0.7f);
+                menu->addChild(reload);//add GJ_replayBtn_001
+            };
+            menu->updateLayout();
         }
         rtn->loadDataMain();
         return rtn;
@@ -417,6 +449,45 @@ public:
                     });
         };
     }
+    void loadAnyReadme() {
+        //about md
+        {
+            auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByIDRecursive("pMDTextArea"));
+            //vars prepare
+            auto endpoint = fmt::format(
+                "https://raw.githubusercontent.com/{}/{}/{}",
+                ini()->GetValue("mod", "repo"),
+                repoJson()["default_branch"].as_string(),
+                type() == ModType::Mod ? "about.md" : "README.md"
+            );
+            auto file = workindir() / "about.md";
+            //req
+            if (checkExistence(file)) {
+                auto filestream = std::ifstream(file);
+                if (filestream.is_open())
+                {
+                    std::stringstream stream;
+                    {
+                        std::string line;
+                        while (std::getline(filestream, line)) {
+                            stream << line;
+                        };
+                    };
+                    pMDTextArea->setString(stream.str().c_str());
+                }
+            }
+            web::AsyncWebRequest()ghapiauth.fetch(endpoint).text()
+                .then(
+                    [this, file, pMDTextArea](std::string const& catgirlwiki) {
+                        std::ofstream(file.string().c_str()) << catgirlwiki;
+                        pMDTextArea->setString(catgirlwiki.c_str());
+                    })
+                .expect(
+                    [endpoint, pMDTextArea](std::string const& what) {
+                        pMDTextArea->setString(("## <cr>" + what + "</c>\n" + endpoint).c_str());
+                    });
+        };
+    }
     //customSetup
     void waitForCustomSetup(float asd = 1337.f) {
         auto sch = schedule_selector(ModViewLayer::waitForCustomSetup);
@@ -502,11 +573,17 @@ public:
                         parent->addChild(label);
                     }
                     /*description*/ {
-                        auto description = CCLabelTTF::create(
-                            metaJson()["description"].as_string().c_str(),
-                            "arial", 12.f
+                        auto strDesc = metaJson().contains("description") ?
+                            metaJson()["description"].as_string().c_str() :
+                            ini()->GetValue("mod", "desc", metaJson()["id"].as_string().c_str());
+                        TextArea* shit = TextArea::create(
+                            strDesc, "chatFont.fnt", 1.0f, 600.f, { 0.0f, 0.0f }, 10.0f, false
                         );
-                        parent->addChild(description);
+                        auto size_resolve = CCLabelBMFont::create(strDesc, "chatFont.fnt");
+                        auto desc = cocos::getChild(cocos::getChild(shit, 0), 0);
+                        desc->removeFromParentAndCleanup(false);
+                        //desc->setAnchorPoint({ 0.0f, -2.f });
+                        parent->addChild(desc);
                     }
                     parent->updateLayout();
                     menu->addChild(parent);
@@ -530,7 +607,7 @@ public:
                         parent->addChild(item);
                     }
                     //statsContainerMenu
-                    {
+                    if (fileJson().contains("download_count")) {
                         CCMenu* statsContainerMenu = CCMenu::create();
                         parent->addChild(statsContainerMenu);
                         statsContainerMenu->setID("statsContainerMenu");
@@ -576,22 +653,6 @@ public:
             }
             menu->updateLayout();
         }
-        /*bottom inf text*/
-        {
-            auto inf_label = CCLabelTTF::create(
-                fmt::format(
-                    "repo: {}, release: {}",
-                    ini()->GetValue("mod", "repo"),
-                    ini()->GetValue("mod", "release_tag")
-                ).data(),
-                "arial", 8.f
-            );
-            inf_label->setID("inf_label");
-            inf_label->setOpacity(120);
-            inf_label->setAnchorPoint({ 0.5f, 0.f });
-            inf_label->setPositionX(CCDirector::get()->getScreenRight() / 2);
-            addChild(inf_label);
-        };
         /*md*/ {
             auto pMDTextArea = MDTextArea::create(
                 "# Content is loading...",
@@ -602,41 +663,6 @@ public:
             pMDTextArea->setAnchorPoint({ 0.5f, 0.f });
             addChild(pMDTextArea, -1, 85290);
             loadAnyReadme();
-        };
-    }
-    void loadAnyReadme() {
-        //about md
-        {
-            auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByIDRecursive("pMDTextArea"));
-            //vars prepare
-            auto endpoint = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}",
-                ini()->GetValue("mod", "repo"),
-                repoJson()["default_branch"].as_string(),
-                type() == ModType::Mod ? "about.md" : "README.md"
-            );
-            auto file = workindir() / "about.md";
-            //req
-            if (checkExistence(file)) {
-                auto filestream = std::ifstream(file);
-                if (filestream.is_open())
-                {
-                    std::stringstream stream;
-                    {
-                        std::string line;
-                        while (std::getline(filestream, line)) {
-                            stream << line;
-                        };
-                    };
-                    pMDTextArea->setString(stream.str().c_str());
-                }
-            }
-            web::AsyncWebRequest()ghapiauth.fetch(endpoint).text()
-                .then(
-                    [this, file, pMDTextArea](std::string const& catgirlwiki) {
-                        std::ofstream(file.string().c_str()) << catgirlwiki;
-                        pMDTextArea->setString(catgirlwiki.c_str());
-                    });
         };
     }
     //data gettinga
@@ -665,6 +691,7 @@ public:
         return matjson::parse(json->getString());
     }
     matjson::Value fileJson() {
+        if (releaseJson()["assets"].as_array().empty()) return releaseJson();
         for (auto asset : releaseJson()["assets"].as_array()) {
             if (asset["name"].as_string() == ini()->GetValue("mod", "file")) {
                 return asset;
@@ -682,7 +709,13 @@ public:
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
-        if (what->getID() == "reload");
+        if (what->getID() == "reload") {
+            if (checkExistence(workindir())) ghc::filesystem::remove_all(workindir());
+            auto scene = CCScene::create();
+            auto pModViewLayer = ModViewLayer::create(issueJson());
+            scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
+            CCDirector::sharedDirector()->replaceScene(CCTransitionCrossFade::create(0.1f, scene));
+        };
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "download") {
             //endpoint
@@ -705,10 +738,10 @@ public:
         auto scene = CCScene::create();
         auto pModViewLayer = ModViewLayer::create(pJson);
         scene->addChild(pModViewLayer, 0, pJson["number"].as_int());
-        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
+        CCDirector::sharedDirector()->pushScene(scene);
     };
     void keyBackClicked() {
-        CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
+        CCDirector::sharedDirector()->popScene();
     }
 };
 class IssueItem : public CCMenuItem {
@@ -890,6 +923,7 @@ public:
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
+        if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "reload") downloadMods();
         if (what->getID() == "search") {
             auto local_issues_file = dirs::getGeodeDir() / "ryzen" / "issues.json";
@@ -914,30 +948,39 @@ public:
             if (auto input = dynamic_cast<CCTextInputNode*>(this->getChildByIDRecursive("input"))) {
                 auto filter_str = std::string(input->getString());
                 //filters
-                auto filters = explode(filter_str, '&');
+                auto filters = explode("&", filter_str);
                 for (auto filter : filters) {
                     //name
                     if (filter.find("name:") != std::string::npos) {
                         auto type = std::string("name:");
-                        auto at = catgirl["title"].as_string();
                         auto val = filter.replace(filter.find(type), type.size(), "");
+                        auto at = catgirl["title"].as_string();
                         skip = at.find(val) == std::string::npos;
                     }
                     //by
                     else if (filter.find("by:") != std::string::npos) {
                         auto type = std::string("by:");
-                        auto at = catgirl["user"]["login"].as_string();
                         auto val = filter.replace(filter.find(type), type.size(), "");
+                        auto at = catgirl["user"]["login"].as_string();
                         skip = at.find(val) == std::string::npos;
                     }
                     //labels
                     else if (filter.find("labels:") != std::string::npos) {
                         auto type = std::string("labels:");
                         auto val = filter.replace(filter.find(type), type.size(), "");
-                        log::debug("val: {}", val);
-                        auto labels = explode(val, ',');
-                        bool hasIt = false;
-                        skip = not hasIt;
+                        //all labels
+                        auto at = std::stringstream();
+                        for (auto label : catgirl["labels"].as_array())
+                            at << label["name"].dump();
+                        //asda
+                        auto vflt_labels = explode(",", val);
+                        bool founded = false;
+                        for (auto label : vflt_labels) {
+                            auto exact = "\"" + label + "\"";
+                            founded = at.str().find(exact) != std::string::npos;
+                            if (!founded) break;
+                        }
+                        skip = not founded;
                     }
                     //any
                     else if (not filter.empty()) {
@@ -1027,119 +1070,49 @@ public:
                 }
            );
     }
-    static RyzenLayer* create() {
+    static RyzenLayer* create(std::string withFilter = "") {
         auto rtn = new RyzenLayer();
         if (rtn) {
             rtn->autorelease();
             rtn->init();
+            basicRznLayersInit(rtn, menu_selector(RyzenLayer::onBtn));
+            GameManager::sharedState()->fadeInMusic(
+                "WhiteNoiseBlackVoid - Night Walk Through the Grayland.mp3"
+                ""_spr
+            );
             {
-                {
-                    //play music
-                    GameManager::sharedState()->fadeInMusic("WhiteNoiseBlackVoid - Night Walk Through the Grayland.mp3"_spr);
-                    //setup
-                    rtn->setKeypadEnabled(true);
-                    rtn->setTouchEnabled(true);
-                    /*bg*/ {
-                        CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
-                        backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
-                        backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
-                        backgroundSprite->setAnchorPoint({ 0, 0 });
-                        backgroundSprite->setColor({ 70, 80, 90 });
-                        backgroundSprite->runAction(CCRepeatForever::create(
-                            CCSequence::create(
-                                CCTintTo::create(5.0, 100, 100, 100),
-                                CCTintTo::create(5.0, 100, 100, 110),
-                                CCTintTo::create(5.0, 105, 100, 110),
-                                nullptr
-                            )
-                        ));
-                        rtn->addChild(backgroundSprite, -2);
-                    };
-                    /*SquareShadowCorners*/ {
-                        auto scale = 1.f;
-                        auto opacity = 160;
-                        //SquareShadowCorner1
-                        CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                        SquareShadowCorner1->setScaleX(scale);
-                        SquareShadowCorner1->setOpacity(opacity);
-                        SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
-                        SquareShadowCorner1->setAnchorPoint({ 0, 0 });
-                        rtn->addChild(SquareShadowCorner1, -1);
-                        //SquareShadowCorner2
-                        CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
-                        SquareShadowCorner2->setScaleX(-scale);
-                        SquareShadowCorner2->setOpacity(opacity);
-                        SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
-                        SquareShadowCorner2->setAnchorPoint({ 0, 0 });
-                        SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
-                        rtn->addChild(SquareShadowCorner2, -1);
-                    };
-                    /*gauntletCorners*/ {
-                        //gauntletCorner_001
-                        CCSprite* gauntletCorner_001 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
-                        gauntletCorner_001->setPosition({ 0, 0 });
-                        gauntletCorner_001->setRotation(0);
-                        gauntletCorner_001->setAnchorPoint({ 0.f,0.f });
-                        rtn->addChild(gauntletCorner_001);//add gauntletCorner_001
-                        //gauntletCorner_002
-                        CCSprite* gauntletCorner_002 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
-                        gauntletCorner_002->setPosition({
-                            CCDirector::sharedDirector()->getWinSize().width,
-                            0.f
-                            });
-                        gauntletCorner_002->setScaleX(-1.f);
-                        gauntletCorner_002->setAnchorPoint({ 0.f,0.f });
-                        rtn->addChild(gauntletCorner_002);//add gauntletCorner_002
-                        //gauntletCorner_003
-                        CCSprite* gauntletCorner_003 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
-                        gauntletCorner_003->setPosition({
-                            (CCDirector::sharedDirector()->getWinSize().width),
-                            (CCDirector::sharedDirector()->getWinSize().height)
-                            });
-                        gauntletCorner_003->setRotation(180.f);
-                        gauntletCorner_003->setAnchorPoint({ 0.f,0.f });
-                        rtn->addChild(gauntletCorner_003);//add gauntletCorner_003
-                    };
-                    /*backBtn*/ {
-                        auto menuBack = CCMenu::createWithItem(
-                            CCMenuItemSpriteExtra::create(CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png"), rtn, menu_selector(RyzenLayer::onBack))
-                        );
-                        menuBack->setPosition({ 25, CCDirector::sharedDirector()->getWinSize().height - 25 });
-                        rtn->addChild(menuBack);
-                    };
-                    /*toprightbar*/ {
-                        auto menu = CCMenu::create();
-                        rtn->addChild(menu);
-                        //reloadmodsbtn
-                        CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
-                            CCSprite::create("Ryzen_ReloadBtn_001.png"_spr),
-                            rtn, menu_selector(RyzenLayer::onBtn)
-                        );
-                        reload->setID("reload");
-                        reload->setPosition({
-                            (CCDirector::sharedDirector()->getWinSize().width / 2) - 35,
-                            (CCDirector::sharedDirector()->getWinSize().height / -2) + 35
-                            });
-                        reload->getNormalImage()->setScale(0.7f);
-                        menu->addChild(reload);//add GJ_replayBtn_001
-                        //gj_findBtn
-                        auto gj_findBtn = CCMenuItemSpriteExtra::create(
-                            CCSprite::createWithSpriteFrameName("gj_findBtn_001.png"),
-                            rtn, menu_selector(RyzenLayer::onBtn)
-                        );
-                        gj_findBtn->setID("search");
-                        gj_findBtn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
-                        menu->addChild(gj_findBtn);//add GJ_replayBtn_001
-                        //addmodbtn
-                        CCMenuItemSpriteExtra* GJ_plus3Btn_001 = CCMenuItemSpriteExtra::create(
-                            CCSprite::createWithSpriteFrameName("GJ_plus3Btn_001.png"),
-                            rtn, menu_selector(RyzenLayer::onBtn)
-                        );
-                        GJ_plus3Btn_001->setID("add_link");
-                        GJ_plus3Btn_001->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
-                        GJ_plus3Btn_001->getNormalImage()->setScale(1.700f);
-                        menu->addChild(GJ_plus3Btn_001);//add GJ_replayBtn_001
-                    };
+                /*toprightbar*/ {
+                    auto menu = CCMenu::create();
+                    rtn->addChild(menu);
+                    //reloadmodsbtn
+                    CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
+                        CCSprite::create("Ryzen_ReloadBtn_001.png"_spr),
+                        rtn, menu_selector(RyzenLayer::onBtn)
+                    );
+                    reload->setID("reload");
+                    reload->setPosition({
+                        (CCDirector::sharedDirector()->getWinSize().width / 2) - (reload->getContentWidth() / 2),
+                        (CCDirector::sharedDirector()->getWinSize().height / -2) + (reload->getContentHeight() / 2)
+                        });
+                    reload->getNormalImage()->setScale(0.7f);
+                    menu->addChild(reload);//add GJ_replayBtn_001
+                    //gj_findBtn
+                    auto gj_findBtn = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("gj_findBtn_001.png"),
+                        rtn, menu_selector(RyzenLayer::onBtn)
+                    );
+                    gj_findBtn->setID("search");
+                    gj_findBtn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
+                    menu->addChild(gj_findBtn);//add GJ_replayBtn_001
+                    //addmodbtn
+                    CCMenuItemSpriteExtra* GJ_plus3Btn_001 = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("GJ_plus3Btn_001.png"),
+                        rtn, menu_selector(RyzenLayer::onBtn)
+                    );
+                    GJ_plus3Btn_001->setID("add_link");
+                    GJ_plus3Btn_001->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
+                    GJ_plus3Btn_001->getNormalImage()->setScale(1.700f);
+                    menu->addChild(GJ_plus3Btn_001);//add GJ_replayBtn_001
                 };
                 //scroll
                 auto paddingx = 146.f;
@@ -1212,6 +1185,7 @@ public:
                             "Filters...",
                             "chatFont.fnt"
                         );
+                        input->setString(withFilter);
                         input->m_filterSwearWords = false;
                         input->m_allowedChars = " !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
                         input->setAllowedChars(input->m_allowedChars);
@@ -1234,16 +1208,16 @@ public:
     }
     void openMe(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = RyzenLayer::create();
+        auto pRyzenLayer = RyzenLayer::create("labels:mod&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void openMeForPacks(cocos2d::CCObject* object) {
-        openMe(object);
+        auto scene = CCScene::create();
+        auto pRyzenLayer = RyzenLayer::create("labels:pack&");
+        scene->addChild(pRyzenLayer, 1, 2816);
+        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
-    void onBack(CCObject* object) {
-        keyBackClicked();
-    }
     void keyBackClicked() {
         GameManager::sharedState()->fadeInMenuMusic();
         CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
