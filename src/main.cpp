@@ -710,11 +710,18 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "reload") {
-            if (checkExistence(workindir())) std::filesystem::remove_all(workindir().string());
-            auto scene = CCScene::create();
-            auto pModViewLayer = ModViewLayer::create(issueJson());
-            scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
-            CCDirector::sharedDirector()->replaceScene(CCTransitionCrossFade::create(0.1f, scene));
+            geode::createQuickPopup(
+                "is about to delete",
+                workindir().string(),
+                "Oke", nullptr,
+                [this](auto, bool btn2) {
+                    if (checkExistence(workindir())) ghc::filesystem::remove_all(workindir());
+                    auto scene = CCScene::create();
+                    auto pModViewLayer = ModViewLayer::create(issueJson());
+                    scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
+                    CCDirector::sharedDirector()->replaceScene(CCTransitionCrossFade::create(0.1f, scene));
+                }
+            );
         };
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "download") {
