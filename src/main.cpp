@@ -719,12 +719,25 @@ public:
                 "https://github.com/{}/releases/{}/download/{}",
                 ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release_tag"), ini()->GetValue("mod", "file")
             );
+            //https://github.com/user95401/Ryzen-Mods?tab=readme-ov-file#release-settings
+            endpoint = releaseIni()->GetValue(
+                "release", 
+                "download_link",
+                endpoint.c_str()
+            );
+            //path
+            ghc::filesystem::path path = 
+                type() == ModType::Mod ?
+                dirs::getModsDir() :
+                dirs::getModConfigDir() / "config" / "geode.texture-loader" / "packs";
             auto pop = geode::MDPopup::create(
-                "Download mod",
-                "\n" + endpoint + "",
-                "Start downloading", nullptr,
-                [this](bool btn2) {
-                    if (btn2);// this->downloadLatest(this);
+                "Download mod?",
+                "\nFrom: " + endpoint + ""
+                "\nTo: " + path.string(),
+                "Start", "Abort",
+                [this, endpoint, path](bool btn2) {
+                    if (btn2) return;
+                    web::fetchFile(endpoint, path);
                 }
             );
             pop->show();
