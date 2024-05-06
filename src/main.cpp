@@ -730,14 +730,35 @@ public:
                 type() == ModType::Mod ?
                 dirs::getModsDir() :
                 dirs::getModConfigDir() / "config" / "geode.texture-loader" / "packs";
+            path = path / ghc::filesystem::path(endpoint).filename();
             auto pop = geode::MDPopup::create(
                 "Download mod?",
-                "\nFrom: " + endpoint + ""
-                "\nTo: " + path.string(),
-                "Start", "Abort",
+                "- From: " + endpoint + ""
+                "\n- To: \n\n<cj>" + path.string(),
+                "Abort", "Start",
                 [this, endpoint, path](bool btn2) {
-                    if (btn2) return;
-                    web::fetchFile(endpoint, path);
+                    if (not btn2) return;
+                    web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
+                        .then(
+                            [this](std::monostate const& who) {
+                                auto asd = geode::createQuickPopup(
+                                    "done",
+                                    "",
+                                    "got u", nullptr, nullptr, false
+                                );
+                                asd->m_scene = this;
+                                asd->show();
+                            })
+                        .expect(
+                            [this, endpoint](std::string const& what) {
+                                auto asd = geode::createQuickPopup(
+                                    "Request exception",
+                                    what + "\n" + endpoint,
+                                    "Nah", nullptr, 420.f, nullptr, false
+                                );
+                                asd->m_scene = this;
+                                asd->show();
+                            });
                 }
             );
             pop->show();
