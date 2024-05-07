@@ -11,9 +11,9 @@ bool checkExistence(T filename)
 }
 void remove_dir(char* path) {
 #ifdef GEODE_IS_WINDOWS
-    std::filesystem::remove_all(path);
+    //std::filesystem::remove_all(path);
 #else //lol
-    system(fmt::format("rd /s /q \"{}\"", path).data());
+    //system(fmt::format("rd /s /q \"{}\"", path).data());
 #endif // !GEODE_IS_WINDOWS
 }
 auto read_file(ghc::filesystem::path path) -> std::string {
@@ -733,8 +733,8 @@ public:
             path = path / ghc::filesystem::path(endpoint).filename();
             auto pop = geode::MDPopup::create(
                 "Download mod?",
-                "- From: " + endpoint + ""
-                "\n- To: \n\n<cj>" + path.string(),
+                "- From: \n" + endpoint + ""
+                "\n- To: \n<cj>" + path.string(),
                 "Abort", "Start",
                 [this, endpoint, path](bool btn2) {
                     if (not btn2) return;
