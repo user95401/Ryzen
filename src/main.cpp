@@ -295,18 +295,18 @@ public:
             loading_repo->setString("Repository loaded from local");
             loading_repo->setIcon(NotificationIcon::Success);
             loading_repo->setTag(1);
-            loadStep2(bReloadLocal);
+            loadStep2();
         }
         else {
             web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
                 .then(
-                    [this, bReloadLocal, loading_repo, file, repoJson](matjson::Value const& catgirls) {
+                    [this, loading_repo, file, repoJson](matjson::Value const& catgirls) {
                         repoJson->setString(catgirls.dump().data());
                         std::ofstream(file.string().c_str()) << catgirls.dump();
                         loading_repo->setString("Repository loaded");
                         loading_repo->setIcon(NotificationIcon::Success);
                         loading_repo->setTag(1);
-                        loadStep2(bReloadLocal);
+                        loadStep2();
                     })
                 .expect(
                     [this, loading_repo, endpoint](std::string const& what) {
