@@ -708,7 +708,7 @@ public:
         if (not what) return;
         if (what->getID() == "reload") {
             auto scene = CCScene::create();
-            auto pModViewLayer = ModViewLayer::create(issueJson(), true);
+            auto pModViewLayer = ModViewLayer::create(issueJson(), false);
             scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
             CCDirector::sharedDirector()->replaceScene(CCTransitionCrossFade::create(0.1f, scene));
         };
