@@ -710,7 +710,7 @@ public:
             if(checkExistence(workindir()))
                 remove_dir(workindir());
             auto scene = CCScene::create();
-            auto pModViewLayer = ModViewLayer::create(issueJson(), false);
+            auto pModViewLayer = ModViewLayer::create(issueJson());
             scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
             CCDirector::sharedDirector()->replaceScene(scene);
         };
