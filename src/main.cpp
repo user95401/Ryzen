@@ -9,12 +9,12 @@ bool checkExistence(T filename)
     std::ifstream Infield(filename);
     return Infield.good();
 }
-void remove_dir(char* path) {
-#ifdef GEODE_IS_WINDOWS
-    //std::filesystem::remove_all(path);
-#else //lol
+template <typename T>
+void remove_dir(T path) {
+    ghc::filesystem::remove_all(path);
+    //lol
     //system(fmt::format("rd /s /q \"{}\"", path).data());
-#endif // !GEODE_IS_WINDOWS
+// !GEODE_IS_WINDOWS
 }
 auto read_file(ghc::filesystem::path path) -> std::string {
     constexpr auto read_size = std::size_t(4096);
@@ -168,7 +168,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
 class ModViewLayer : public CCLayer {
 public:
     enum ModType { Undef = 1510, Mod = 1511, Pack = 1512 };
-    static auto create(matjson::Value pJson, bool bReloadLocal = false) {
+    static auto create(matjson::Value pJson) {
         auto rtn = new ModViewLayer;
         rtn->init();
         basicRznLayersInit(rtn, menu_selector(ModViewLayer::onBtn));
@@ -252,10 +252,10 @@ public:
             };
             menu->updateLayout();
         }
-        rtn->loadDataMain(bReloadLocal);
+        rtn->loadDataMain();
         return rtn;
     }
-    void loadDataMain(bool bReloadLocal) {
+    void loadDataMain() {
         //prepare ntfy and other ui mayb
         auto loadings = CCMenu::create();
         loadings->setID("loadings");
@@ -274,23 +274,23 @@ public:
         loadings->addChild(loading_release);
         loadings->alignItemsVerticallyWithPadding(32.f);
         //letsgo
-        loadRepo(bReloadLocal);
+        loadRepo();
     }
-    void loadStep2(bool bReloadLocal) {
-        loadLogo(bReloadLocal);
-        loadMeta(bReloadLocal);
-        loadRelease(bReloadLocal);
+    void loadStep2() {
+        loadLogo();
+        loadMeta();
+        loadRelease();
         waitForCustomSetup();
     }
     //loaders
-    void loadRepo(bool bReloadLocal) {
+    void loadRepo() {
         //vars prepare
         auto loading_repo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_repo"));
         auto repoJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("repoJson"));
         auto endpoint = fmt::format("https://api.github.com/repos/{}", ini()->GetValue("mod", "repo"));
         auto file = workindir() / "repo.json";
         //req
-        if (checkExistence(file) and not bReloadLocal) {
+        if (checkExistence(file)) {
             repoJson->setString(read_file(file).data());
             loading_repo->setString("Repository loaded from local");
             loading_repo->setIcon(NotificationIcon::Success);
@@ -321,7 +321,7 @@ public:
                     });
         };
     }
-    void loadRelease(bool bReloadLocal) {
+    void loadRelease() {
         //vars prepare
         auto loading_release = dynamic_cast<Notification*>(getChildByIDRecursive("loading_release"));
         auto releaseJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("releaseJson"));
@@ -331,7 +331,7 @@ public:
         );
         auto file = workindir() / "release.json";
         //req
-        if (checkExistence(file) and not bReloadLocal) {
+        if (checkExistence(file)) {
             releaseJson->setString(read_file(file).data());
             loading_release->setString("Repository loaded from local");
             loading_release->setIcon(NotificationIcon::Success);
@@ -360,7 +360,7 @@ public:
                     });
         };
     }
-    void loadMeta(bool bReloadLocal) {
+    void loadMeta() {
         //vars prepare
         auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
         auto metaJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("metaJson"));
@@ -374,7 +374,7 @@ public:
         );
         auto file = workindir() / "meta.json";
         //req
-        if (checkExistence(file) and not bReloadLocal) {
+        if (checkExistence(file)) {
             auto filestream = std::ifstream(file);
             if (filestream.is_open())
             {
@@ -414,7 +414,7 @@ public:
                     });
         };
     }
-    void loadLogo(bool bReloadLocal) {
+    void loadLogo() {
         //vars prepare
         auto loading_logo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_logo"));
         auto endpoint = fmt::format(
@@ -425,7 +425,7 @@ public:
         );
         auto file = workindir() / "icon.png";
         //req
-        if (checkExistence(file) and not bReloadLocal) {
+        if (checkExistence(file)) {
             loading_logo->setString("Logo founded locally");
             loading_logo->setIcon(CCSprite::create(file.string().c_str()));
             loading_logo->setTag(1);
@@ -707,10 +707,12 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "reload") {
+            if(checkExistence(workindir()))
+                remove_dir(workindir());
             auto scene = CCScene::create();
             auto pModViewLayer = ModViewLayer::create(issueJson(), false);
             scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
-            CCDirector::sharedDirector()->replaceScene(CCTransitionCrossFade::create(0.1f, scene));
+            CCDirector::sharedDirector()->replaceScene(scene);
         };
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "download") {
