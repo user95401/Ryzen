@@ -744,10 +744,13 @@ public:
                         .then(
                             [this](std::monostate const& who) {
                                 auto asd = geode::createQuickPopup(
-                                    "done",
-                                    "",
-                                    "got u", nullptr, nullptr, false
-                                );
+                        "Restart Game?",
+                        "To load new mod",
+                        "Later", "Yes",
+                        [](auto, bool btn2) {
+                            if (btn2) utils::game::restart();
+                        }
+                    );
                                 asd->m_scene = this;
                                 asd->show();
                             })
