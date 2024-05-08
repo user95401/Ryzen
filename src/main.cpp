@@ -88,12 +88,13 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         //setup
         rtn->setKeypadEnabled(true);
         rtn->setTouchEnabled(true);
-        if (!backgroundSprite) {
+        if (true) {
+            auto oldColorea = not backgroundSprite ? ccColor3B(70, 80, 90) : backgroundSprite->getColor();
             backgroundSprite = CCSprite::create("GJ_gradientBG.png");
             backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
             backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
             backgroundSprite->setAnchorPoint({ 0, 0 });
-            backgroundSprite->setColor({ 70, 80, 90 });
+            backgroundSprite->setColor(oldColorea);
             backgroundSprite->runAction(CCRepeatForever::create(
                 CCSequence::create(
                     CCTintTo::create(5.0, 100, 100, 100),
@@ -414,37 +415,47 @@ public:
                         );
                         asd->m_scene = this;
                         asd->show();*/
-                        loading_meta->setString("Failed to load, generating fake one...");
+                        loading_meta->setString("Failed to load meta, generating fake one...");
+                        setFakeMeta();
                     });
         };
     }
-    void loadLogo() {
+    void loadLogo(std::string filename = "") {
         //vars prepare
         auto loading_logo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_logo"));
-        auto endpoint = fmt::format(
-            "https://raw.githubusercontent.com/{}/{}/{}", 
-            ini()->GetValue("mod", "repo"), 
-            repoJson()["default_branch"].as_string(),
-            type() == ModType::Mod ? "logo.png" : "pack.png"
-        );
+        auto endpoint = 
+            filename.empty() ?
+            fmt::format(
+                "https://raw.githubusercontent.com/{}/{}/{}",
+                ini()->GetValue("mod", "repo"),
+                repoJson()["default_branch"].as_string(),
+                type() == ModType::Mod ? "logo.png" : "pack.png"
+            )
+            : filename;
         auto file = workindir() / "icon.png";
         //req
-        if (checkExistence(file)) {
+        if (/*checkExistence(file)*/auto logo = CCSprite::create(file.string().c_str())) {
             loading_logo->setString("Logo founded locally");
-            loading_logo->setIcon(CCSprite::create(file.string().c_str()));
+            loading_logo->setIcon(logo);
             loading_logo->setTag(1);
         }
         else {
+            log::debug("{}", endpoint);
             web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(file)
                 .then(
                     [this, loading_logo, file](std::monostate const& who) {
+                        if (not CCSprite::create(file.string().c_str())) {
+                            remove_dir(file);
+                            return loadLogo(repoJson()["owner"]["avatar_url"].as_string());
+                        }
                         loading_logo->setString("Logo loaded");
                         loading_logo->setIcon(CCSprite::create(file.string().c_str()));
                         loading_logo->setTag(1);
                     })
                 .expect(
-                    [this, loading_logo, endpoint](std::string const& what) {
+                    [this, filename, loading_logo, endpoint](std::string const& what) {
                         loading_logo->setIcon(NotificationIcon::Error);
+                        if (filename.empty()) return loadLogo(repoJson()["owner"]["avatar_url"].as_string());
                         loading_logo->setTag(1);
                         auto asd = geode::createQuickPopup(
                             "Request exception",
@@ -456,7 +467,7 @@ public:
                     });
         };
     }
-    void reloadReadme() {
+    void reloadReadme(std::string mdfile = "about.md") {
         //about md
         {
             auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByIDRecursive("pMDTextArea"));
@@ -465,7 +476,7 @@ public:
                 "https://raw.githubusercontent.com/{}/{}/{}",
                 ini()->GetValue("mod", "repo"),
                 repoJson()["default_branch"].as_string(),
-                type() == ModType::Mod ? "about.md" : "README.md"
+                mdfile
             );
             auto file = workindir() / "about.md";
             //req
@@ -474,18 +485,29 @@ public:
             }
             web::AsyncWebRequest()ghapiauth.fetch(endpoint).text()
                 .then(
-                    [this, file, pMDTextArea](std::string const& catgirlwiki) {
-                        std::ofstream(file.string().c_str()) << catgirlwiki;
+                    [this, file, endpoint, pMDTextArea](std::string const& catgirlwiki) {
+                        std::ofstream(file.string().c_str()) << "- " + endpoint + "\n" << catgirlwiki;
                         pMDTextArea->setString(catgirlwiki.c_str());
                     })
                 .expect(
-                    [endpoint, pMDTextArea](std::string const& what) {
-                        pMDTextArea->setString(("> " + endpoint + "\n# <cr>" + what + "</c>").c_str());
+                    [this, mdfile, endpoint, pMDTextArea](std::string const& what) {
+                        pMDTextArea->setString(("- " + endpoint + "\n# <cr>" + what + "</c>").c_str());
+                        if (mdfile == "about.md") reloadReadme("README.md");
                     });
         };
     }
+    void setFakeMeta() {
+        auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
+        auto metaJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("metaJson"));
+        auto RznMetaJson = Mod::get()->getMetadata().toJSON();
+        RznMetaJson.try_set("name", repoJson()["name"]);
+        RznMetaJson.try_set("description", repoJson()["description"]);
+        metaJson->setString(RznMetaJson.dump().c_str());
+        loading_meta->setTag(1);
+    }
     //customSetup
     void waitForCustomSetup(float asd = 1337.f) {
+        //return;
         auto sch = schedule_selector(ModViewLayer::waitForCustomSetup);
         if (asd == 1337.f) {
             this->schedule(sch, 0.f);
@@ -516,6 +538,7 @@ public:
             menu->setLayout(
                 RowLayout::create()
                 ->setGap(15.f)
+                ->setCrossAxisOverflow(false)
             );
             /*some fun stuff*/ {
                 //icon
@@ -591,13 +614,13 @@ public:
                 };
                 //download_part
                 if (auto download_part = CCMenu::create()) {
-                    auto size = CCSize(186.f, 68.f);
+                    auto size = CCSize(152.f, 68.f);
                     auto parent = download_part;
                     parent->setID("download_part");
                     parent->setContentSize(size);
                     parent->setLayout(
                         ColumnLayout::create()
-                        ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                        ->setCrossAxisLineAlignment(AxisAlignment::Center)
                         ->setAxisAlignment(AxisAlignment::Even)
                         ->setAxisReverse(true)
                     );
@@ -617,7 +640,7 @@ public:
                             RowLayout::create()
                             ->setGap(20.f)
                             ->setGrowCrossAxis(true)
-                            ->setAxisAlignment(AxisAlignment::Start)
+                            ->setAxisAlignment(AxisAlignment::Center)
                         );
                         /*download_count*/ {
                             auto download_count = CCLabelTTF::create(
@@ -736,35 +759,55 @@ public:
                 "download_link",
                 endpoint.c_str()
             );
+            auto endpoint_getdataaway = explode("?", endpoint)[0];
             //path
             ghc::filesystem::path path = 
                 type() == ModType::Mod ?
                 dirs::getModsDir() :
-                dirs::getModConfigDir() / "config" / "geode.texture-loader" / "packs";
-            path = path / ghc::filesystem::path(endpoint).filename();
+                dirs::getGeodeDir() / "config" / "geode.texture-loader" / "packs";
+            path = path / ghc::filesystem::path(endpoint_getdataaway).filename();//add file
+            if (path.extension() == ".dll") path = dirs::getGeodeDir() / "ryzen" / "loadit" / path.filename();
+            if (path.extension() == ".so") path = dirs::getGeodeDir() / "ryzen" / "loadit" / path.filename();
             auto pop = geode::MDPopup::create(
                 "Download mod?",
                 "\n# From:\n" + endpoint + ""
-                "\n# To:\n<cq>" + path.string(),
+                "\n# To:\n<cj>" + path.string(),
                 "Abort", "Start",
-                [this, endpoint, path](bool btn2) {
+                [this, endpoint, path, what](bool btn2) {
                     if (not btn2) return;
+                    auto dwnloading_overlap = Notification::create("Downloading...", NotificationIcon::Loading, 0.f);
+                    dwnloading_overlap->setPosition(what->getContentSize() / 2);
+                    dwnloading_overlap->setScale(0.6f);
+                    what->addChild(dwnloading_overlap);
                     web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
                         .then(
-                            [this](std::monostate const& who) {
+                            [this, dwnloading_overlap](std::monostate const& who) {
+                                dwnloading_overlap->removeFromParent();
                                 auto asd = geode::createQuickPopup(
-                        "Restart Game?",
-                        "To load new mod",
-                        "Later", "Yes",
-                        [](auto, bool btn2) {
-                            if (btn2) utils::game::restart();
-                        }
-                    );
+                                    "Restart Game?",
+                                    "To load new mod",
+                                    "Later", "Yes",
+                                    [](auto, bool btn2) {
+                                        if (btn2) utils::game::restart();
+                                    },
+                                    false
+                                );
                                 asd->m_scene = this;
                                 asd->show();
                             })
+                        //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
+                        .progress(
+                            [dwnloading_overlap](auto, double d1, double d2) {
+                                dwnloading_overlap->setString(
+                                    fmt::format(
+                                        "{} / {}", 
+                                        abbreviateNumber(d1),
+                                        abbreviateNumber(d2)
+                                    ).c_str());
+                            })
                         .expect(
-                            [this, endpoint](std::string const& what) {
+                            [this, endpoint, dwnloading_overlap](std::string const& what) {
+                                dwnloading_overlap->setIcon(NotificationIcon::Error);
                                 auto asd = geode::createQuickPopup(
                                     "Request exception",
                                     what + "\n" + endpoint,
