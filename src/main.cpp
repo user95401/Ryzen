@@ -3,6 +3,7 @@
 #include "ghapiauth.h"
 using namespace geode::prelude;
 
+#include <regex>
 template <typename T>
 bool checkExistence(T filename)
 {
@@ -11,6 +12,7 @@ bool checkExistence(T filename)
 }
 template <typename T>
 void remove_dir(T path) {
+    log::debug("{}", __FUNCSIG__);
     ghc::filesystem::remove_all(path);
     //lol
     //system(fmt::format("rd /s /q \"{}\"", path).data());
@@ -165,6 +167,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
 }
 
 #include "SimpleIni.h"
+
 class ModViewLayer : public CCLayer {
 public:
     enum ModType { Undef = 1510, Mod = 1511, Pack = 1512 };
@@ -404,13 +407,14 @@ public:
                 .expect(
                     [this, loading_meta, endpoint](std::string const& what) {
                         loading_meta->setIcon(NotificationIcon::Error);
-                        auto asd = geode::createQuickPopup(
+                        /*auto asd = geode::createQuickPopup(
                             "Request exception",
                             what + "\n" + endpoint,
                             "Nah", nullptr, 420.f, nullptr, false
                         );
                         asd->m_scene = this;
-                        asd->show();
+                        asd->show();*/
+                        loading_meta->setString("Failed to load, generating fake one...")
                     });
         };
     }
@@ -554,14 +558,19 @@ public:
                         parent->addChild(title);
                     }
                     /*devs*/ {
-                        auto devs = std::stringstream() << "By: ";
+                        auto devs_stringstream = std::stringstream() << "By: ";
                         if (metaJson().contains("developers")) {
-                            for (auto dev : metaJson()["developers"].as_array()) {
-                                devs << dev.as_string();
-                            }
+                            devs_stringstream << metaJson()["developers"].dump();
+                            /*for (auto dev : metaJson()["developers"].as_array()) {
+                                dev.as_string();
+                            }*/
                         }
-                        else devs << (type() == ModType::Mod ? metaJson()["developer"].as_string() : metaJson()["author"].as_string());
-                        auto label = CCLabelTTF::create(devs.str().c_str(), "arial", 14.f);
+                        else devs_stringstream << (type() == ModType::Mod ? metaJson()["developer"].dump() : metaJson()["author"].dump());
+                        auto devs = devs_stringstream.str();
+                        devs = std::regex_replace(devs, std::regex("\""), "");
+                        devs = std::regex_replace(devs, std::regex("\\["), "");
+                        devs = std::regex_replace(devs, std::regex("\\]"), "");
+                        auto label = CCLabelTTF::create(devs.c_str(), "arial", 14.f);
                         parent->addChild(label);
                     }
                     /*description*/ {
@@ -707,7 +716,7 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "reload") {
-            if(checkExistence(workindir()))
+            if(checkExistence(workindir() / "repo.json"))
                 remove_dir(workindir());
             auto scene = CCScene::create();
             auto pModViewLayer = ModViewLayer::create(issueJson());
@@ -735,8 +744,8 @@ public:
             path = path / ghc::filesystem::path(endpoint).filename();
             auto pop = geode::MDPopup::create(
                 "Download mod?",
-                "- From: \n" + endpoint + ""
-                "\n- To: \n<cj>" + path.string(),
+                "\n# From:\n" + endpoint + ""
+                "\n# To:\n<cq>" + path.string(),
                 "Abort", "Start",
                 [this, endpoint, path](bool btn2) {
                     if (not btn2) return;
