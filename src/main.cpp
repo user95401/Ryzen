@@ -414,7 +414,7 @@ public:
                         );
                         asd->m_scene = this;
                         asd->show();*/
-                        loading_meta->setString("Failed to load, generating fake one...")
+                        loading_meta->setString("Failed to load, generating fake one...");
                     });
         };
     }
