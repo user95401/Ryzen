@@ -439,6 +439,7 @@ public:
             loading_logo->setTag(1);
         }
         else {
+            log::debug("{}", endpoint);
             web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(file)
                 .then(
                     [this, loading_logo, file](std::monostate const& who) {
