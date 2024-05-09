@@ -222,8 +222,8 @@ public:
             auto inf_label = CCLabelTTF::create(
                 fmt::format(
                     "repo: {}, release: {}",
-                    rtn->ini()->GetValue("mod", "repo"),
-                    rtn->ini()->GetValue("mod", "release")
+                    rtn->ini()->GetValue("mod", "repo", "NA"),
+                    rtn->ini()->GetValue("mod", "release", "NA")
                 ).data(),
                 "arial", 8.f
             );
@@ -290,7 +290,7 @@ public:
         //vars prepare
         auto loading_repo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_repo"));
         auto repoJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("repoJson"));
-        auto endpoint = fmt::format("https://api.github.com/repos/{}", ini()->GetValue("mod", "repo"));
+        auto endpoint = fmt::format("https://api.github.com/repos/{}", ini()->GetValue("mod", "repo", "nah"));
         auto file = workindir() / "repo.json";
         //req
         if (checkExistence(file)) {
