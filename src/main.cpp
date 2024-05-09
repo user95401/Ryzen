@@ -1384,6 +1384,7 @@ class $modify(CCLayerExt, CCLayer) {
 
 void loadMods() {
     auto path = dirs::getGeodeDir() / "ryzen" / "loadit";
+    ghc::filesystem::create_directories(path);
     for (const auto& entry : ghc::filesystem::directory_iterator(path)) {
         auto filename = entry.path().filename();
         bool loadrtn = false;
