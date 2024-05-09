@@ -223,7 +223,7 @@ public:
                 fmt::format(
                     "repo: {}, release: {}",
                     rtn->ini()->GetValue("mod", "repo"),
-                    rtn->ini()->GetValue("mod", "release_tag")
+                    rtn->ini()->GetValue("mod", "release")
                 ).data(),
                 "arial", 8.f
             );
@@ -330,7 +330,7 @@ public:
         auto releaseJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("releaseJson"));
         auto endpoint = fmt::format(
             "https://api.github.com/repos/{}/releases/{}",
-            ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release_tag")
+            ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release")
         );
         auto file = workindir() / "release.json";
         //req
@@ -368,7 +368,7 @@ public:
         auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
         auto metaJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("metaJson"));
         auto branch = repoJson()["default_branch"].as_string();
-        if(std::string(ini()->GetValue("mod", "release_tag")) != "latest") branch = ini()->GetValue("mod", "release_tag");
+        if(std::string(ini()->GetValue("mod", "release")) != "latest") branch = ini()->GetValue("mod", "release");
         auto endpoint = fmt::format(
             "https://raw.githubusercontent.com/{}/{}/{}",
             ini()->GetValue("mod", "repo"),
@@ -407,13 +407,6 @@ public:
                 .expect(
                     [this, loading_meta, endpoint](std::string const& what) {
                         loading_meta->setIcon(NotificationIcon::Error);
-                        /*auto asd = geode::createQuickPopup(
-                            "Request exception",
-                            what + "\n" + endpoint,
-                            "Nah", nullptr, 420.f, nullptr, false
-                        );
-                        asd->m_scene = this;
-                        asd->show();*/
                         loading_meta->setString("Failed to load meta, generating fake one...");
                         setFakeMeta();
                     });
@@ -501,6 +494,7 @@ public:
         auto RznMetaJson = Mod::get()->getMetadata().toJSON();
         RznMetaJson.try_set("name", repoJson()["name"]);
         RznMetaJson.try_set("description", repoJson()["description"]);
+        std::ofstream(workindir() / "meta.json") << RznMetaJson.dump();
         metaJson->setString(RznMetaJson.dump().c_str());
         loading_meta->setTag(1);
     }
@@ -750,7 +744,7 @@ public:
             //endpoint
             auto endpoint = fmt::format(
                 "https://github.com/{}/releases/{}/download/{}",
-                ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release_tag"), ini()->GetValue("mod", "file")
+                ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release"), ini()->GetValue("mod", "file")
             );
             //https://github.com/user95401/Ryzen-Mods?tab=readme-ov-file#release-settings
             endpoint = releaseIni()->GetValue(
@@ -964,13 +958,13 @@ public:
                 issue_ini->LoadData(pJson["body"].as_string());
                 TextArea* desc = TextArea::create(
                     fmt::format(
-                        "By: {} ({})\n{}\nfile: {}, repo: {}, release_tag: {}",
+                        "By: {} ({})\n{}\nfile: {}, repo: {}, release: {}",
                         pJson["user"]["login"].as_string(),
                         pJson["user"]["id"].as_int(),
                         issue_ini->GetValue("mod", "desc", "No description provided..."),
                         issue_ini->GetValue("mod", "file", "<cr>NO FILE!!!</c>"),
                         issue_ini->GetValue("mod", "repo", "<cr>NO REPO!!!</c>"),
-                        issue_ini->GetValue("mod", "release_tag", "<cr>NO REL TAG!!!</c>")
+                        issue_ini->GetValue("mod", "release", "<cr>NO REL TAG!!!</c>")
                     ), "chatFont.fnt", 0.6f, 2000.f, { 0.0f, 1.0f }, 10.0f, false);
                 desc->setPositionX(10 - POINTING_SIZE.width);
                 desc->setAnchorPoint({ 0.0f, 0.6f });
@@ -1380,3 +1374,37 @@ class $modify(CCLayerExt, CCLayer) {
         return rtn;
     };
 };
+
+#if defined(GEODE_IS_ANDROID)
+#include <android/log.h>
+#include <dlfcn.h>
+#include <jni.h>
+#include <unistd.h>
+#endif
+
+void loadMods() {
+    auto path = dirs::getGeodeDir() / "ryzen" / "loadit";
+    for (const auto& entry : ghc::filesystem::directory_iterator(path)) {
+        auto filename = entry.path().filename();
+        bool loadrtn = false;
+        //loadit
+#if defined(GEODE_IS_WINDOWS)
+        if(filename.extension() == ".dll") {
+            loadrtn = LoadLibrary(entry.path().string().data());
+        }
+#elif defined(GEODE_IS_ANDROID)
+        if (filename.extension() == ".so") {
+            loadrtn = true;
+            dlopen(entry.path().string().data(), RTLD_LAZY);
+        }   
+#endif
+        auto log = fmt::format(
+            "the {} {}",
+            filename.string(),
+            (not loadrtn ? "is failed to load" : "is loaded")
+        );
+        if (loadrtn) log::info("{}", log);
+        else log::error("{}", log);
+    }
+}
+$execute{ loadMods(); }
