@@ -167,357 +167,183 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
 }
 
 #include "SimpleIni.h"
+#include "Geode/UI.hpp"
+class ModLoadingLayer : public CCLayer {
+public:
+    //data
+    enum data {
+        issue, issue_body_ini
+        , repo
+        , release, asset
+    };
+    void addTextContainer(data type, std::string data) {
+        auto container = CCLabelBMFont::create(data.data(), "chatFont.fnt");
+        container->setVisible(0);
+        container->setID(fmt::format("container{}", (int)type));
+        this->addChild(container, 999);
+    }
+    std::string setData(data type, std::string data) {
+        auto container = dynamic_cast<CCLabelBMFont*>(this->getChildByID(fmt::format("container{}", (int)type)));
+        if (container) container->setString(data.data());
+        return container ? container->getString() : "CANT GET DATA CONTAINER NODE";
+    }
+    std::string getData(data type) {
+        auto container = dynamic_cast<CCLabelBMFont*>(this->getChildByID(fmt::format("container{}", (int)type)));
+        return container ? container->getString() : "CANT GET DATA CONTAINER NODE";
+    }
+    auto getIniData(data type) {
+        auto INI = new CSimpleIni;
+        INI->LoadData(getData(type));
+        return INI;
+    }
+    matjson::Value getJsonData(data type) {
+        return matjson::parse(getData(type));
+    }
+    //a
+    static auto create(matjson::Value IssueJson) {
+        auto rtn = new ModLoadingLayer;
+        rtn->init();
+        basicRznLayersInit(rtn, menu_selector(ModLoadingLayer::onBtn));
+        /*textcontainers*/ {
+            rtn->addTextContainer(data::issue, IssueJson.dump());
+            rtn->addTextContainer(data::issue_body_ini, IssueJson["body"].as_string());
+            rtn->addTextContainer(data::repo, "{}");
+            rtn->addTextContainer(data::release, "{}");
+            rtn->addTextContainer(data::asset, "{}");
+        }
+        //log
+        auto pMDTextArea = geode::MDTextArea::create(
+            "", 
+            CCSize(
+                rtn->getContentSize().width - 70,
+                rtn->getContentSize().height - 20
+            )
+        );
+        pMDTextArea->setID("pMDTextArea");
+        pMDTextArea->setPosition(rtn->getContentSize() / 2);
+        rtn->addChild(pMDTextArea, -1);
+        //letsgo
+        rtn->load(IssueJson);
+        return rtn;
+    }
+    void loadRepo(int step = 0, std::string owerwrite_endpoint = "") {
+        //repo_json
+        if (step == 0) {
+            log("## step0: load repo");
+            auto repo_owner = getIniData(data::issue_body_ini)->GetValue("repo", "owner", "na");
+            auto repo_name = getIniData(data::issue_body_ini)->GetValue("repo", "name", "na");
+            log(fmt::format("repo_owner = {}", repo_owner));
+            log(fmt::format("repo_name = {}", repo_name));
+            auto api_url = fmt::format(
+                "https://api.github.com/repos/{}/{}"
+                , repo_owner, repo_name
+            );
+            log(fmt::format("api_url = {}", api_url.data()));
+            //then
+            auto then = 
+                [this](matjson::Value const& catgirl) {
+                setData(data::repo, catgirl.dump());
+                log("```\nloaded :D\n```");
+                loadRepo(1);
+                };
+            //expect
+            auto expect =
+                [this](std::string const& what) {
+                log("## <cr>" + what + "</c>");
+                };
+            web::AsyncWebRequest()ghapiauth.fetch(api_url).json().then(then).expect(expect);
+        };
+        //releases
+        if (step == 1) {
+            log("## step1: load release");
+            auto repo_owner = getIniData(data::issue_body_ini)->GetValue("repo", "owner", "na");
+            auto repo_name = getIniData(data::issue_body_ini)->GetValue("repo", "name", "na");
+            auto release_tar = getIniData(data::issue_body_ini)->GetValue("release", "tar", "latest");
+            log(fmt::format("repo_owner = {}", repo_owner));
+            log(fmt::format("repo_name = {}", repo_name));
+            log(fmt::format("release_tar = {}", release_tar));
+            auto api_url = fmt::format(
+                "https://api.github.com/repos/{}/{}/releases/{}"
+                , repo_owner, repo_name, release_tar
+            );
+            log(fmt::format("api_url = {}", api_url.data()));
+            //then
+            auto then = 
+                [this](matjson::Value const& catgirl) {
+                //release
+                setData(data::release, catgirl.dump());
+                //asset
+                if (getJsonData(data::release).contains("assets")) {
+                    auto assets = getJsonData(data::release)["assets"].as_array();
+                    auto file = getIniData(data::issue_body_ini)->GetValue("release", "file", "mod.geode");
+                    for (auto asset : assets) {
+                        if (asset["name"].as_string() == file) setData(data::asset, asset.dump());
+                    }
+                }
+                log("```\nloaded :D\n```");
+                loadRepo(2);
+                };
+            //expect
+            auto expect =
+                [this](std::string const& what) {
+                log("## <cr>" + what + "</c>");
+                };
+            web::AsyncWebRequest()ghapiauth.fetch(api_url).json().then(then).expect(expect);
+        };
+        //set asset a
+        if (step == 2) {
+        }
+    }
+    void load(matjson::Value IssueJson) {
+        auto pLoadingCircle = LoadingCircle::create();
+        CSimpleIni* main = new CSimpleIni;
+        //issue_ini
+        CSimpleIni issue_ini;
+        issue_ini.LoadData(IssueJson["body"].as_string());
+        //repo type
+        if (issue_ini.SectionExists("repo")) {
+            log("# repo type... getting repo now/");
+            loadRepo();
+        }
+    }
+    void log(std::string str = "") {
+        auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByID("pMDTextArea"));
+        pMDTextArea->setString((pMDTextArea->getString() + str + std::string("\n\n")).data());
+        pMDTextArea->getScrollLayer()->moveToTop();
+    }
+    //other shit
+    void onBtn(CCObject* pCCObject) {
+        auto what = dynamic_cast<CCNode*>(pCCObject);
+        if (not what) return;
+        if (what->getID() == "back") keyBackClicked();
+    }
+    static void openMe(matjson::Value IssueJson) {
+        auto scene = CCScene::create();
+        auto a = ModLoadingLayer::create(IssueJson);
+        scene->addChild(a, 0, IssueJson["number"].as_int());
+        CCDirector::sharedDirector()->pushScene(scene);
+    };
+    void keyBackClicked() {
+        CCDirector::sharedDirector()->popScene();
+    }
+};
 
 class ModViewLayer : public CCLayer {
 public:
-    enum ModType { Undef = 1510, Mod = 1511, Pack = 1512 };
-    static auto create(matjson::Value pJson) {
+    static auto create(CSimpleIni* pINI) {
         auto rtn = new ModViewLayer;
         rtn->init();
         basicRznLayersInit(rtn, menu_selector(ModViewLayer::onBtn));
-        /* text containers 💀 */ {
-            //issueJson
-            auto issueJson = CCLabelBMFont::create(pJson.dump().data(), "chatFont.fnt");
-            issueJson->setVisible(0);
-            issueJson->setID("issueJson");
-            rtn->addChild(issueJson, 999);
-            //repoJson
-            auto repoJson = CCLabelBMFont::create("{}", "chatFont.fnt");
-            repoJson->setVisible(0);
-            repoJson->setID("repoJson");
-            rtn->addChild(repoJson, 999);
-            //metaJson
-            auto metaJson = CCLabelBMFont::create("{}", "chatFont.fnt");
-            metaJson->setVisible(0);
-            metaJson->setID("metaJson");
-            rtn->addChild(metaJson, 999);
-            //releaseJson
-            auto releaseJson = CCLabelBMFont::create("{}", "chatFont.fnt");
-            releaseJson->setVisible(0);
-            releaseJson->setID("releaseJson");
-            rtn->addChild(releaseJson, 999);
-            //ini
-            auto ini = CCLabelBMFont::create(pJson["body"].as_string().data(), "chatFont.fnt");
-            ini->setVisible(0);
-            ini->setID("ini");
-            rtn->addChild(ini, 999);
-            //detect type
-            auto labels_str = pJson["labels"].dump();
-            ModType type = ModType::Undef;
-            if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos) type = ModType::Mod;
-            if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) type = ModType::Pack;
-            auto typeMark = CCLabelBMFont::create("Undef:1510,Mod:1511,Pack:1512", "chatFont.fnt");
-            typeMark->setID("type");
-            typeMark->setVisible(0);
-            rtn->addChild(typeMark, 999, type);
-            //path
-            auto the_path = dirs::getGeodeDir() / "ryzen" / "mods" / fmt::to_string(pJson["number"]);
-            ghc::filesystem::create_directories(the_path);
-            auto path = CCLabelBMFont::create(the_path.string().data(), "chatFont.fnt");
-            path->setVisible(0);
-            path->setID("path");
-            rtn->addChild(path, 999);
-        }
-        /* bottom_inf_text */ {
-            auto inf_label = CCLabelTTF::create(
-                fmt::format(
-                    "repo: {}, release: {}",
-                    rtn->ini()->GetValue("mod", "repo", "NA"),
-                    rtn->ini()->GetValue("mod", "release", "NA")
-                ).data(),
-                "arial", 8.f
-            );
-            inf_label->setID("inf_label");
-            inf_label->setOpacity(120);
-            inf_label->setAnchorPoint({ 0.5f, 0.f });
-            inf_label->setPositionX(CCDirector::get()->getScreenRight() / 2);
-            rtn->addChild(inf_label);
-        };
-        /* tr buttons */ {
-            CCMenu* menu = CCMenu::create();
-            if (menu) {
-                menu->setPosition(CCDirector::get()->getScreenRight(), 0.f);
-                menu->setAnchorPoint({ 1.f, 0.f });
-                menu->setLayout(
-                    ColumnLayout::create()
-                    ->setAxisAlignment(AxisAlignment::Start)
-                );
-                rtn->addChild(menu);
-            };
-            //reloadmodsbtn
-            if (auto sprite = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
-                CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
-                    sprite, rtn, menu_selector(ModViewLayer::onBtn)
-                );
-                reload->setID("reload");
-                reload->getNormalImage()->setScale(0.7f);
-                menu->addChild(reload);//add GJ_replayBtn_001
-            };
-            menu->updateLayout();
-        }
-        rtn->loadDataMain();
+        //ini
+        std::string ini;
+        pINI->Save(ini);
+        auto ini_container = CCLabelBMFont::create(ini.data(), "chatFont.fnt");
+        ini_container->setVisible(0);
+        ini_container->setID("ini_container");
+        rtn->addChild(ini_container, 999);
+        //customSetup call
+        rtn->customSetup();
         return rtn;
-    }
-    void loadDataMain() {
-        //prepare ntfy and other ui mayb
-        auto loadings = CCMenu::create();
-        loadings->setID("loadings");
-        addChild(loadings);
-        auto loading_repo = Notification::create("Loading repo...", NotificationIcon::Loading, 0.f);
-        loading_repo->setID("loading_repo");
-        loadings->addChild(loading_repo);
-        auto loading_logo = Notification::create("Loading logo...", NotificationIcon::Loading, 0.f);
-        loading_logo->setID("loading_logo");
-        loadings->addChild(loading_logo);
-        auto loading_meta = Notification::create("Loading meta...", NotificationIcon::Loading, 0.f);
-        loading_meta->setID("loading_meta");
-        loadings->addChild(loading_meta);
-        auto loading_release = Notification::create("Loading release...", NotificationIcon::Loading, 0.f);
-        loading_release->setID("loading_release");
-        loadings->addChild(loading_release);
-        loadings->alignItemsVerticallyWithPadding(32.f);
-        //letsgo
-        loadRepo();
-    }
-    void loadStep2() {
-        loadLogo();
-        loadMeta();
-        loadRelease();
-        waitForCustomSetup();
-    }
-    //loaders
-    void loadRepo() {
-        //vars prepare
-        auto loading_repo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_repo"));
-        auto repoJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("repoJson"));
-        auto endpoint = fmt::format("https://api.github.com/repos/{}", ini()->GetValue("mod", "repo", "nah"));
-        auto file = workindir() / "repo.json";
-        //req
-        if (checkExistence(file)) {
-            repoJson->setString(read_file(file).data());
-            loading_repo->setString("Repository loaded from local");
-            loading_repo->setIcon(NotificationIcon::Success);
-            loading_repo->setTag(1);
-            loadStep2();
-        }
-        else {
-            web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
-                .then(
-                    [this, loading_repo, file, repoJson](matjson::Value const& catgirls) {
-                        repoJson->setString(catgirls.dump().data());
-                        std::ofstream(file.string().c_str()) << catgirls.dump();
-                        loading_repo->setString("Repository loaded");
-                        loading_repo->setIcon(NotificationIcon::Success);
-                        loading_repo->setTag(1);
-                        loadStep2();
-                    })
-                .expect(
-                    [this, loading_repo, endpoint](std::string const& what) {
-                        loading_repo->setIcon(NotificationIcon::Error);
-                        auto asd = geode::createQuickPopup(
-                            "Request exception",
-                            what + "\n" + endpoint,
-                            "Nah", nullptr, 420.f, nullptr, false
-                        );
-                        asd->m_scene = this;
-                        asd->show();
-                    });
-        };
-    }
-    void loadRelease() {
-        //vars prepare
-        auto loading_release = dynamic_cast<Notification*>(getChildByIDRecursive("loading_release"));
-        auto releaseJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("releaseJson"));
-        auto endpoint = fmt::format(
-            "https://api.github.com/repos/{}/releases/{}",
-            ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release")
-        );
-        auto file = workindir() / "release.json";
-        //req
-        if (checkExistence(file)) {
-            releaseJson->setString(read_file(file).data());
-            loading_release->setString("Repository loaded from local");
-            loading_release->setIcon(NotificationIcon::Success);
-            loading_release->setTag(1);
-        }
-        else {
-            web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
-                .then(
-                    [this, loading_release, file, releaseJson](matjson::Value const& catgirls) {
-                        releaseJson->setString(catgirls.dump().data());
-                        std::ofstream(file.string().c_str()) << catgirls.dump();
-                        loading_release->setString("Repository loaded");
-                        loading_release->setIcon(NotificationIcon::Success);
-                        loading_release->setTag(1);
-                    })
-                .expect(
-                    [this, loading_release, endpoint](std::string const& what) {
-                        loading_release->setIcon(NotificationIcon::Error);
-                        auto asd = geode::createQuickPopup(
-                            "Request exception",
-                            what + "\n" + endpoint,
-                            "Nah", nullptr, 420.f, nullptr, false
-                        );
-                        asd->m_scene = this;
-                        asd->show();
-                    });
-        };
-    }
-    void loadMeta() {
-        //vars prepare
-        auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
-        auto metaJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("metaJson"));
-        auto branch = repoJson()["default_branch"].as_string();
-        if(std::string(ini()->GetValue("mod", "release")) != "latest") branch = ini()->GetValue("mod", "release");
-        auto endpoint = fmt::format(
-            "https://raw.githubusercontent.com/{}/{}/{}",
-            ini()->GetValue("mod", "repo"),
-            branch,
-            type() == ModType::Mod ? "mod.json" : "pack.json"
-        );
-        auto file = workindir() / "meta.json";
-        //req
-        if (checkExistence(file)) {
-            auto filestream = std::ifstream(file);
-            if (filestream.is_open())
-            {
-                std::stringstream stream;
-                {
-                    std::string line;
-                    while (std::getline(filestream, line)) {
-                        stream << line;
-                    };
-                };
-                metaJson->setString(stream.str().data());
-                loading_meta->setString("Meta loaded from local");
-                loading_meta->setIcon(NotificationIcon::Success);
-                loading_meta->setTag(1);
-            }
-        }
-        else {
-            web::AsyncWebRequest()ghapiauth.fetch(endpoint).json()
-                .then(
-                    [this, loading_meta, file, metaJson](matjson::Value const& catgirls) {
-                        metaJson->setString(catgirls.dump().data());
-                        std::ofstream(file.string().c_str()) << catgirls.dump();
-                        loading_meta->setString("Meta loaded");
-                        loading_meta->setIcon(NotificationIcon::Success);
-                        loading_meta->setTag(1);
-                    })
-                .expect(
-                    [this, loading_meta, endpoint](std::string const& what) {
-                        loading_meta->setIcon(NotificationIcon::Error);
-                        loading_meta->setString("Failed to load meta, generating fake one...");
-                        setFakeMeta();
-                    });
-        };
-    }
-    void loadLogo(std::string filename = "") {
-        //vars prepare
-        auto loading_logo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_logo"));
-        auto endpoint = 
-            filename.empty() ?
-            fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}",
-                ini()->GetValue("mod", "repo"),
-                repoJson()["default_branch"].as_string(),
-                type() == ModType::Mod ? "logo.png" : "pack.png"
-            )
-            : filename;
-        auto file = workindir() / "icon.png";
-        //req
-        if (/*checkExistence(file)*/auto logo = CCSprite::create(file.string().c_str())) {
-            loading_logo->setString("Logo founded locally");
-            loading_logo->setIcon(logo);
-            loading_logo->setTag(1);
-        }
-        else {
-            log::debug("{}", endpoint);
-            web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(file)
-                .then(
-                    [this, loading_logo, file](std::monostate const& who) {
-                        if (not CCSprite::create(file.string().c_str())) {
-                            remove_dir(file);
-                            return loadLogo(repoJson()["owner"]["avatar_url"].as_string());
-                        }
-                        loading_logo->setString("Logo loaded");
-                        loading_logo->setIcon(CCSprite::create(file.string().c_str()));
-                        loading_logo->setTag(1);
-                    })
-                .expect(
-                    [this, filename, loading_logo, endpoint](std::string const& what) {
-                        loading_logo->setIcon(NotificationIcon::Error);
-                        if (filename.empty()) return loadLogo(repoJson()["owner"]["avatar_url"].as_string());
-                        loading_logo->setTag(1);
-                        auto asd = geode::createQuickPopup(
-                            "Request exception",
-                            what + "\n" + endpoint,
-                            "Nah", nullptr, 420.f, nullptr, false
-                        );
-                        asd->m_scene = this;
-                        asd->show();
-                    });
-        };
-    }
-    void reloadReadme(std::string mdfile = "about.md") {
-        //about md
-        {
-            auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByIDRecursive("pMDTextArea"));
-            //vars prepare
-            auto endpoint = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}",
-                ini()->GetValue("mod", "repo"),
-                repoJson()["default_branch"].as_string(),
-                mdfile
-            );
-            auto file = workindir() / "about.md";
-            //req
-            if (checkExistence(file)) {
-                pMDTextArea->setString(read_file(file).c_str());
-            }
-            web::AsyncWebRequest()ghapiauth.fetch(endpoint).text()
-                .then(
-                    [this, file, endpoint, pMDTextArea](std::string const& catgirlwiki) {
-                        std::ofstream(file.string().c_str()) << "- " + endpoint + "\n" << catgirlwiki;
-                        pMDTextArea->setString(catgirlwiki.c_str());
-                    })
-                .expect(
-                    [this, mdfile, endpoint, pMDTextArea](std::string const& what) {
-                        pMDTextArea->setString(("- " + endpoint + "\n# <cr>" + what + "</c>").c_str());
-                        if (mdfile == "about.md") reloadReadme("README.md");
-                    });
-        };
-    }
-    void setFakeMeta() {
-        auto loading_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"));
-        auto metaJson = dynamic_cast<CCLabelBMFont*>(getChildByIDRecursive("metaJson"));
-        auto RznMetaJson = Mod::get()->getMetadata().toJSON();
-        RznMetaJson.try_set("name", repoJson()["name"]);
-        RznMetaJson.try_set("description", repoJson()["description"]);
-        std::ofstream(workindir() / "meta.json") << RznMetaJson.dump();
-        metaJson->setString(RznMetaJson.dump().c_str());
-        loading_meta->setTag(1);
-    }
-    //customSetup
-    void waitForCustomSetup(float asd = 1337.f) {
-        //return;
-        auto sch = schedule_selector(ModViewLayer::waitForCustomSetup);
-        if (asd == 1337.f) {
-            this->schedule(sch, 0.f);
-        }
-        else {
-            auto loaded_repo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_repo"))->getTag() == 1;
-            auto loaded_logo = dynamic_cast<Notification*>(getChildByIDRecursive("loading_logo"))->getTag() == 1;
-            auto loaded_meta = dynamic_cast<Notification*>(getChildByIDRecursive("loading_meta"))->getTag() == 1;
-            auto loaded_release = dynamic_cast<Notification*>(getChildByIDRecursive("loading_release"))->getTag() == 1;
-            if (loaded_repo and loaded_logo and loaded_meta and loaded_release) {
-                dynamic_cast<CCMenu*>
-                    (getChildByIDRecursive("loadings"))
-                    ->setVisible(0);
-                customSetup();
-                this->unschedule(sch);
-            }
-        };
     }
     void customSetup() {
         /*top center card*/ {
@@ -535,7 +361,7 @@ public:
             );
             /*some fun stuff*/ {
                 //icon
-                auto icon = CCSprite::create((workindir() / "icon.png").string().c_str());
+                auto icon = CCSprite::create((ghc::filesystem::path(value("workindir")) / "icon.png").string().c_str());
                 if (!icon) icon = CCSprite::createWithSpriteFrameName("deleteFilter_none_001.png");
                 if (icon) {
                     auto icon_size = CCSize(68.f, 68.f);
@@ -568,31 +394,17 @@ public:
                     );
                     /*title*/ {
                         auto title = CCLabelTTF::create(
-                            (metaJson()["name"].as_string() + " " + metaJson()["version"].as_string()).c_str(),
+                            value("title"),
                             "arial", 18.f
                         );
                         parent->addChild(title);
                     }
                     /*devs*/ {
-                        auto devs_stringstream = std::stringstream() << "By: ";
-                        if (metaJson().contains("developers")) {
-                            devs_stringstream << metaJson()["developers"].dump();
-                            /*for (auto dev : metaJson()["developers"].as_array()) {
-                                dev.as_string();
-                            }*/
-                        }
-                        else devs_stringstream << (type() == ModType::Mod ? metaJson()["developer"].dump() : metaJson()["author"].dump());
-                        auto devs = devs_stringstream.str();
-                        devs = std::regex_replace(devs, std::regex("\""), "");
-                        devs = std::regex_replace(devs, std::regex("\\["), "");
-                        devs = std::regex_replace(devs, std::regex("\\]"), "");
-                        auto label = CCLabelTTF::create(devs.c_str(), "arial", 14.f);
+                        auto label = CCLabelTTF::create(value("devs"), "arial", 14.f);
                         parent->addChild(label);
                     }
                     /*description*/ {
-                        auto strDesc = metaJson().contains("description") ?
-                            metaJson()["description"].as_string().c_str() :
-                            ini()->GetValue("mod", "desc", metaJson()["id"].as_string().c_str());
+                        auto strDesc = value("desc");
                         TextArea* shit = TextArea::create(
                             strDesc, "chatFont.fnt", 1.0f, 600.f, { 0.0f, 0.0f }, 10.0f, false
                         );
@@ -624,7 +436,7 @@ public:
                         parent->addChild(item);
                     }
                     //statsContainerMenu
-                    if (fileJson().contains("download_count")) {
+                    if (value_long("size") != 0) {
                         CCMenu* statsContainerMenu = CCMenu::create();
                         parent->addChild(statsContainerMenu);
                         statsContainerMenu->setID("statsContainerMenu");
@@ -637,7 +449,7 @@ public:
                         );
                         /*download_count*/ {
                             auto download_count = CCLabelTTF::create(
-                                abbreviateNumber(fileJson()["download_count"].as_int()).c_str(),
+                                abbreviateNumber(value_long("downloads")).c_str(),
                                 "arial",
                                 12.f
                             );
@@ -650,7 +462,7 @@ public:
                         }
                         /*size*/ {
                             auto size = CCLabelTTF::create(
-                                convertSize(fileJson()["size"].as_int()).c_str(),
+                                convertSize(value_long("size")).c_str(),
                                 "arial",
                                 12.f
                             );
@@ -669,98 +481,69 @@ public:
                 }
             }
             menu->updateLayout();
-        }
+        };
+        {}
         /*md*/ {
             auto pMDTextArea = MDTextArea::create(
-                "# Content is loading...",
+                value("body"),
                 { this->getContentWidth() - 120.f, this->getContentHeight() - 80.f, }
             );
             pMDTextArea->setID("pMDTextArea");
             pMDTextArea->setPositionX(this->getContentWidth() / 2);
             pMDTextArea->setAnchorPoint({ 0.5f, 0.f });
             addChild(pMDTextArea, -1, 85290);
-            reloadReadme();
         };
     }
     //data gettinga
-    ghc::filesystem::path workindir() {
-        auto path = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("path"));
-        return path->getString();
+    CSimpleIni* INI() {
+        auto ini_container = dynamic_cast<CCLabelBMFont*>(getChildByID("ini_container"));//ini_container
+        auto ini_str = std::string(ini_container->getString());
+        CSimpleIni* INI;
+        INI->LoadData(ini_str);
+        return INI;
     }
-    ModType type() {
-        auto type = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("type"));
-        return (ModType)type->getTag();
+    const char* value(const char* key = "", const char* default_rtn = "NA") {
+        auto ini_container = dynamic_cast<CCLabelBMFont*>(getChildByID("ini_container"));//ini_container
+        auto ini_str = std::string(ini_container->getString());
+        CSimpleIni INI;
+        INI.LoadData(ini_str);
+        return INI.GetValue("main", key, default_rtn);
     }
-    matjson::Value issueJson() {
-        auto json = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("issueJson"));
-        return matjson::parse(json->getString());
+    bool value_bool(const char* key = "", bool default_rtn = false) {
+        auto ini_container = dynamic_cast<CCLabelBMFont*>(getChildByID("ini_container"));//ini_container
+        auto ini_str = std::string(ini_container->getString());
+        CSimpleIni INI;
+        INI.LoadData(ini_str);
+        return INI.GetBoolValue("main", key, default_rtn);
     }
-    matjson::Value repoJson() {
-        auto json = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("repoJson"));
-        return matjson::parse(json->getString());
+    long value_long(const char* key = "", long default_rtn = 0) {
+        auto ini_container = dynamic_cast<CCLabelBMFont*>(getChildByID("ini_container"));//ini_container
+        auto ini_str = std::string(ini_container->getString());
+        CSimpleIni INI;
+        INI.LoadData(ini_str);
+        return INI.GetLongValue("main", key, default_rtn);
     }
-    matjson::Value metaJson() {
-        auto json = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("metaJson"));
-        return matjson::parse(json->getString());
-    }
-    matjson::Value releaseJson() {
-        auto json = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("releaseJson"));
-        return matjson::parse(json->getString());
-    }
-    matjson::Value fileJson() {
-        if (releaseJson()["assets"].as_array().empty()) return releaseJson();
-        for (auto asset : releaseJson()["assets"].as_array()) {
-            if (asset["name"].as_string() == ini()->GetValue("mod", "file")) {
-                return asset;
-            };
-        }
-        return releaseJson()["assets"][0];
-    }
-    CSimpleIni* releaseIni() {
-        auto rtn = new CSimpleIni;
-        rtn->LoadData(releaseJson()["body"].as_string());
-        return rtn;
-    }
-    CSimpleIni* ini() {
-        auto ini = dynamic_cast<CCLabelBMFont*>(this->getChildByIDRecursive("ini"));
-        auto rtn = new CSimpleIni;
-        rtn->LoadData(ini->getString());
-        return rtn;
+    double value_double(const char* key = "", double default_rtn = 0.0) {
+        auto ini_container = dynamic_cast<CCLabelBMFont*>(getChildByID("ini_container"));//ini_container
+        auto ini_str = std::string(ini_container->getString());
+        CSimpleIni INI;
+        INI.LoadData(ini_str);
+        return INI.GetDoubleValue("main", key, default_rtn);
     }
     //other shit
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "reload") {
-            if(checkExistence(workindir() / "repo.json"))
-                remove_dir(workindir());
-            auto scene = CCScene::create();
-            auto pModViewLayer = ModViewLayer::create(issueJson());
-            scene->addChild(pModViewLayer, 0, issueJson()["number"].as_int());
-            CCDirector::sharedDirector()->replaceScene(scene);
+            if(checkExistence(ghc::filesystem::path(value("workindir")) / "main.ini"))
+                remove_dir(ghc::filesystem::path(value("workindir")));
+            openMe(INI());
         };
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "download") {
             //endpoint
-            auto endpoint = fmt::format(
-                "https://github.com/{}/releases/{}/download/{}",
-                ini()->GetValue("mod", "repo"), ini()->GetValue("mod", "release"), ini()->GetValue("mod", "file")
-            );
-            //https://github.com/user95401/Ryzen-Mods?tab=readme-ov-file#release-settings
-            endpoint = releaseIni()->GetValue(
-                "release", 
-                "download_link",
-                endpoint.c_str()
-            );
-            auto endpoint_getdataaway = explode("?", endpoint)[0];
-            //path
-            ghc::filesystem::path path = 
-                type() == ModType::Mod ?
-                dirs::getModsDir() :
-                dirs::getGeodeDir() / "config" / "geode.texture-loader" / "packs";
-            path = path / ghc::filesystem::path(endpoint_getdataaway).filename();//add file
-            if (path.extension() == ".dll") path = dirs::getGeodeDir() / "ryzen" / "loadit" / path.filename();
-            if (path.extension() == ".so") path = dirs::getGeodeDir() / "ryzen" / "loadit" / path.filename();
+            auto endpoint = std::string(value("download_link"));
+            auto path = ghc::filesystem::path(value("download_path"));
             auto pop = geode::MDPopup::create(
                 "Download mod?",
                 "\n# From:\n" + endpoint + ""
@@ -814,16 +597,17 @@ public:
             pop->show();
         };
     }
-    static void openMe(matjson::Value pJson) {
+    static void openMe(CSimpleIni* pINI) {
         auto scene = CCScene::create();
-        auto pModViewLayer = ModViewLayer::create(pJson);
-        scene->addChild(pModViewLayer, 0, pJson["number"].as_int());
+        auto pModViewLayer = ModViewLayer::create(pINI);
+        scene->addChild(pModViewLayer, 0, pModViewLayer->value_long("number"));
         CCDirector::sharedDirector()->pushScene(scene);
     };
     void keyBackClicked() {
         CCDirector::sharedDirector()->popScene();
     }
 };
+
 class IssueItem : public CCMenuItem {
 public:
     matjson::Value json;
@@ -837,8 +621,11 @@ public:
     }
     void view(CCObject*) {
         auto labels_str = json["labels"].dump();
-        if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos) return ModViewLayer::openMe(json);
-        if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) return ModViewLayer::openMe(json);
+        //CSimpleIni* TEMPONEEEA = new CSimpleIni;
+        if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos)
+            return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
+        if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) 
+            return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
         auto pop = createQuickPopup(
             "No Labels!", 
             "This <cg>issue item</c> <cr>has not</c> <cb>\"mod\"</c> or <co>\"pack\"</c> label!",
@@ -958,13 +745,10 @@ public:
                 issue_ini->LoadData(pJson["body"].as_string());
                 TextArea* desc = TextArea::create(
                     fmt::format(
-                        "By: {} ({})\n{}\nfile: {}, repo: {}, release: {}",
+                        "By: {} ({})\n{}",
                         pJson["user"]["login"].as_string(),
                         pJson["user"]["id"].as_int(),
-                        issue_ini->GetValue("mod", "desc", "No description provided..."),
-                        issue_ini->GetValue("mod", "file", "<cr>NO FILE!!!</c>"),
-                        issue_ini->GetValue("mod", "repo", "<cr>NO REPO!!!</c>"),
-                        issue_ini->GetValue("mod", "release", "<cr>NO REL TAG!!!</c>")
+                        issue_ini->GetValue("main", "desc", "issue body ini hasn't desc value in main section")
                     ), "chatFont.fnt", 0.6f, 2000.f, { 0.0f, 1.0f }, 10.0f, false);
                 desc->setPositionX(10 - POINTING_SIZE.width);
                 desc->setAnchorPoint({ 0.0f, 0.6f });
@@ -993,6 +777,7 @@ public:
         }
     }
 };
+
 class RyzenLayer : public CCLayer, DynamicScrollDelegate {
 public:
     void sendBtnFunc(std::string id) {
