@@ -292,6 +292,29 @@ public:
         };
         //set asset a
         if (step == 2) {
+            log("## step0: load repo");
+            auto repo_owner = getIniData(data::issue_body_ini)->GetValue("repo", "owner", "na");
+            auto repo_name = getIniData(data::issue_body_ini)->GetValue("repo", "name", "na");
+            log(fmt::format("repo_owner = {}", repo_owner));
+            log(fmt::format("repo_name = {}", repo_name));
+            auto api_url = fmt::format(
+                "https://api.github.com/repos/{}/{}"
+                , repo_owner, repo_name
+            );
+            log(fmt::format("api_url = {}", api_url.data()));
+            //then
+            auto then =
+                [this](matjson::Value const& catgirl) {
+                setData(data::repo, catgirl.dump());
+                log("```\nloaded :D\n```");
+                loadRepo(1);
+                };
+            //expect
+            auto expect =
+                [this](std::string const& what) {
+                log("## <cr>" + what + "</c>");
+                };
+            web::AsyncWebRequest()ghapiauth.fetch(api_url).json().then(then).expect(expect);
         }
     }
     void load(matjson::Value IssueJson) {
@@ -306,7 +329,7 @@ public:
             loadRepo();
         }
     }
-    void log(std::string str = "") {
+    void log(std::string str = "", std::string endl = "\n\n") {
         auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByID("pMDTextArea"));
         pMDTextArea->setString((pMDTextArea->getString() + str + std::string("\n\n")).data());
         pMDTextArea->getScrollLayer()->moveToTop();
@@ -636,7 +659,21 @@ public:
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
         auto pRtn = new IssueItem();
         if (pRtn->init()) {
+            //json
             pRtn->json = pJson;
+            auto issue_publisher = fmt::format(
+                "{} [{}]",
+                pJson["user"]["login"].as_string(),
+                pJson["user"]["id"].as_int()
+            );
+            auto issue_num = fmt::format("#{}", pJson["number"].as_int());
+            //ini values
+            auto issue_ini = new CSimpleIni(0, 0, 1);
+            issue_ini->SetAllowKeyOnly(0);
+            issue_ini->LoadData(pJson["body"].as_string());
+            auto sPublisher = issue_ini->GetValue("main", "publisher", issue_publisher.data());
+            auto sDesc = issue_ini->GetValue("main", "desc", "issue body ini hasn't desc value in main section");
+            auto sBottomRightCornerText = issue_ini->GetValue("main", "bottom_right_corner_text", issue_num.data());
             {
                 //menu
                 auto menu = CCMenu::create();
@@ -683,7 +720,7 @@ public:
                     View->addChild(grad, -1, 57290);
                 }
                 //id
-                CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(fmt::format("#{}", pJson["number"].as_int()).c_str(), "arial", 8.f);
+                CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(sBottomRightCornerText, "arial", 8.f);
                 CCLabelTTFid->setOpacity(60);
                 CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
                 CCLabelTTFid->setAnchorPoint({ 1.0f, .0f });
@@ -741,14 +778,11 @@ public:
                     container->updateLayout();
                 };
                 //desc
-                auto issue_ini = new CSimpleIni;
-                issue_ini->LoadData(pJson["body"].as_string());
                 TextArea* desc = TextArea::create(
                     fmt::format(
-                        "By: {} ({})\n{}",
-                        pJson["user"]["login"].as_string(),
-                        pJson["user"]["id"].as_int(),
-                        issue_ini->GetValue("main", "desc", "issue body ini hasn't desc value in main section")
+                        "By: {}\n{}",
+                        sPublisher,
+                        sDesc
                     ), "chatFont.fnt", 0.6f, 2000.f, { 0.0f, 1.0f }, 10.0f, false);
                 desc->setPositionX(10 - POINTING_SIZE.width);
                 desc->setAnchorPoint({ 0.0f, 0.6f });
