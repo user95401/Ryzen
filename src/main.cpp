@@ -98,30 +98,17 @@ std::vector<std::string> explode(std::string separator, std::string input) {
 	return c.get(reinterpret_cast<FriendeeClass__*>(v)); \
 }(value)
 
-static inline CCSprite* backgroundSprite;
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
         //setup
         rtn->setKeypadEnabled(true);
         rtn->setTouchEnabled(true);
-        if (true) {
-            auto oldColorea = not backgroundSprite ? ccColor3B(70, 80, 90) : backgroundSprite->getColor();
-            backgroundSprite = CCSprite::create("GJ_gradientBG.png");
-            backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
-            backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
-            backgroundSprite->setAnchorPoint({ 0, 0 });
-            backgroundSprite->setColor(oldColorea);
-            backgroundSprite->runAction(CCRepeatForever::create(
-                CCSequence::create(
-                    CCTintTo::create(5.0, 100, 100, 100),
-                    CCTintTo::create(5.0, 100, 100, 110),
-                    CCTintTo::create(5.0, 105, 100, 110),
-                    nullptr
-                )
-            ));
-            rtn->addChild(backgroundSprite, -2);
-        }
-        else rtn->addChild(backgroundSprite, -2);
+        CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
+        backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
+        backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
+        backgroundSprite->setAnchorPoint({ 0, 0 });
+        backgroundSprite->setColor({ 90, 90, 100 });
+        rtn->addChild(backgroundSprite, -2);
         
         /*SquareShadowCorners*/ {
             auto scale = 1.f;
@@ -770,6 +757,36 @@ public:
                 json[val] = matjson::Value(std::string(set_to.data()).c_str());
                 log(fmt::format("{} = {}", val, set_to));
             }
+            /*download_link*/ {
+                auto val = "download_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_link", "");
+                if (std::string(set_to).empty()) {//so generate one
+                    if (getIniData(data::issue_body_ini)->SectionExists("release")) {
+                        auto file = getIniData(issue_body_ini)->GetValue("release", "file", "NO FILE NAME!!!");
+                        auto tar = getIniData(issue_body_ini)->GetValue("release", "tar", "latest");
+                        set_to = fmt::format("https://github.com/{}/{}/releases/{}/download/{}", repo_owner, repo_name, tar, file);
+                    }
+                }
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*download_path*/ {
+                auto val = "download_path";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
+                set_to = string::replace(set_to, "..", "");
+                if (std::string(set_to).empty()) {//so generate one
+                    if (getIniData(data::issue_body_ini)->SectionExists("release")) {
+                        auto file = getIniData(issue_body_ini)->GetValue("release", "file", "NO FILE NAME!!!");
+                        auto geode = dirs::getGeodeDir().string();
+                        if (string::contains(file, ".geode"))
+                            set_to = geode + std::string("/mods/") + file;
+                        if (string::containsAny(file, { ".dll", ".so" }))
+                            set_to = geode + std::string("/ryzen/loadit/") + file;
+                    }
+                }
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
             log(fmt::format("{}", working_dir("main.json").string()));
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
@@ -786,6 +803,9 @@ public:
         if (issue_ini.SectionExists("repo")) {
             log("# repo type... getting repo now/");
             loadRepo();
+        }
+        else {
+            log("# \"custom\" type... srtting stuff now");
         }
     }
     void log(std::string str = "", std::string endl = "\n\n") {
