@@ -1490,7 +1490,7 @@ void loadMods() {
 #elif defined(GEODE_IS_ANDROID)
         if (filename.extension() == ".so") {
             loadrtn = true;
-            dlopen(entry.path().string().data(), RTLD_LAZY);
+            dlopen(entry.path().string().data(), RTLD_NOW);
         }   
 #endif
         auto log = fmt::format(
