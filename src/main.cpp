@@ -659,7 +659,7 @@ public:
             );
             log(fmt::format("modjson_url = {}", modjson_url));
             auto packjson_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/pack.png"
+                "https://raw.githubusercontent.com/{}/{}/{}/pack.json"
                 , repo_owner, repo_name, default_branch
             );
             log(fmt::format("packjson_url = {}", packjson_url));
