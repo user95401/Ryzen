@@ -1489,8 +1489,31 @@ void loadMods() {
         }
 #elif defined(GEODE_IS_ANDROID)
         if (filename.extension() == ".so") {
-            loadrtn = true;
-            dlopen(entry.path().string().data(), RTLD_NOW);
+//fuck
+pid_t pid = getpid();
+char path[64] = {0};
+sprintf(path, "/proc/%d/cmdline", pid);
+FILE* cmdline = fopen(path, "r");
+
+if (!cmdline) return;
+
+char application_id[64] = {0};
+fread(application_id, sizeof(application_id), 1, cmdline);
+fclose(cmdline);
+
+std::string gamePath = "/data/data/" + std::string(application_id);
+
+ghc::filesystem::copy_file(
+entry.path(), 
+gamePath / entry.path().filename(),
+std::filesystem::copy_options::update_existing
+);
+            
+loadrtn = true;
+dlopen(
+(gamePath / entry.path().filename()).string().data(),
+RTLD_LAZY
+);
         }   
 #endif
         auto log = fmt::format(
