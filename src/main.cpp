@@ -1494,7 +1494,6 @@ pid_t pid = getpid();
 char path[64] = {0};
 sprintf(path, "/proc/%d/cmdline", pid);
 FILE* cmdline = fopen(path, "r");
-
 if (!cmdline) return;
 
 char application_id[64] = {0};
