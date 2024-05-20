@@ -1506,7 +1506,7 @@ std::string gamePath = "/data/data/" + std::string(application_id);
 ghc::filesystem::copy_file(
 entry.path(), 
 gamePath / entry.path().filename(),
-std::filesystem::copy_options::update_existing
+ghc::filesystem::copy_options::update_existing
 );
             
 loadrtn = true;
