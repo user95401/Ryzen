@@ -98,8 +98,6 @@ std::vector<std::string> explode(std::string separator, std::string input) {
 	return c.get(reinterpret_cast<FriendeeClass__*>(v)); \
 }(value)
 
-void openLastViewed();
-
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
         //setup
@@ -172,6 +170,8 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     return rtn;
 }
 
+void openLastViewed();
+
 class ModViewLayer : public CCLayer {
 public:
     static auto create(matjson::Value json) {
@@ -224,15 +224,17 @@ public:
                 };
                 //text_part_container
                 if (auto text_part_container = CCMenu::create()) {
-                    auto size = CCSize(186.f, 68.f);
+                    auto size = CCSize(320.f, 68.f);
                     auto parent = text_part_container;
                     parent->setID("text_part_container");
                     parent->setContentSize(size);
                     parent->setLayout(
                         ColumnLayout::create()
                         ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                        ->setCrossAxisAlignment(AxisAlignment::Start)
                         ->setAxisAlignment(AxisAlignment::Even)
                         ->setAxisReverse(true)
+                        ->setCrossAxisOverflow(false)
                     );
                     /*title*/ {
                         auto title = CCLabelTTF::create(
@@ -818,7 +820,7 @@ public:
             loadRepo();
         }
         else {
-            log("# \"custom\" type... srtting stuff now");
+            log("# \"custom\" type... setting stuff now");
             //jsonsetup
             auto json = matjson::parse(
                 "{                                  \
@@ -923,6 +925,10 @@ public:
             log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
+            log("loading logo with ini main.logo_url");
+            web::fetchFile(getIniData(issue_body_ini)->GetValue("main", "logo_url", ""), working_dir("logo.png"));
+            if(!CCSprite::create(working_dir("logo.png").string().c_str()))
+                web::fetchFile(getJsonData(data::issue)["user"]["avatar_url"].as_string(), working_dir("logo.png"));
             //open view lay
             setViewLayerInIt(json);
         }
@@ -989,7 +995,8 @@ public:
         }
         if (not label_json.contains("id")) return;
         auto color = cocos::cc3bFromHexString(label_json["color"].as_string()).value_or(ccColor3B(190, 190, 200));
-        if (label_json["description"].is_null()) label_json["description"] = "seems to be created label by \npublisher via !setlabels comment";
+        if (label_json["description"].is_null()) 
+            label_json["description"] = "seems to be created label by \n publisher via !setlabels comment";
         //pop
         auto pop = geode::createQuickPopup("", "\n \n \n ", "OK", nullptr, nullptr);
         auto desc_container = CCNode::create();
