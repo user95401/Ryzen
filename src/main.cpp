@@ -274,7 +274,15 @@ public:
                         ->setAxisReverse(true)
                     );
                     if (auto downloadBtn = ButtonSprite::create("Download", "goldFont.fnt", "GJ_button_05.png")) {
+                        if (checkExistence(ghc::filesystem::path(strKeyOfdata("download_path")))) {
+                            downloadBtn->m_label->setString("Download Again");
+                            downloadBtn->m_label->setScale(
+                                (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                            );
+                        }
+                        if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
                         downloadBtn->setScale(0.8f);
+                        downloadBtn->setID("downloadBtn");
                         auto item = CCMenuItemSpriteExtra::create(downloadBtn, this, menu_selector(ModViewLayer::onBtn));
                         item->setID("download");
                         parent->addChild(item);
@@ -393,6 +401,7 @@ public:
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
+        if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "reload") {
             if (checkExistence(ghc::filesystem::path(strKeyOfdata("workindir")) / "main.json"))
                 remove_dir(ghc::filesystem::path(strKeyOfdata("workindir")));
@@ -401,7 +410,6 @@ public:
             keyBackClicked();
             openLastViewed();
         };
-        if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "download") {
             //endpoint
             auto endpoint = std::string(strKeyOfdata("download_link"));
@@ -413,14 +421,16 @@ public:
                 "Abort", "Start",
                 [this, endpoint, path, what](bool btn2) {
                     if (not btn2) return;
-                    auto dwnloading_overlap = Notification::create("Downloading...", NotificationIcon::Loading, 0.f);
-                    dwnloading_overlap->setPosition(what->getContentSize() / 2);
-                    dwnloading_overlap->setScale(0.6f);
-                    what->addChild(dwnloading_overlap);
+                    auto downloadBtn = reinterpret_cast<ButtonSprite*>(this->getChildByIDRecursive("downloadBtn"));
+                    if (not downloadBtn) return;
                     web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
                         .then(
-                            [this, dwnloading_overlap](std::monostate const& who) {
-                                dwnloading_overlap->removeFromParent();
+                            [this, downloadBtn](std::monostate const& who) {
+                                downloadBtn->m_label->setString("Download Again");
+                                downloadBtn->m_label->setScale(
+                                    (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                                );
+                                if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
                                 auto asd = geode::createQuickPopup(
                                     "Restart Game?",
                                     "To load new mod",
@@ -435,17 +445,20 @@ public:
                             })
                         //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
                                 .progress(
-                                    [dwnloading_overlap](auto, double d1, double d2) {
-                                        dwnloading_overlap->setString(
+                                    [downloadBtn](auto, double d1, double d2) {
+                                        downloadBtn->m_label->setString(
                                             fmt::format(
-                                                "{} / {}",
+                                                "{} of {}",
                                                 abbreviateNumber(d1),
                                                 abbreviateNumber(d2)
                                             ).c_str());
+                                        downloadBtn->m_label->setScale(
+                                            (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                                        );
+                                        if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
                                     })
                                 .expect(
-                                    [this, endpoint, dwnloading_overlap](std::string const& what) {
-                                        dwnloading_overlap->setIcon(NotificationIcon::Error);
+                                    [this, endpoint, downloadBtn](std::string const& what) {
                                         auto asd = geode::createQuickPopup(
                                             "Request exception",
                                             what + "\n" + endpoint,
