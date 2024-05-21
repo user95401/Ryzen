@@ -172,29 +172,277 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
 
 void openLastViewed();
 
-class IssueCommentsLayer : CCLayerColor {
+class IssueCommentItem : public CCMenuItem {
 public:
-    static auto create(CCNode* parent, matjson::Value issue_json) {
-        auto rtn = new IssueCommentsLayer;
-        rtn->schedule(schedule_selector(IssueCommentsLayer::update));
-        rtn->schedule(schedule_selector(IssueCommentsLayer::delayedUpdate), 0.01);
-        rtn->customSetup();
+    matjson::Value m_json; 
+    static auto create(CCNode* parent, matjson::Value json) {
+        auto rtn = new IssueCommentItem();
+        rtn->m_json = json;
+        rtn->init();
+        rtn->customSetup(parent);
         return rtn;
     }
-    void show() {
+    void customSetup(CCNode* parent) {
+        //start size
+        auto size = CCSize(
+            parent->getContentWidth(),
+            40.f
+        );
+        setContentSize(size);
+        //row
+        if (auto row = CCNode::create()) {
+            this->addChild(row);
+            row->setLayout(
+                RowLayout::create()
+                ->setAxisAlignment(AxisAlignment::Start)
+                ->setCrossAxisLineAlignment(AxisAlignment::End)
+            );
+            row->setContentSize(size);
+            //avatar
+            if (auto avatar = CCNode::create()) {
+                row->addChild(avatar);
+                avatar->setContentSize({ 30.f, 30.f });
+                //
+                auto sprite = CCSprite::createWithSpriteFrameName("difficulty_00_btn_001.png");
+                sprite->setAnchorPoint(CCPointZero);
+                sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
+                avatar->addChild(sprite);
+                //
+                auto filep = dirs::getTempDir() / "avatars" / (m_json["user"]["login"].as_string() + ".png");
+                auto a = [this, sprite, filep, avatar](std::monostate const& asd) {
+                    sprite->initWithFile(filep.string().c_str());
+                    sprite->setAnchorPoint(CCPointZero);
+                    sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
+                    };
+                auto b = [this, sprite](std::string const& error)
+                    {
+                    };
+                ghc::filesystem::create_directories(dirs::getTempDir() / "avatars");
+                web::AsyncWebRequest().fetch(m_json["user"]["avatar_url"].as_string())
+                    .into(filep).then(a).expect(b);
+            }
+            //text
+            if (auto text = CCNode::create()) {
+                row->addChild(text);
+                text->setLayout(
+                    ColumnLayout::create()
+                    ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                    ->setAxisReverse(true)
+                );
+                text->setContentSize(size);
+                //user
+                auto user = CCLabelTTF::create(m_json["user"]["login"].as_string().c_str(), "arial", 12.f);
+                text->addChild(user);
+                //body
+                auto body = public_cast(
+                    MDTextArea::create(m_json["body"].as_string(), size),
+                    m_content
+                );
+                text->addChild(body);
+                //sus
+                text->setContentHeight(body->getContentHeight());
+                text->updateLayout();
+                row->setContentHeight(body->getContentHeight());
+                this->setContentHeight(body->getContentHeight() + 20);
+            }
+            //upd
+            row->updateLayout();
+        }
+    }
+};
 
+class IssueCommentsLayer : public CCLayer, DynamicScrollDelegate {
+public:
+    //data gettinga
+    matjson::Value data() {
+        auto json_container = dynamic_cast<CCLabelBMFont*>(getChildByID("json_container"));//ini_container
+        auto json_str = std::string(json_container->getString());
+        return matjson::parse(json_str);
     }
-    void hide() {
-
+    matjson::Value issue_data() {
+        auto issue_json_base64 = data()["issue_json_base64"].as_string();
+        auto issue_json = ZipUtils::base64URLDecode(issue_json_base64);
+        return matjson::parse(issue_json);
     }
-    void update(float) {
-        ;
+    std::string data_strkey(std::string asd) {
+        if (not data().contains(asd.data())) return std::string("cant find key");
+        return data()[asd.data()].as_string();
     }
-    void delayedUpdate(float) {
-        ;
+    //othera
+    static auto create(matjson::Value json, bool load = true) {
+        auto rtn = new IssueCommentsLayer;
+        rtn->init();
+        basicRznLayersInit(rtn, menu_selector(IssueCommentsLayer::onBtn));
+        //json
+        auto json_container = CCLabelBMFont::create(json.dump().data(), "chatFont.fnt");
+        json_container->setVisible(0);
+        json_container->setID("json_container");
+        rtn->addChild(json_container, 999);
+        //customSetup
+        rtn->customSetup();
+        //rtn->load
+        if (load) rtn->load();
+        return rtn;
     }
     void customSetup() {
-        ;
+        /* scroll lay */ {
+            auto paddingx = 146.f;
+            auto paddingy = 0.f;
+            auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingy);
+            auto scroll = geode::ScrollLayer::create(scroll_size);
+            {
+                scroll->setID("scroll");
+                scroll->m_contentLayer->setLayout(
+                    ColumnLayout::create()
+                    ->setGap(0.f)
+                    ->setAxisReverse(true)
+                    ->setAxisAlignment(AxisAlignment::End)
+                );
+                scroll->setPositionX(paddingx / 2 + 2);
+                this->addChild(scroll);
+            };
+        }
+        /* down right buttons */ {
+            CCMenu* menu = CCMenu::create();
+            if (menu) {
+                menu->setPosition(CCDirector::get()->getScreenRight(), 0.f);
+                menu->setAnchorPoint({ 1.f, 0.f });
+                menu->setLayout(
+                    ColumnLayout::create()
+                    ->setAxisAlignment(AxisAlignment::Start)
+                    ->setGap(0.f)
+                );
+                this->addChild(menu);
+            };
+            //reloadmodsbtn
+            if (auto sprite = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+                CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
+                    sprite, this, menu_selector(IssueCommentsLayer::onBtn)
+                );
+                reload->setID("reload");
+                reload->getNormalImage()->setScale(0.7f);
+                menu->addChild(reload);
+            };
+            //post
+            if (auto sprite = CCSprite::create("Ryzen_CommentsBtn_001.png"_spr)) {
+                CCMenuItemSpriteExtra* post = CCMenuItemSpriteExtra::create(
+                    sprite, this, menu_selector(IssueCommentsLayer::onBtn)
+                );
+                post->setID("post");
+                //reload->getNormalImage()->setScale(0.7f);
+                menu->addChild(post);
+            };
+            menu->updateLayout();
+        }
+    }
+    void setupComments(matjson::Value comments_json) {
+        if (not dynamic_cast<IssueCommentsLayer*>(this)) return;
+        auto scroll = dynamic_cast<ScrollLayer*>(this->getChildByID("scroll"));
+        auto content = scroll->m_contentLayer;
+        content->removeAllChildren();
+        content->setContentHeight(0.f);
+        for (auto comment : comments_json.as_array()) {
+            auto item = IssueCommentItem::create(content, comment);
+            content->setContentHeight(//make content layer longer
+                content->getContentHeight() + item->getContentHeight()
+            );
+            content->addChild(item);
+        }
+        //fix some shit goes when content smaller than scroll
+        if (scroll->m_contentLayer->getContentSize().height < scroll->getContentSize().height) {
+            scroll->m_contentLayer->setContentSize({
+                scroll->m_contentLayer->getContentSize().width,
+                scroll->getContentSize().height
+                });
+        }
+        content->updateLayout();
+    }
+    void load() {
+        auto local_issues_file = (ghc::filesystem::path(data_strkey("workindir")) / "comments.json");
+        auto local_issues = std::ifstream(local_issues_file);
+        if (local_issues.is_open()) {
+            std::string data(
+                (std::istreambuf_iterator<char>(local_issues)), 
+                std::istreambuf_iterator<char>()
+            );
+            return setupComments(matjson::parse(data));
+        }
+        auto ntfy = geode::Notification::create("Loading comments...", NotificationIcon::Loading, 15.f);
+        ntfy->show();
+        auto a = [this, ntfy](matjson::Value const& catgirls) {
+            auto local_issues_save = (ghc::filesystem::path(data_strkey("workindir")) / "comments.json");
+            ghc::filesystem::create_directories(local_issues_save.parent_path());
+            std::ofstream(local_issues_save.string().c_str()) << catgirls.dump(); 
+            setupComments(catgirls);
+            ntfy->setString("Comments loaded!");
+            ntfy->setIcon(NotificationIcon::Success);
+            ntfy->setTime(1.0f);
+            };
+        auto b = [this, ntfy](std::string const& error)
+            {// something went wrong with our web request Q~Q
+                ntfy->hide();
+                auto message = error;
+                auto asd = geode::createQuickPopup(
+                    "Request exception",
+                    message,
+                    "Nah", nullptr, 420.f, nullptr, false
+                );
+                asd->m_scene = this;
+                asd->show();
+            };
+        web::AsyncWebRequest()
+            ghapiauth.fetch(issue_data()["comments_url"].as_string())
+            .json().then(a).expect(b);
+    }
+    //other shit
+    void onBtn(CCObject* pCCObject) {
+        auto what = dynamic_cast<CCNode*>(pCCObject);
+        if (not what) return;
+        if (what->getID() == "back") keyBackClicked();
+        if (what->getID() == "post") {
+            auto a = [this](std::string const& rtn)
+                {
+                    auto message = rtn;
+                    auto asd = geode::createQuickPopup(
+                        "Request",
+                        message,
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->m_scene = this;
+                    asd->show();
+                };
+            auto b = [this](std::string const& rtn)
+                {
+                    auto message = rtn;
+                    auto asd = geode::createQuickPopup(
+                        "Request exception",
+                        message,
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->m_scene = this;
+                    asd->show();
+                };
+            web::AsyncWebRequest()
+                ghapiauth
+                .body(matjson::parse("{\"body\":\"Me too\"}"))
+                .post(issue_data()["comments_url"].as_string())
+                .text().then(a).expect(b);
+        };
+        if (what->getID() == "reload") {
+            auto jsonfilepath = ghc::filesystem::path(data_strkey("workindir")) / "comments.json";
+            if (checkExistence(jsonfilepath))
+                ghc::filesystem::remove(jsonfilepath);
+            load();
+        };
+    }
+    static void openMe(matjson::Value issue_json) {
+        auto scene = CCScene::create();
+        auto pIssueCommentsLayer = IssueCommentsLayer::create(issue_json);
+        scene->addChild(pIssueCommentsLayer, 0, pIssueCommentsLayer->issue_data()["number"].as_int());
+        CCDirector::sharedDirector()->pushScene(scene);
+    };
+    void keyBackClicked() {
+        CCDirector::sharedDirector()->popScene();
     }
 };
 
@@ -214,7 +462,7 @@ public:
         return rtn;
     }
     void customSetup() {
-        /*top center card*/ {
+        /* top center card */ {
             auto menu = CCMenu::create();
             menu->setID("card");
             addChild(menu);
@@ -301,7 +549,7 @@ public:
                     );
                     if (auto downloadBtn = ButtonSprite::create("Download", "goldFont.fnt", "GJ_button_05.png")) {
                         if (checkExistence(ghc::filesystem::path(strKeyOfdata("download_path")))) {
-                            downloadBtn->m_label->setString("Download Again");
+                            downloadBtn->m_label->setString("Update");
                             downloadBtn->m_label->setScale(
                                 (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
                             );
@@ -381,7 +629,7 @@ public:
                 reload->getNormalImage()->setScale(0.7f);
                 menu->addChild(reload);
             };
-            //info
+            //comments
             if (auto sprite = CCSprite::create("Ryzen_CommentsBtn_001.png"_spr)) {
                 CCMenuItemSpriteExtra* comments = CCMenuItemSpriteExtra::create(
                     sprite, this, menu_selector(ModViewLayer::onBtn)
@@ -392,7 +640,7 @@ public:
             };
             menu->updateLayout();
         }
-        /*md*/ {
+        /* md */ {
             auto pMDTextArea = MDTextArea::create(
                 ZipUtils::base64URLDecode(strKeyOfdata("body_base64")),
                 { this->getContentWidth() - 140.f, this->getContentHeight() - 80.f, }
@@ -430,13 +678,12 @@ public:
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "comments") {
-            //IssueCommentsLayer::create(true);
+            IssueCommentsLayer::openMe(DATA());
         }
         if (what->getID() == "reload") {
             if (checkExistence(ghc::filesystem::path(strKeyOfdata("workindir")) / "main.json"))
                 remove_dir(ghc::filesystem::path(strKeyOfdata("workindir")));
             auto issue_json_text = ZipUtils::base64URLDecode(strKeyOfdata("issue_json_base64"));
-            log::debug("{}", issue_json_text);
             keyBackClicked();
             openLastViewed();
         };
@@ -476,6 +723,8 @@ public:
                         //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
                                 .progress(
                                     [downloadBtn](auto, double d1, double d2) {
+                                        if (d1 <= 0) return;
+                                        if (d2 <= 0) return;
                                         downloadBtn->m_label->setString(
                                             fmt::format(
                                                 "{} of {}",
@@ -1272,7 +1521,7 @@ public:
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "reload") downloadMods();
-        if (what->getID() == "search") {
+        if (what->getID() == "search")  {
             auto local_issues_file = dirs::getGeodeDir() / "ryzen" / "issues.json";
             auto local_issues = std::ifstream(local_issues_file);
             if (local_issues.is_open())
@@ -1286,7 +1535,9 @@ public:
             }
             else downloadMods();
         };
-        if (what->getID() == "add_link") web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
+        if (what->getID() == "add_link")  {
+            web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
+        };
     }
     std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
         std::vector<matjson::Value> cutestcatgirls;
@@ -1648,7 +1899,6 @@ class $modify(CCLayerExt, CCLayer) {
 #include <jni.h>
 #include <unistd.h>
 #endif
-
 void loadMods() {
     auto path = dirs::getGeodeDir() / "ryzen" / "loadit";
     ghc::filesystem::create_directories(path);
