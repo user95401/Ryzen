@@ -98,6 +98,8 @@ std::vector<std::string> explode(std::string separator, std::string input) {
 	return c.get(reinterpret_cast<FriendeeClass__*>(v)); \
 }(value)
 
+void openLastViewed();
+
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
         //setup
@@ -169,8 +171,6 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     };
     return rtn;
 }
-void openModView(matjson::Value json);
-void openModLoading(matjson::Value IssueJson);
 
 class ModViewLayer : public CCLayer {
 public:
@@ -396,7 +396,8 @@ public:
                 remove_dir(ghc::filesystem::path(strKeyOfdata("workindir")));
             auto issue_json_text = ZipUtils::base64URLDecode(strKeyOfdata("issue_json_base64"));
             log::debug("{}", issue_json_text);
-            openModLoading(matjson::parse(issue_json_text));
+            keyBackClicked();
+            openLastViewed();
         };
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "download") {
@@ -534,8 +535,6 @@ public:
         pMDTextArea->setID("pMDTextArea");
         pMDTextArea->setPosition(rtn->getContentSize() / 2);
         rtn->addChild(pMDTextArea, -1);
-        //letsgo
-        rtn->load(IssueJson);
         return rtn;
     }
     void loadRepo(int step = 0, std::string owerwrite_endpoint = "") {
@@ -711,6 +710,13 @@ public:
             /*devs*/ {
                 auto val = "devs";
                 std::string set_to = getIniData(issue_body_ini)->GetValue("main", "publisher", "");
+                if (pack.contains("author")) set_to = pack["author"].as_string();
+                if (pack.contains("authors")) set_to = pack["authors"].dump();
+                if (mod.contains("developer")) set_to = mod["developer"].as_string();
+                if (mod.contains("developers")) set_to = mod["developers"].dump();
+                set_to = string::replace(set_to, "[", "");
+                set_to = string::replace(set_to, "]", "");
+                set_to = string::replace(set_to, "\"", "");
                 if (std::string(set_to).empty()) set_to = fmt::format(
                     "{} [{}]",
                     getJsonData(issue)["user"]["login"].as_string(),
@@ -722,7 +728,7 @@ public:
             }
             /*desc*/ {
                 auto val = "desc";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "");
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
                 if (mod.contains("description")) set_to = mod["description"].as_string();
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
@@ -741,7 +747,11 @@ public:
             }
             /*body_base64*/ {
                 auto val = "body_base64";
-                std::string set_to = json["desc"].as_string();
+                std::string set_to = fmt::format(
+                    "# {}\n{}",
+                    json["title"].as_string(),
+                    json["desc"].as_string()
+                );
                 if (not string::contains(readme, "404: Not Found"))
                     set_to = readme;
                 if (not string::contains(about, "404: Not Found"))
@@ -782,15 +792,18 @@ public:
                             set_to = geode + std::string("/mods/") + file;
                         if (string::containsAny(file, { ".dll", ".so" }))
                             set_to = geode + std::string("/ryzen/loadit/") + file;
+                        if (string::containsAny(file, { ".zip" }))
+                            set_to = geode + std::string("/config/geode.texture-loader/packs/") + file;
                     }
                 }
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
             }
-            log(fmt::format("{}", working_dir("main.json").string()));
+            log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
-            ModViewLayer::openMe(json);
+            //open view lay
+            setViewLayerInIt(json);
         }
     }
     void load(matjson::Value IssueJson) {
@@ -806,6 +819,112 @@ public:
         }
         else {
             log("# \"custom\" type... srtting stuff now");
+            //jsonsetup
+            auto json = matjson::parse(
+                "{                                  \
+                    \"workindir\": \"\",            \
+                    \"title\": \"\",                \
+                    \"devs\": \"\",                 \
+                    \"desc\": \"\",                 \
+                    \"size\": 0,                    \
+                    \"downloads\": 0,               \
+                    \"body_base64\": \"\",          \
+                    \"issue_json_base64\": \"\",    \
+                    \"download_link\": \"\",        \
+                    \"download_path\": \"\"         \
+                }"
+            );
+            /*workindir*/ {
+                auto val = "workindir";
+                std::string set_to = working_dir().string();
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*title*/ {
+                auto val = "title";
+                std::string set_to = getJsonData(issue)["title"].as_string();
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*devs*/ {
+                auto val = "devs";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "publisher", "");
+                if (std::string(set_to).empty()) set_to = fmt::format(
+                    "{} [{}]",
+                    getJsonData(issue)["user"]["login"].as_string(),
+                    getJsonData(issue)["user"]["id"].as_int()
+                ).data();
+                set_to = ("By: " + std::string(set_to));
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*desc*/ {
+                auto val = "desc";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*body_base64*/ {
+                auto val = "body_base64";
+                std::string set_to = fmt::format(
+                    "# {}\n{}",
+                    json["title"].as_string(),
+                    json["desc"].as_string()
+                );
+                auto issue_body = std::string(getData(issue_body_ini));
+                if (issue_body.find("body:") != std::string::npos) {
+                    //pointas
+                    auto start = issue_body.find("body:") + 7;
+                    auto end = issue_body.find("^^^");
+                    if(end == std::string::npos) end = issue_body.size();
+                    //a
+                    std::string substring = issue_body.substr(start, end - start + 1);
+                    set_to = substring;
+                }
+                set_to = ZipUtils::base64URLEncode(set_to);
+                json[val] = matjson::Value(std::string(set_to.data()).c_str());
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*issue_json_base64*/ {
+                auto val = "issue_json_base64";
+                std::string set_to = getData(data::issue);
+                set_to = ZipUtils::base64URLEncode(set_to);
+                json[val] = matjson::Value(std::string(set_to.data()).c_str());
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*download_link*/ {
+                auto val = "download_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_link", "");
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*download_path*/ {
+                auto val = "download_path";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
+                set_to = string::replace(set_to, "..", "");
+                if (std::string(set_to).empty() and not std::string(set_to).empty()) {//so generate one
+                    auto download_link = json["download_link"].as_string();
+                    if (not download_link.empty()) {
+                        download_link = explode(download_link, "?")[0];
+                        auto filename = ghc::filesystem::path(download_link).filename().string();
+                        auto geode = dirs::getGeodeDir().string();
+                        if (string::contains(filename, ".geode"))
+                            set_to = geode + std::string("/mods/") + filename;
+                        if (string::containsAny(filename, { ".dll", ".so" }))
+                            set_to = geode + std::string("/ryzen/loadit/") + filename;
+                        if (string::containsAny(filename, { ".zip" }))
+                            set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
+
+                    }
+                }
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
+            log(json.dump());
+            std::ofstream(working_dir("main.json")) << json.dump();
+            //open view lay
+            setViewLayerInIt(json);
         }
     }
     void log(std::string str = "", std::string endl = "\n\n") {
@@ -813,6 +932,11 @@ public:
         auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByID("pMDTextArea"));
         pMDTextArea->setString((pMDTextArea->getString() + str + endl).data());
         pMDTextArea->getScrollLayer()->scrollLayer(pMDTextArea->getScrollLayer()->getContentHeight() * 2);
+    }
+    void setViewLayerInIt(matjson::Value data) {
+        auto parent = this->getParent();
+        removeFromParent();
+        parent->addChild(ModViewLayer::create(data));
     }
     //other shit
     void onBtn(CCObject* pCCObject) {
@@ -831,12 +955,14 @@ public:
         }
         scene->addChild(a, 0, IssueJson["number"].as_int());
         CCDirector::sharedDirector()->pushScene(scene);
+        a->load(IssueJson);
     };
     void keyBackClicked() {
         CCDirector::sharedDirector()->popScene();
     }
 };
 
+matjson::Value LAST_VIEWED_ISSUE;
 class IssueItem : public CCMenuItem {
 public:
     matjson::Value json;
@@ -895,6 +1021,7 @@ public:
     }
     void view(CCObject*) {
         auto labels_str = json["labels"].dump();
+        LAST_VIEWED_ISSUE = json;
         //CSimpleIni* TEMPONEEEA = new CSimpleIni;
         if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos)
             return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
@@ -1078,6 +1205,9 @@ public:
             return NULL;
         }
     }
+};
+void openLastViewed() {
+    ModLoadingLayer::openMe(LAST_VIEWED_ISSUE);
 };
 
 class IssuesListLayer : public CCLayer, DynamicScrollDelegate {
@@ -1460,13 +1590,6 @@ class $modify(CCLayerExt, CCLayer) {
         if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
         return rtn;
     };
-};
-
-void openModView(matjson::Value data) {
-    ModViewLayer::openMe(data);
-};
-void openModLoading(matjson::Value IssueJson) {
-    ModLoadingLayer::openMe(IssueJson);
 };
 
 #if defined(GEODE_IS_ANDROID)
