@@ -172,6 +172,32 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
 
 void openLastViewed();
 
+class IssueCommentsLayer : CCLayerColor {
+public:
+    static auto create(CCNode* parent, matjson::Value issue_json) {
+        auto rtn = new IssueCommentsLayer;
+        rtn->schedule(schedule_selector(IssueCommentsLayer::update));
+        rtn->schedule(schedule_selector(IssueCommentsLayer::delayedUpdate), 0.01);
+        rtn->customSetup();
+        return rtn;
+    }
+    void show() {
+
+    }
+    void hide() {
+
+    }
+    void update(float) {
+        ;
+    }
+    void delayedUpdate(float) {
+        ;
+    }
+    void customSetup() {
+        ;
+    }
+};
+
 class ModViewLayer : public CCLayer {
 public:
     static auto create(matjson::Value json) {
@@ -342,6 +368,7 @@ public:
                 menu->setLayout(
                     ColumnLayout::create()
                     ->setAxisAlignment(AxisAlignment::Start)
+                    ->setGap(0.f)
                 );
                 this->addChild(menu);
             };
@@ -355,13 +382,13 @@ public:
                 menu->addChild(reload);
             };
             //info
-            if (auto sprite = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png")) {
-                CCMenuItemSpriteExtra* info = CCMenuItemSpriteExtra::create(
+            if (auto sprite = CCSprite::create("Ryzen_CommentsBtn_001.png"_spr)) {
+                CCMenuItemSpriteExtra* comments = CCMenuItemSpriteExtra::create(
                     sprite, this, menu_selector(ModViewLayer::onBtn)
                 );
-                info->setID("info");
+                comments->setID("comments");
                 //reload->getNormalImage()->setScale(0.7f);
-                menu->addChild(info);
+                menu->addChild(comments);
             };
             menu->updateLayout();
         }
@@ -402,6 +429,9 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
+        if (what->getID() == "comments") {
+            //IssueCommentsLayer::create(true);
+        }
         if (what->getID() == "reload") {
             if (checkExistence(ghc::filesystem::path(strKeyOfdata("workindir")) / "main.json"))
                 remove_dir(ghc::filesystem::path(strKeyOfdata("workindir")));
