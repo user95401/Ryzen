@@ -1,7 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/utils/web.hpp>
 #include <Geode/Utils.hpp>
-#include "ghapiauth.h"
 using namespace geode::prelude;
 
 #include <regex>
@@ -97,6 +96,111 @@ std::vector<std::string> explode(std::string separator, std::string input) {
 	} c; \
 	return c.get(reinterpret_cast<FriendeeClass__*>(v)); \
 }(value)
+
+auto ryzen_dir = dirs::getGeodeDir() / "ryzen";
+
+#define ghapiauth \
+.userAgent(Mod::get()->getID()) \
+.header("X-GitHub-Api-Version", "2022-11-28") \
+.header(AuthorizationHeaderName(), fmt::format("Bearer {}", get_ghc()))
+auto ghc_file = ryzen_dir / ".ghc";
+const char* AuthorizationHeaderName() {
+    return checkExistence(ghc_file) ? "Authorization" : "AuthDisabled";
+}
+const char* get_ghc() {
+    ghc::filesystem::create_directories(ryzen_dir);
+    return read_file(ghc_file).data();
+}
+void set_ghc(std::string token) {
+    ghc::filesystem::create_directories(ryzen_dir);
+    std::ofstream(ghc_file) << token;
+}
+class GitHubAuthPopup : public FLAlertLayer, FLAlertLayerProtocol {
+public:
+    virtual void FLAlert_Clicked(FLAlertLayer* p0, bool p1) {
+        auto protocol = new GitHubAuthPopup;
+        //info"Continue"
+        if (p0->getID() == "info" and p1) {
+            //open auth apps idk
+            web::openLinkInBrowser("https://ryzen.7m.pl/auth");
+            //finish pop
+            auto pop = FLAlertLayer::create(
+                protocol,
+                "Authorization",
+                "Put code from gray page here:" "\n \n \n",
+                "Back", "Finish",
+                360.f
+            );
+            //input
+            auto input = InputNode::create(280.f, "the code");
+            input->setID("input");
+            input->setPositionY(42.f);
+            pop->m_buttonMenu->addChild(input);
+            //last popup setup
+            pop->setID("finish");
+            pop->show();
+        }
+        //finish"Finish"
+        if (p0->getID() == "finish" and p1) {
+            //code
+            auto code = std::string("");
+            auto input = dynamic_cast<InputNode*>(p0->getChildByIDRecursive("input"));
+            if (input) code = input->getString();
+            //
+            auto pop = FLAlertLayer::create(
+                protocol,
+                "Authorization",
+                code,
+                "Back", "Finish",
+                360.f
+            );
+            pop->setID("finish");
+            pop->show();
+        }
+        //back"Back"
+        if (p0->getID() == "finish" and not p1) {
+            show_info();
+        }
+    }
+    void show_info() {
+        auto protocol = new GitHubAuthPopup;
+        auto pop = FLAlertLayer::create(
+            protocol,
+            "Authorization", 
+            "<co>Authorize</c> your <cy>GitHub Account</c> to <cg>reduce</c> <cr>limits</c> and be <cg>able to create comments</c> in game.\nAfter click on the <co>\"Continue\" button</c> you will be <cr>redirected to</c> <cy>browser auth interfaces</c>.",
+            "Abort", "Continue",
+            360.f
+        );
+        pop->setID("info");
+        pop->show();
+    }
+    void onOpenupBtn(CCObject*) {
+        show_info();
+    }
+    static auto addMyBtn(CCNode* parent_lay, bool animate = false) {
+        //item
+        auto repoBtn = CCMenuItemSpriteExtra::create(
+            CCSprite::createWithSpriteFrameName("geode.loader/github.png"),
+            parent_lay,
+            menu_selector(GitHubAuthPopup::onOpenupBtn)
+        );
+        if (not checkExistence(ghc_file)) {
+            if (animate) repoBtn->getNormalImage()->runAction({
+                    CCRepeatForever::create(CCSequence::create(
+                        CCEaseSineInOut::create(CCScaleTo::create(0.5f, 1.05f)),
+                        CCEaseSineInOut::create(CCScaleTo::create(0.5f, 1.f)),
+                        nullptr
+                    ))
+                });
+        }
+        else repoBtn->setOpacity(90);
+        //menu
+        auto menu = CCMenu::create(repoBtn, nullptr);
+        menu->setPositionX(32.f);
+        menu->setPositionY(73.f + menu->getPositionY());
+        parent_lay->addChild(menu);
+    }
+};
 
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
@@ -273,6 +377,7 @@ public:
         auto rtn = new IssueCommentsLayer;
         rtn->init();
         basicRznLayersInit(rtn, menu_selector(IssueCommentsLayer::onBtn));
+        GitHubAuthPopup::addMyBtn(rtn, true);
         //json
         auto json_container = CCLabelBMFont::create(json.dump().data(), "chatFont.fnt");
         json_container->setVisible(0);
@@ -813,7 +918,7 @@ public:
             rtn->addTextContainer(data::asset, "{}");
             rtn->addTextContainer(
                 data::working_dir_str,
-                (dirs::getGeodeDir() / "ryzen" / "mods" /
+                (ryzen_dir / "mods" /
                     fmt::format("{}[{}]", IssueJson["number"].as_int(), IssueJson["title"].as_string())
                     ).string()
             );
@@ -1522,7 +1627,7 @@ public:
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "reload") downloadMods();
         if (what->getID() == "search")  {
-            auto local_issues_file = dirs::getGeodeDir() / "ryzen" / "issues.json";
+            auto local_issues_file = ryzen_dir / "issues.json";
             auto local_issues = std::ifstream(local_issues_file);
             if (local_issues.is_open())
             {
@@ -1640,7 +1745,7 @@ public:
                 [this, downloading_ntfy](matjson::Value const& catgirls) {
                     // do something with the catgirls :3
                     setupMods(catgirls);
-                    auto local_issues_save = dirs::getGeodeDir() / "ryzen" / "issues.json";
+                    auto local_issues_save = ryzen_dir / "issues.json";
                     ghc::filesystem::create_directories(local_issues_save.parent_path());
                     std::ofstream(local_issues_save.string().c_str()) << catgirls.dump();
                     downloading_ntfy->setString("Mods downloaded!");
@@ -1674,6 +1779,7 @@ public:
             rtn->autorelease();
             rtn->init();
             basicRznLayersInit(rtn, menu_selector(IssuesListLayer::onBtn));
+            GitHubAuthPopup::addMyBtn(rtn);
             GameManager::sharedState()->fadeInMusic(
                 "WhiteNoiseBlackVoid - Night Walk Through the Grayland.mp3"
                 ""_spr
@@ -1900,7 +2006,7 @@ class $modify(CCLayerExt, CCLayer) {
 #include <unistd.h>
 #endif
 void loadMods() {
-    auto path = dirs::getGeodeDir() / "ryzen" / "loadit";
+    auto path = ryzen_dir / "loadit";
     ghc::filesystem::create_directories(path);
     for (const auto& entry : ghc::filesystem::directory_iterator(path)) {
         auto filename = entry.path().filename();
