@@ -139,7 +139,7 @@ public:
 	    //paste
 	    auto paste = CCMenuItemSpriteExtra::create(
 		CCLabelTTF::create(
-                    "paste\n\ntext", 
+                    "paste/\ntext", 
                     "Comic Sans MS.ttf"_spr,
                     10.f
                 ),
