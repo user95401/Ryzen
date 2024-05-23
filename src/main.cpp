@@ -159,7 +159,7 @@ public:
             auto input = dynamic_cast<InputNode*>(p0->getChildByIDRecursive("input"));
             if (input) code = input->getString();
             //
-	    auto a = [this](matjson::Value const& catgirl) {
+	    auto a = [this, protocol](matjson::Value const& catgirl) {
                auto pop = FLAlertLayer::create(
                    protocol,
                    "Authorization",
@@ -169,7 +169,7 @@ public:
                );
                pop->setID("finish");
                pop->show();
-	    }
+	    };
 	    auto b = [this](std::string const& error)
             {// something went wrong with our web request Q~Q
                 auto message = error;
