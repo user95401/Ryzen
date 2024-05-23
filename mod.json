@@ -10,6 +10,12 @@
 	"early-load": true,
 	"resources": {
 		"files": [ "files/*" ],
-		"sprites": [ "sprites/*.png", "*.png" ] 
+		"sprites": [ "sprites/*.png", "*.png" ],
+		"fonts": {
+		  "Comic Sans MS": {
+                    "path": "files/Comic Sans MS.ttf ",
+                    "size": 30
+                  },
+		}
 	}
 }
