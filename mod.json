@@ -13,8 +13,8 @@
 		"sprites": [ "sprites/*.png", "*.png" ],
 		"fonts": {
 		  "Comic Sans MS": {
-                    "path": "files/Comic Sans MS.ttf ",
-                    "size": 30
+                    "path": "files/Comic Sans MS.ttf",
+                    "size": 16
                   }
 		}
 	}
