@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/utils/web.hpp>
 #include <Geode/Utils.hpp>
+#include <Geode/ui/TextInput.hpp>
 using namespace geode::prelude;
 
 #include <regex>
@@ -136,22 +137,22 @@ public:
             input->setID("input");
             input->setPositionY(42.f);
             pop->m_buttonMenu->addChild(input);
-	    //paste
-	    auto paste = CCMenuItemSpriteExtra::create(
-		CCLabelBMFont::create(
-                    "paste\ntext", 
-                    "Comic Sans MS 10.fnt"_spr
+            //paste
+            auto paste = CCMenuItemSpriteExtra::create(
+                CCLabelBMFont::create(
+                    "paste\ntext",
+                    "Comic Sans MS.fnt"_spr
                 ),
                 pop,
                 menu_selector(GitHubAuthPopup::onPasteToInput)
             );
-	    paste->setPositionY(90.f);
-	    paste->setPositionX(-140.f);
-	    pop->m_buttonMenu->addChild(paste);
+            paste->setPositionY(90.f);
+            paste->setPositionX(-140.f);
+            pop->m_buttonMenu->addChild(paste);
             //last popup setup
             pop->setID("finish");
             pop->show();
-        }
+        };
         //finish"Finish"
         if (p0->getID() == "finish" and p1) {
             //code
@@ -159,39 +160,47 @@ public:
             auto input = dynamic_cast<InputNode*>(p0->getChildByIDRecursive("input"));
             if (input) code = input->getString();
             //
-	    auto a = [this, protocol](matjson::Value const& catgirl) {
-                if (not catgirl.contains("access_token")) 
-		return Notification::create("Failed getting token")->show();
-		set_ghc(catgirl["access_token"].as_string());
-		Notification::create("Access token saved")->show();
-	    };
-	    auto b = [this](std::string const& error)
-            {// something went wrong with our web request Q~Q
-                auto message = error;
-                auto asd = geode::createQuickPopup(
-                    "Request exception",
-                    message,
-                    "Nah", nullptr, 420.f, nullptr, false
-                );
-                asd->m_scene = this;
-                asd->show();
-            };
-	    web::AsyncWebRequest()
-	    .header("Accept", "application/json")
-	    .bodyRaw(
-		fmt::format("code={}", code) +
-		"&" "client_id=Ov23lip60iKp7ThhkrYa"
-		"&" "client_secret=6074ac4330a8cfaecd764fe65228789c7ceeb47d"
-		//"&" ""
-	    )
-	    .post("https://github.com/login/oauth/access_token")
-            .json().then(a).expect(b);
+            auto a = [this, protocol](matjson::Value const& catgirl) {
+                if (not catgirl.contains("access_token")) {
+                    auto asd = geode::createQuickPopup(
+                        "Failed getting token",
+                        catgirl.dump(),
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->m_scene = this;
+                    asd->show();
+                    return;
+                }
+                set_ghc(catgirl["access_token"].as_string());
+                Notification::create("Access token saved")->show();
+                };
+            auto b = [this](std::string const& error)
+                {// something went wrong with our web request Q~Q
+                    auto message = error;
+                    auto asd = geode::createQuickPopup(
+                        "Request exception",
+                        message,
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->m_scene = this;
+                    asd->show();
+                };
+            web::AsyncWebRequest()
+                .header("Accept", "application/json")
+                .bodyRaw(
+                    fmt::format("code={}", code) +
+                    "&" "client_id=Ov23li0XhdQqNS3Bf3s4"
+                    "&" "client_secret=2480254654448da5c88358c85d632dc6fd31010a"
+                    //"&" ""
+                )
+                .post("https://github.com/login/oauth/access_token")
+                .json().then(a).expect(b);
         }
         //back"Back"
         if (p0->getID() == "finish" and not p1) {
             show_info();
         }
-    }
+    };
     void show_info() {
         auto protocol = new GitHubAuthPopup;
         auto pop = FLAlertLayer::create(
@@ -202,14 +211,36 @@ public:
             360.f
         );
         pop->setID("info");
+        if (auto logout_btnspr = ButtonSprite::create("Logout", "goldFont.fnt", "GJ_button_05.png")) {
+            logout_btnspr->setScale(0.7f);
+            auto logout = CCMenuItemSpriteExtra::create(logout_btnspr, pop, menu_selector(GitHubAuthPopup::onLogout));
+            logout->setID("logout");
+            logout->setAnchorPoint({0.5f, 1.f});
+            logout->setPositionY(-33.f);
+            logout_btnspr->m_BGSprite->setOpacity(0);
+            logout_btnspr->m_BGSprite->runAction(CCEaseExponentialIn::create(CCFadeIn::create(2.0f)));
+            logout_btnspr->m_label->setOpacity(0);
+            logout_btnspr->m_label->runAction(CCEaseExponentialIn::create(CCFadeIn::create(2.0f)));
+            if (checkExistence(ghc_file)) pop->m_buttonMenu->addChild(logout);
+        }
         pop->show();
+    }
+    void onLogout(CCObject* btnObj) {
+        if (auto logout = dynamic_cast<CCMenuItemSpriteExtra*>(btnObj)) {
+            auto logout_btnspr = dynamic_cast<ButtonSprite*>(logout->getNormalImage());
+            if (not logout_btnspr) return;
+            if (not checkExistence(ghc_file)) return logout_btnspr->setString("Here is no save file anymore...");
+            logout_btnspr->setString("Access token save file was deleted!");
+            logout_btnspr->setScale(0.625f); 
+            ghc::filesystem::remove(ghc_file);
+        }
     }
     void onPasteToInput(CCObject* btnObj) {
         auto btn = dynamic_cast<CCNode*>(btnObj);
-	auto menu = btn->getParent();
-	auto input = dynamic_cast<InputNode*>(menu->getChildByIDRecursive("input"));
-	input->setString(utils::clipboard::read());
-    }
+        auto menu = btn->getParent();
+        auto input = dynamic_cast<InputNode*>(menu->getChildByIDRecursive("input"));
+        input->setString(utils::clipboard::read());
+    };
     void onOpenupBtn(CCObject*) {
         show_info();
     }
@@ -229,7 +260,7 @@ public:
                     ))
                 });
         }
-        else repoBtn->setOpacity(90);
+        else repoBtn->setOpacity(60);
         //menu
         auto menu = CCMenu::create(repoBtn, nullptr);
         menu->setPositionX(32.f);
@@ -320,6 +351,7 @@ public:
         rtn->m_json = json;
         rtn->init();
         rtn->customSetup(parent);
+        rtn->setLayout(RowLayout::create());
         return rtn;
     }
     void customSetup(CCNode* parent) {
@@ -391,9 +423,33 @@ public:
     }
 };
 
-class IssueCommentsLayer : public CCLayer, DynamicScrollDelegate {
+class IssueCommentsLayer : public CCLayer, DynamicScrollDelegate, FLAlertLayerProtocol, TextInputDelegate {
 public:
-    //data gettinga
+    void textChanged(CCTextInputNode* p0) {
+        auto endl_filtered = string::replace(p0->getString().data(), "\\n", "\n");
+        if (std::string(p0->getString().c_str()).find("\\n") != std::string::npos) {
+            p0->setString(endl_filtered.data());
+        }
+        //p0->setString();
+        //log::debug("{}(text:{}, m_fontValue1={})", __FUNCTION__, p0->getString(), p0->m_fontValue2);
+        auto md_prev = dynamic_cast<MDTextArea*>(CCDirector::get()->m_pRunningScene->getChildByIDRecursive("md_prev"));
+        if (md_prev) {
+            md_prev->setString(endl_filtered.data());
+            md_prev->getScrollLayer()->scrollLayer(9999.f);
+        }
+    }
+    void FLAlert_Clicked(FLAlertLayer* p0, bool p1) {
+        //info"Continue"
+        if (p0->getID() == "post_comment_popup" and p1) {
+            //data
+            auto data = std::string("");
+            auto input = dynamic_cast<TextInput*>(p0->getChildByIDRecursive("input"));
+            if (input) data = input->getString();
+            //go
+            uploadComment(data);
+        };
+    }
+    //data getting
     matjson::Value data() {
         auto json_container = dynamic_cast<CCLabelBMFont*>(getChildByID("json_container"));//ini_container
         auto json_str = std::string(json_container->getString());
@@ -408,7 +464,7 @@ public:
         if (not data().contains(asd.data())) return std::string("cant find key");
         return data()[asd.data()].as_string();
     }
-    //othera
+    //others
     static auto create(matjson::Value json, bool load = true) {
         auto rtn = new IssueCommentsLayer;
         rtn->init();
@@ -425,22 +481,52 @@ public:
         if (load) rtn->load();
         return rtn;
     }
+    float scroll_gap = 12.f;
     void customSetup() {
         /* scroll lay */ {
-            auto paddingx = 146.f;
+            auto paddingx = 190.f;
             auto paddingy = 0.f;
             auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingy);
             auto scroll = geode::ScrollLayer::create(scroll_size);
             {
                 scroll->setID("scroll");
+                scroll->enableScrollWheel();
+                scroll->m_cutContent = (false);
                 scroll->m_contentLayer->setLayout(
                     ColumnLayout::create()
-                    ->setGap(0.f)
+                    ->setGap(scroll_gap)
                     ->setAxisReverse(true)
                     ->setAxisAlignment(AxisAlignment::End)
                 );
                 scroll->setPositionX(paddingx / 2 + 2);
-                this->addChild(scroll);
+                this->addChild(scroll, -1);
+                //shadow_cornerl
+                CCSprite* shadow_cornerl = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                shadow_cornerl->setID("shadow_cornerl");
+                shadow_cornerl->setOpacity(60);
+                shadow_cornerl->setScaleY(-(scroll_size.height / shadow_cornerl->getContentSize().height));
+                shadow_cornerl->setScaleX(-0.1f);
+                shadow_cornerl->setAnchorPoint({ -0.3f, 1.f });
+                scroll->addChild(shadow_cornerl, -1);
+                //shadow_cornerr
+                CCSprite* shadow_cornerr = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                shadow_cornerr->setID("shadow_cornerr");
+                shadow_cornerr->setOpacity(60);
+                shadow_cornerr->setScaleY((scroll_size.height / shadow_cornerr->getContentSize().height));
+                shadow_cornerr->setScaleX(0.1f);
+                shadow_cornerr->setPositionX(scroll_size.width);
+                shadow_cornerr->setAnchorPoint({ -0.3f, 0.f });
+                scroll->addChild(shadow_cornerr, -1);
+                //shadow_cornerr
+                CCSprite* shadow_cornerb = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                shadow_cornerb->setID("shadow_cornerb");
+                shadow_cornerb->setOpacity(90);
+                shadow_cornerb->setScaleY(((scroll_size.width + 20) / shadow_cornerb->getContentSize().width));
+                shadow_cornerb->setScaleX(1.5f);
+                shadow_cornerb->setRotation(-90.f);
+                shadow_cornerb->setPositionX(scroll_size.width / 2);
+                shadow_cornerb->setAnchorPoint({ 0.f, 0.5f });
+                scroll->addChild(shadow_cornerb, -1);
             };
         }
         /* down right buttons */ {
@@ -485,7 +571,7 @@ public:
         for (auto comment : comments_json.as_array()) {
             auto item = IssueCommentItem::create(content, comment);
             content->setContentHeight(//make content layer longer
-                content->getContentHeight() + item->getContentHeight()
+                content->getContentHeight() + item->getContentHeight() + (scroll_gap / 2)
             );
             content->addChild(item);
         }
@@ -536,38 +622,78 @@ public:
             .json().then(a).expect(b);
     }
     //other shit
+    void uploadComment(std::string data) {
+        auto body = matjson::parse("{\"body\": \"\"}");
+        body["body"] = data;
+        auto a = [this](std::string const& rtn)
+            {
+                if (string::contains(rtn, "\"body\":")) {
+                    if (auto reload = dynamic_cast<CCMenuItemSpriteExtra*>(this->getChildByIDRecursive("reload")))
+                        reload->activate();
+                    return;
+                }
+                auto message = rtn;
+                auto asd = geode::createQuickPopup(
+                    "Request",
+                    message,
+                    "Nah", nullptr, 420.f, nullptr, false
+                );
+                asd->m_scene = this;
+                asd->show();
+            };
+        auto b = [this](std::string const& rtn)
+            {
+                auto message = rtn;
+                auto asd = geode::createQuickPopup(
+                    "Request exception",
+                    message,
+                    "Nah", nullptr, 420.f, nullptr, false
+                );
+                asd->m_scene = this;
+                asd->show();
+            };
+        web::AsyncWebRequest()
+            ghapiauth
+            .body(body)
+            .post(issue_data()["comments_url"].as_string())
+            .text().then(a).expect(b);
+    }
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "post") {
-            auto a = [this](std::string const& rtn)
-                {
-                    auto message = rtn;
-                    auto asd = geode::createQuickPopup(
-                        "Request",
-                        message,
-                        "Nah", nullptr, 420.f, nullptr, false
-                    );
-                    asd->m_scene = this;
-                    asd->show();
-                };
-            auto b = [this](std::string const& rtn)
-                {
-                    auto message = rtn;
-                    auto asd = geode::createQuickPopup(
-                        "Request exception",
-                        message,
-                        "Nah", nullptr, 420.f, nullptr, false
-                    );
-                    asd->m_scene = this;
-                    asd->show();
-                };
-            web::AsyncWebRequest()
-                ghapiauth
-                .body(matjson::parse("{\"body\":\"Me too\"}"))
-                .post(issue_data()["comments_url"].as_string())
-                .text().then(a).expect(b);
+            auto pop = FLAlertLayer::create(
+                this,
+                "Create Comment",
+                "\n \n \n \n \n ",
+                "Close", "Create",
+                380.f
+            );
+            //md_prev
+            auto md_prev = MDTextArea::create("# input and preview here...\nJust tap on me and type your text!\n\nAlso you can type <co>`\\n`</c> and it will be replaced with newline char automatically. And remember, in **Markdown** you write two newlines to start new paragraph!", CCSize(290.f, 112.f));
+            md_prev->setID("md_prev");
+            md_prev->setPositionY(86.f);
+            pop->m_buttonMenu->addChild(md_prev, 1);
+            //input
+            auto input = TextInput::create(md_prev->getContentWidth(), "", "chatFont.fnt");
+            input->setID("input");
+            input->hideBG();
+            input->setContentHeight(md_prev->getContentHeight());
+            input->getInputNode()->setContentHeight(md_prev->getContentHeight());
+            input->getInputNode()->m_placeholderLabel->setOpacity(0);
+            input->getInputNode()->m_cursor->setOpacity(0);
+            input->getInputNode()->m_filterSwearWords = (0);
+            input->getInputNode()->m_allowedChars = (
+                " !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+                );
+            input->setDelegate(this);
+            input->setPosition(md_prev->getPosition());
+            pop->m_buttonMenu->addChild(input);
+            //last popup setup
+            handleTouchPriority(pop);
+            pop->setID("post_comment_popup");
+            pop->show();
         };
         if (what->getID() == "reload") {
             auto jsonfilepath = ghc::filesystem::path(data_strkey("workindir")) / "comments.json";
