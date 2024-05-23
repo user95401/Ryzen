@@ -159,15 +159,38 @@ public:
             auto input = dynamic_cast<InputNode*>(p0->getChildByIDRecursive("input"));
             if (input) code = input->getString();
             //
-            auto pop = FLAlertLayer::create(
-                protocol,
-                "Authorization",
-                code,
-                "Back", "Finish",
-                360.f
-            );
-            pop->setID("finish");
-            pop->show();
+	    auto a = [this](matjson::Value const& catgirl) {
+               auto pop = FLAlertLayer::create(
+                   protocol,
+                   "Authorization",
+                   catgirl.dump(),
+                   "Back", "Finish",
+                   360.f
+               );
+               pop->setID("finish");
+               pop->show();
+	    }
+	    auto b = [this](std::string const& error)
+            {// something went wrong with our web request Q~Q
+                auto message = error;
+                auto asd = geode::createQuickPopup(
+                    "Request exception",
+                    message,
+                    "Nah", nullptr, 420.f, nullptr, false
+                );
+                asd->m_scene = this;
+                asd->show();
+            };
+	    web::AsyncWebRequest()
+	    .header("Accept", "application/json")
+	    .bodyRaw(
+		fmt::format("code={}", code) +
+		"&" "client_id=Ov23lip60iKp7ThhkrYa"
+		"&" "client_secret=6074ac4330a8cfaecd764fe65228789c7ceeb47d"
+		//"&" ""
+	    )
+	    .post("https://github.com/login/oauth/access_token")
+            .json().then(a).expect(b);
         }
         //back"Back"
         if (p0->getID() == "finish" and not p1) {
