@@ -138,10 +138,9 @@ public:
             pop->m_buttonMenu->addChild(input);
 	    //paste
 	    auto paste = CCMenuItemSpriteExtra::create(
-		CCLabelTTF::create(
-                    "paste/\ntext", 
-                    "Comic Sans MS.ttf"_spr,
-                    10.f
+		CCLabelBMFont::create(
+                    "paste\ntext", 
+                    "Comic Sans MS 10.fnt"_spr
                 ),
                 pop,
                 menu_selector(GitHubAuthPopup::onPasteToInput)
@@ -1426,7 +1425,7 @@ public:
         labelView->setScale(1.9f);
         desc_container->addChild(labelView);
         //desc
-        auto desc = CCLabelTTF::create(label_json["description"].as_string().c_str(), "arial", 15.f);
+        auto desc = CCLabelBMFont::create(label_json["description"].as_string().c_str(), "chatFont.fnt");
         if (label_json["description"].as_string().empty()) desc->setString("no description for that...");
         desc->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
         desc->setColor(color);
