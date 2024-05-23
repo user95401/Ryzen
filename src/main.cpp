@@ -145,8 +145,8 @@ public:
                 pop,
                 menu_selector(GitHubAuthPopup::onPasteToInput)
             );
-	    paste->setPositionY(30.f);
-	    paste->setPositionX(160.f);
+	    paste->setPositionY(8.f);
+	    paste->setPositionX(126.f);
 	    pop->m_buttonMenu->addChild(paste);
             //last popup setup
             pop->setID("finish");
