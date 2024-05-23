@@ -139,7 +139,7 @@ public:
 	    //paste
 	    auto paste = CCMenuItemSpriteExtra::create(
 		CCLabelTTF::create(
-                    "paste\ntext", 
+                    "paste\n text", 
                     "Comic Sans MS.ttf"_spr,
                     10.f
                 ),
@@ -147,7 +147,7 @@ public:
                 menu_selector(GitHubAuthPopup::onPasteToInput)
             );
 	    paste->setPositionY(30.f);
-	    paste->setPositionX(70.f);
+	    paste->setPositionX(160.f);
 	    pop->m_buttonMenu->addChild(paste);
             //last popup setup
             pop->setID("finish");
