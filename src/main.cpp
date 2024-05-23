@@ -136,6 +136,19 @@ public:
             input->setID("input");
             input->setPositionY(42.f);
             pop->m_buttonMenu->addChild(input);
+	    //paste
+	    auto paste = CCMenuItemSpriteExtra::create(
+		CCLabelTTF::create(
+                    "paste\ntext", 
+                    "Comic Sans MS.ttf"_spr,
+                    10.f
+                ),
+                pop,
+                menu_selector(GitHubAuthPopup::onPasteToInput)
+            );
+	    paste->setPositionY(30.f);
+	    paste->setPositionX(70.f);
+	    pop->m_buttonMenu->addChild(paste);
             //last popup setup
             pop->setID("finish");
             pop->show();
@@ -173,6 +186,12 @@ public:
         );
         pop->setID("info");
         pop->show();
+    }
+    void onPasteToInput(CCObject* btnObj) {
+        auto btn = dynamic_cast<CCNode*>(btnObj);
+	auto menu = btn->getParent();
+	auto input = dynamic_cast<InputNode*>(menu->getChildByIDRecursive("input"));
+	input->setString("asd");
     }
     void onOpenupBtn(CCObject*) {
         show_info();
