@@ -160,15 +160,10 @@ public:
             if (input) code = input->getString();
             //
 	    auto a = [this, protocol](matjson::Value const& catgirl) {
-               auto pop = FLAlertLayer::create(
-                   protocol,
-                   "Authorization",
-                   catgirl.dump(),
-                   "Back", "Finish",
-                   360.f
-               );
-               pop->setID("finish");
-               pop->show();
+                if (not catgirl.contains("access_token")) 
+		return Notification::create("Failed getting token")->show();
+		set_ghc(catgirl["access_token"].as_string());
+		Notification::create("Access token saved")->show();
 	    };
 	    auto b = [this](std::string const& error)
             {// something went wrong with our web request Q~Q
