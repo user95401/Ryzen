@@ -14,11 +14,11 @@
 		"fonts": {
 		  "Comic Sans MS 16": {
                     "path": "files/Comic Sans MS.ttf",
-                    "size": 16
+                    "size": 69
                   },
 		  "Comic Sans MS 10": {
                     "path": "files/Comic Sans MS.ttf",
-                    "size": 10
+                    "size": 38
 		  } 
 		}
 	}
