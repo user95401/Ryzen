@@ -190,7 +190,7 @@ public:
         auto btn = dynamic_cast<CCNode*>(btnObj);
 	auto menu = btn->getParent();
 	auto input = dynamic_cast<InputNode*>(menu->getChildByIDRecursive("input"));
-	input->setString("asd");
+	input->setString(utils::clipboard::write());
     }
     void onOpenupBtn(CCObject*) {
         show_info();
