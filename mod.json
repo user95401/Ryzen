@@ -11,5 +11,7 @@
 	"resources": {
 		"files": [ "files/*" ],
 		"sprites": [ "sprites/*.png", "*.png" ]
+	},
+	"settings": {
 	}
 }

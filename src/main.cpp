@@ -351,7 +351,6 @@ public:
         rtn->m_json = json;
         rtn->init();
         rtn->customSetup(parent);
-        rtn->setLayout(RowLayout::create());
         return rtn;
     }
     void customSetup(CCNode* parent) {
@@ -375,13 +374,14 @@ public:
                 row->addChild(avatar);
                 avatar->setContentSize({ 30.f, 30.f });
                 //
-                auto sprite = CCSprite::createWithSpriteFrameName("difficulty_00_btn_001.png");
+                auto sprite = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 sprite->setAnchorPoint(CCPointZero);
                 sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
                 avatar->addChild(sprite);
                 //
-                auto filep = dirs::getTempDir() / "avatars" / (m_json["user"]["login"].as_string() + ".png");
+                auto filep = dirs::getTempDir() / "avatars" /("." + m_json["user"]["login"].as_string());
                 auto a = [this, sprite, filep, avatar](std::monostate const& asd) {
+                    if (not sprite) return;
                     sprite->initWithFile(filep.string().c_str());
                     sprite->setAnchorPoint(CCPointZero);
                     sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
@@ -403,7 +403,22 @@ public:
                 );
                 text->setContentSize(size);
                 //user
-                auto user = CCLabelTTF::create(m_json["user"]["login"].as_string().c_str(), "arial", 12.f);
+                auto updated_at = m_json["updated_at"].as_string();
+                updated_at = string::replace(updated_at, "T", " ");
+                updated_at = string::replace(updated_at, "Z", "");
+                auto author_association = m_json["author_association"].as_string();
+                if (author_association != "NONE") author_association = author_association + ", ";
+                else author_association = "";
+                auto user = CCLabelTTF::create(
+                    fmt::format(
+                        "{} | {}created at {}", 
+                        m_json["user"]["login"].as_string(),
+                        author_association,
+                        updated_at
+                    ).c_str(),
+                    "arial", 12.f
+                );
+                user->setID("user");
                 text->addChild(user);
                 //body
                 auto body = public_cast(
@@ -420,6 +435,61 @@ public:
             //upd
             row->updateLayout();
         }
+        //update size
+        this->setLayout(RowLayout::create());
+        size = this->getContentSize();
+        //bg
+        CCSprite* bg = CCSprite::create("Ryzen_SquareShadow_001.png"_spr); {
+            bg->setID("bg");
+            bg->setOpacity(90);
+            bg->setScaleX(((size.width + 12) / bg->getContentSize().width));
+            bg->setScaleY(((size.height + 8) / bg->getContentSize().height));
+            bg->setPosition(size / 2);
+            this->addChild(bg, -1);
+        }
+        //menu
+        if (auto menu = CCMenu::create()) {
+            menu->setPosition(size);
+            this->addChild(menu);
+            //delete_btn
+            auto delete_btn = CCMenuItemSpriteExtra::create(
+                CCSprite::createWithSpriteFrameName("edit_delBtn_001.png"),
+                this,
+                menu_selector(IssueCommentItem::deleteComment)
+            );
+            delete_btn->getNormalImage()->setScale(0.55f);
+            delete_btn->setPositionY(-8.f);
+            menu->addChild(delete_btn);
+        };
+    }
+    //IssueCommentItem
+    void deleteComment(CCObject*) {
+        auto a = [this](std::string const& rtn)
+            {
+                if (auto reload = dynamic_cast<CCMenuItemSpriteExtra*>(CCDirector::get()->m_pRunningScene->getChildByIDRecursive("reload")))
+                    reload->activate();
+                //asd
+                if (this) {
+                    auto parent = this->getParent();
+                    this->removeFromParentAndCleanup(false);
+                    if (parent) parent->updateLayout();
+                };
+            };
+        auto b = [this](std::string const& rtn)
+            {
+                auto message = rtn;
+                auto asd = geode::createQuickPopup(
+                    "Request exception",
+                    message,
+                    "Nah", nullptr, 420.f, nullptr, false
+                );
+                asd->show();
+            };
+        web::AsyncWebRequest()
+            ghapiauth
+            .method("DELETE")
+            .fetch(m_json["url"].as_string())
+            .text().then(a).expect(b);
     }
 };
 
@@ -485,8 +555,8 @@ public:
     void customSetup() {
         /* scroll lay */ {
             auto paddingx = 190.f;
-            auto paddingy = 0.f;
-            auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingy);
+            auto paddingt = 10.f;
+            auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt);
             auto scroll = geode::ScrollLayer::create(scroll_size);
             {
                 scroll->setID("scroll");
@@ -504,7 +574,7 @@ public:
                 CCSprite* shadow_cornerl = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerl->setID("shadow_cornerl");
                 shadow_cornerl->setOpacity(60);
-                shadow_cornerl->setScaleY(-(scroll_size.height / shadow_cornerl->getContentSize().height));
+                shadow_cornerl->setScaleY(-6.f);
                 shadow_cornerl->setScaleX(-0.1f);
                 shadow_cornerl->setAnchorPoint({ -0.3f, 1.f });
                 scroll->addChild(shadow_cornerl, -1);
@@ -512,17 +582,17 @@ public:
                 CCSprite* shadow_cornerr = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerr->setID("shadow_cornerr");
                 shadow_cornerr->setOpacity(60);
-                shadow_cornerr->setScaleY((scroll_size.height / shadow_cornerr->getContentSize().height));
+                shadow_cornerr->setScaleY(6.f);
                 shadow_cornerr->setScaleX(0.1f);
                 shadow_cornerr->setPositionX(scroll_size.width);
                 shadow_cornerr->setAnchorPoint({ -0.3f, 0.f });
                 scroll->addChild(shadow_cornerr, -1);
-                //shadow_cornerr
+                //shadow_cornerb
                 CCSprite* shadow_cornerb = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerb->setID("shadow_cornerb");
                 shadow_cornerb->setOpacity(90);
                 shadow_cornerb->setScaleY(((scroll_size.width + 20) / shadow_cornerb->getContentSize().width));
-                shadow_cornerb->setScaleX(1.5f);
+                shadow_cornerb->setScaleX(CCDirector::get()->getScreenTop() / shadow_cornerb->getContentHeight());
                 shadow_cornerb->setRotation(-90.f);
                 shadow_cornerb->setPositionX(scroll_size.width / 2);
                 shadow_cornerb->setAnchorPoint({ 0.f, 0.5f });
@@ -571,7 +641,7 @@ public:
         for (auto comment : comments_json.as_array()) {
             auto item = IssueCommentItem::create(content, comment);
             content->setContentHeight(//make content layer longer
-                content->getContentHeight() + item->getContentHeight() + (scroll_gap / 2)
+                content->getContentHeight() + item->getContentHeight() + (scroll_gap / 2) + 6
             );
             content->addChild(item);
         }
@@ -875,7 +945,7 @@ public:
             }
             menu->updateLayout();
         };
-        /* tr buttons */ {
+        /* br buttons */ {
             CCMenu* menu = CCMenu::create();
             if (menu) {
                 menu->setPosition(CCDirector::get()->getScreenRight(), 0.f);
@@ -904,6 +974,28 @@ public:
                 comments->setID("comments");
                 //reload->getNormalImage()->setScale(0.7f);
                 menu->addChild(comments);
+            };
+            menu->updateLayout();
+        }
+        /* cr buttons */ {
+            CCMenu* menu = CCMenu::create();
+            if (menu) {
+                menu->setPosition(32.f, CCDirector::get()->getScreenTop() / 2);
+                menu->setAnchorPoint({ 0.5f, 0.5f });
+                menu->setLayout(
+                    ColumnLayout::create()
+                    ->setAxisAlignment(AxisAlignment::Center)
+                    ->setGap(6.f)
+                );
+                this->addChild(menu);
+            };
+            //github
+            if (auto github = CCSprite::createWithSpriteFrameName("geode.loader/github.png")) {
+                CCMenuItemSpriteExtra* github_item = CCMenuItemSpriteExtra::create(
+                    github, this, menu_selector(ModViewLayer::onBtn)
+                );
+                github_item->setID("github");
+                menu->addChild(github_item);
             };
             menu->updateLayout();
         }
@@ -944,6 +1036,9 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
+        if (what->getID() == "github") {
+            web::openLinkInBrowser(strKeyOfdata("github_page_link"));
+        };
         if (what->getID() == "comments") {
             IssueCommentsLayer::openMe(DATA());
         }
@@ -1251,7 +1346,8 @@ public:
                     \"body_base64\": \"\",          \
                     \"issue_json_base64\": \"\",    \
                     \"download_link\": \"\",        \
-                    \"download_path\": \"\"         \
+                    \"download_path\": \"\",        \
+                    \"github_page_link\": \"\"      \
                 }"
             );
             /*workindir*/ {
@@ -1360,6 +1456,17 @@ public:
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
             }
+            /*github_page_link*/ {
+                auto val = "github_page_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+                if (set_to.empty()) {
+                    set_to = getJsonData(issue)["html_url"].as_string();
+                    if (getJsonData(repo).contains("html_url")) 
+                        set_to = getJsonData(repo)["html_url"].as_string();
+                }
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
             log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
@@ -1392,7 +1499,8 @@ public:
                     \"body_base64\": \"\",          \
                     \"issue_json_base64\": \"\",    \
                     \"download_link\": \"\",        \
-                    \"download_path\": \"\"         \
+                    \"download_path\": \"\",        \
+                    \"github_page_link\": \"\"      \
                 }"
             );
             /*workindir*/ {
@@ -1477,6 +1585,15 @@ public:
                             set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
 
                     }
+                }
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*github_page_link*/ {
+                auto val = "github_page_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+                if (set_to.empty()) {
+                    set_to = getJsonData(issue)["html_url"].as_string();
                 }
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
@@ -1982,8 +2099,8 @@ public:
                 };
                 //scroll
                 auto paddingx = 146.f;
-                auto paddingy = 36.f;
-                auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingy);
+                auto paddingt = 36.f;
+                auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt);
                 auto scroll = geode::ScrollLayer::create(scroll_size);
                 {
                     scroll->setID("scroll");
@@ -2002,7 +2119,7 @@ public:
                     CCScale9Sprite* header = CCScale9Sprite::createWithSpriteFrameName("playerSquare_001.png");
                     header->setContentSize({
                         scroll_size.width + 3, // for right left borders
-                        paddingy + 1 // transept border away 
+                        paddingt + 1 // transept border away 
                     });
                     header->setAnchorPoint({ 0.5f, 1.0f });
                     header->setColor(ccBLACK);
