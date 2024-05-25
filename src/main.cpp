@@ -278,9 +278,8 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
         backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
         backgroundSprite->setAnchorPoint({ 0, 0 });
-        backgroundSprite->setColor({ 90, 90, 100 });
+        backgroundSprite->setColor({ 120, 120, 130 });
         rtn->addChild(backgroundSprite, -2);
-        
         /*SquareShadowCorners*/ {
             auto scale = 1.f;
             auto opacity = 160;
@@ -396,6 +395,7 @@ public:
                     ColumnLayout::create()
                     ->setCrossAxisLineAlignment(AxisAlignment::Start)
                     ->setAxisReverse(true)
+                    ->setGap(0.f)
                 );
                 text->setContentWidth(parent->getContentWidth() - avatar->getContentWidth());
                 //user
@@ -826,7 +826,7 @@ public:
             );
             /*some fun stuff*/ {
                 //logo
-                auto logo = CCSprite::create((ghc::filesystem::path(strKeyOfdata("workindir")) / "logo.png").string().c_str());
+                auto logo = CCSprite::create((ghc::filesystem::path(strKeyOfdata("workindir")) / ".logo").string().c_str());
                 if (!logo) logo = CCSprite::createWithSpriteFrameName("deleteFilter_none_001.png");
                 if (logo) {
                     auto icon_size = CCSize(68.f, 68.f);
@@ -1276,7 +1276,7 @@ public:
             log(fmt::format("repo_name = {}", repo_name));
             log(fmt::format("default_branch = {}", default_branch));
             auto file_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/logo.png"
+                "https://raw.githubusercontent.com/{}/{}/{}/.logo"
                 , repo_owner, repo_name, default_branch
             );
             if (not owerwrite_endpoint.empty()) file_url = owerwrite_endpoint;
@@ -1285,19 +1285,19 @@ public:
             auto expect =
                 [this, file_url](std::string const& what) {
                 log("## <cr>" + what + "</c>");
-                if (string::contains(file_url, "logo.png"))
-                    loadRepo(2, string::replace(file_url, "logo.png", "pack.png"));
+                if (string::contains(file_url, ".logo"))
+                    loadRepo(2, string::replace(file_url, ".logo", "pack.png"));
                 if (string::contains(file_url, "pack.png"))
                     loadRepo(2, getJsonData(data::repo)["owner"]["avatar_url"].as_string());
                 };
             //then
             auto then =
                 [this, expect](std::monostate const& a) {
-                if (not CCSprite::create(working_dir("logo.png").string().data())) expect("Bad image downloaded");
+                if (not CCSprite::create(working_dir(".logo").string().data())) expect("Bad image downloaded");
                 log("```\nloaded :D\n```");
                 loadRepo(3);
                 };
-            web::AsyncWebRequest()ghapiauth.fetch(file_url).into(working_dir("logo.png")).then(then).expect(expect);
+            web::AsyncWebRequest()ghapiauth.fetch(file_url).into(working_dir(".logo")).then(then).expect(expect);
         }
         //FINAL OF LOADING REPO
         if (step == 3) {
@@ -1464,6 +1464,17 @@ public:
                         if (string::containsAny(file, { ".zip" }))
                             set_to = geode + std::string("/config/geode.texture-loader/packs/") + file;
                     }
+                    else {
+                        auto link_path = ghc::filesystem::path(json["download_link"].as_string());
+                        auto file = link_path.filename().string();
+                        auto geode = dirs::getGeodeDir().string();
+                        if (string::contains(file, ".geode"))
+                            set_to = geode + std::string("/mods/") + file;
+                        if (string::containsAny(file, { ".dll", ".so" }))
+                            set_to = geode + std::string("/ryzen/loadit/") + file;
+                        if (string::containsAny(file, { ".zip" }))
+                            set_to = geode + std::string("/config/geode.texture-loader/packs/") + file;
+                    }
                 }
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
@@ -1583,10 +1594,10 @@ public:
                 auto val = "download_path";
                 std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
                 set_to = string::replace(set_to, "..", "");
-                if (std::string(set_to).empty() and not std::string(set_to).empty()) {//so generate one
+                if (std::string(set_to).empty()) {//so generate one
                     auto download_link = json["download_link"].as_string();
                     if (not download_link.empty()) {
-                        download_link = explode(download_link, "?")[0];
+                        download_link = explode("?", download_link)[0];
                         auto filename = ghc::filesystem::path(download_link).filename().string();
                         auto geode = dirs::getGeodeDir().string();
                         if (string::contains(filename, ".geode"))
@@ -1595,7 +1606,6 @@ public:
                             set_to = geode + std::string("/ryzen/loadit/") + filename;
                         if (string::containsAny(filename, { ".zip" }))
                             set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
-
                     }
                 }
                 json[val] = (set_to);
@@ -1614,9 +1624,9 @@ public:
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
             log("loading logo with ini main.logo_url");
-            web::fetchFile(getIniData(issue_body_ini)->GetValue("main", "logo_url", ""), working_dir("logo.png"));
-            if(!CCSprite::create(working_dir("logo.png").string().c_str()))
-                web::fetchFile(getJsonData(data::issue)["user"]["avatar_url"].as_string(), working_dir("logo.png"));
+            web::fetchFile(getIniData(issue_body_ini)->GetValue("main", "logo_url", ""), working_dir(".logo"));
+            if(!CCSprite::create(working_dir(".logo").string().c_str()))
+                web::fetchFile(getJsonData(data::issue)["user"]["avatar_url"].as_string(), working_dir(".logo"));
             //open view lay
             setViewLayerInIt(json);
         }
