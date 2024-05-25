@@ -354,12 +354,7 @@ public:
         return rtn;
     }
     void customSetup(CCNode* parent) {
-        //start size
-        auto size = CCSize(
-            parent->getContentWidth(),
-            40.f
-        );
-        setContentSize(size);
+        this->setContentWidth(parent->getContentWidth());
         //row
         if (auto row = CCNode::create()) {
             this->addChild(row);
@@ -368,9 +363,10 @@ public:
                 ->setAxisAlignment(AxisAlignment::Start)
                 ->setCrossAxisLineAlignment(AxisAlignment::End)
             );
-            row->setContentSize(size);
+            row->setContentWidth(parent->getContentWidth());
             //avatar
-            if (auto avatar = CCNode::create()) {
+            auto avatar = CCNode::create();
+            if (avatar) {
                 row->addChild(avatar);
                 avatar->setContentSize({ 30.f, 30.f });
                 //
@@ -401,7 +397,7 @@ public:
                     ->setCrossAxisLineAlignment(AxisAlignment::Start)
                     ->setAxisReverse(true)
                 );
-                text->setContentSize(size);
+                text->setContentWidth(parent->getContentWidth() - avatar->getContentWidth());
                 //user
                 auto updated_at = m_json["updated_at"].as_string();
                 updated_at = string::replace(updated_at, "T", " ");
@@ -411,7 +407,7 @@ public:
                 else author_association = "";
                 auto user = CCLabelTTF::create(
                     fmt::format(
-                        "{} | {}created at {}", 
+                        "{} | {}created at {}",
                         m_json["user"]["login"].as_string(),
                         author_association,
                         updated_at
@@ -420,46 +416,62 @@ public:
                 );
                 user->setID("user");
                 text->addChild(user);
+                //menu in end of user text
+                if (auto menu = CCMenu::create()) {
+                    menu->setPosition(user->getContentSize());
+                    menu->setContentHeight(user->getContentHeight());
+                    menu->setAnchorPoint({ -0.01f, 1.f });
+                    menu->setLayout(
+                        RowLayout::create()
+                        ->setAxisAlignment(AxisAlignment::Start)
+                        ->setAutoScale(false)
+                        ->setCrossAxisOverflow(false)
+                    );
+                    user->addChild(menu);
+                    //delete_btn
+                    auto edit_delBtn_001 = CCSprite::createWithSpriteFrameName("edit_delBtn_001.png");
+                    edit_delBtn_001->setScale(0.5f);
+                    auto delete_btn = CCMenuItemSpriteExtra::create(
+                        edit_delBtn_001,
+                        this,
+                        menu_selector(IssueCommentItem::deleteComment)
+                    );
+                    menu->addChild(delete_btn);
+                    //menu update
+                    menu->updateLayout();
+                }
                 //body
                 auto body = public_cast(
-                    MDTextArea::create(m_json["body"].as_string(), size),
+                    MDTextArea::create(m_json["body"].as_string(), { text->getContentWidth(), 10}),
                     m_content
                 );
-                text->addChild(body);
-                //sus
-                text->setContentHeight(body->getContentHeight());
+                body->setVisible(1);
+                auto body_container = CCNode::create();
+                body_container->addChild(body);
+                body_container->setLayout(ColumnLayout::create());
+                body_container->setContentHeight(body->getContentHeight());
+                body_container->updateLayout();
+                text->addChild(body_container);
+                //set col height
+                text->setContentHeight(user->getContentHeight() + body_container->getContentHeight());
                 text->updateLayout();
-                row->setContentHeight(body->getContentHeight());
-                this->setContentHeight(body->getContentHeight() + 20);
             }
             //upd
             row->updateLayout();
         }
         //update size
         this->setLayout(RowLayout::create());
-        size = this->getContentSize();
         //bg
         CCSprite* bg = CCSprite::create("Ryzen_SquareShadow_001.png"_spr); {
             bg->setID("bg");
             bg->setOpacity(90);
-            bg->setScaleX(((size.width + 12) / bg->getContentSize().width));
-            bg->setScaleY(((size.height + 8) / bg->getContentSize().height));
-            bg->setPosition(size / 2);
+            bg->setScaleX(((this->getContentSize().width + 12) / bg->getContentSize().width));
+            bg->setScaleY(((this->getContentSize().height + 8) / bg->getContentSize().height));
+            bg->setPosition(this->getContentSize() / 2);
             this->addChild(bg, -1);
         }
         //menu
         if (auto menu = CCMenu::create()) {
-            menu->setPosition(size);
-            this->addChild(menu);
-            //delete_btn
-            auto delete_btn = CCMenuItemSpriteExtra::create(
-                CCSprite::createWithSpriteFrameName("edit_delBtn_001.png"),
-                this,
-                menu_selector(IssueCommentItem::deleteComment)
-            );
-            delete_btn->getNormalImage()->setScale(0.55f);
-            delete_btn->setPositionY(-8.f);
-            menu->addChild(delete_btn);
         };
     }
     //IssueCommentItem
