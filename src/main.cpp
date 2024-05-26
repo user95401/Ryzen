@@ -1151,7 +1151,7 @@ public:
             auto path = ghc::filesystem::path(strKeyOfdata("download_path"));
             if (not checkExistence(path)) return;
             log::info("deleting mod at {}", path);
-            #ifdef GEODE_WINDOWS
+            #ifdef GEODE_IS_WINDOWS
             auto modulename = path.string().c_str();
             auto handle = GetModuleHandle(modulename);
             if (handle) {
