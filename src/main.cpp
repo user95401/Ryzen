@@ -1030,7 +1030,9 @@ public:
     }
     //data gettinga
     matjson::Value DATA() {
-        auto json_container = dynamic_cast<CCLabelBMFont*>(getChildByID("json_container"));//ini_container
+        auto json_container = dynamic_cast<CCLabelBMFont*>(
+            this->getChildByIDRecursive("json_container")
+            );//ini_container
         auto json_str = std::string(json_container->getString());
         return matjson::parse(json_str);
     }
@@ -1045,7 +1047,7 @@ public:
     }
     //other shit
     void onBtn(CCObject* pCCObject) {
-        auto what = dynamic_cast<CCNode*>(pCCObject);
+        auto what = dynamic_cast<CCMenuItem*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "github") {
@@ -1065,12 +1067,13 @@ public:
             //endpoint
             auto endpoint = std::string(strKeyOfdata("download_link"));
             auto path = ghc::filesystem::path(strKeyOfdata("download_path"));
-            auto pop = geode::MDPopup::create(
+            //Popup
+            auto pop = createQuickPopup(
                 "Download mod?",
-                "\n# From:\n" + endpoint + ""
-                "\n# To:\n<cj>" + path.string(),
+                "\n \n \n \n \n \n \n",
                 "Abort", "Start",
-                [this, endpoint, path, what](bool btn2) {
+                400.f,
+                [this, endpoint, path, what](auto, bool btn2) {
                     if (not btn2) return;
                     auto downloadBtn = reinterpret_cast<ButtonSprite*>(this->getChildByIDRecursive("downloadBtn"));
                     if (not downloadBtn) return;
@@ -1122,9 +1125,52 @@ public:
                                     });
                 }
             );
-            pop->show();
+            auto body_data = fmt::format(
+                "# From:" "\n"
+                "{}" "\n"
+                "# To:" "\n" 
+                "<cj>__{}__",
+                endpoint,
+                path.string()
+            );
+            auto mdtextarea = MDTextArea::create(body_data, { 360.f, 140.f });
+            mdtextarea->setPositionY(96.f);//(-(mdtextarea->getContentSize() / 2));
+            pop->m_buttonMenu->addChild(mdtextarea);
+            handleTouchPriority(pop);
+            if (auto delte_btnspr = ButtonSprite::create("Delete Installed Mod", "goldFont.fnt", "GJ_button_05.png")) {
+                delte_btnspr->setScale(0.7f);
+                auto delete_item = CCMenuItemSpriteExtra::create(delte_btnspr, this, menu_selector(ModViewLayer::onBtn));
+                delete_item->setID("delete");
+                delete_item->setAnchorPoint({ 0.5f, 1.f });
+                delete_item->setPositionY(-33.f);
+                if (checkExistence(path)) pop->m_buttonMenu->addChild(delete_item);
+            }
         };
+        if (what->getID() == "delete") {
+            AppDelegate::sharedApplication()->trySaveGame(false);
+            auto path = ghc::filesystem::path(strKeyOfdata("download_path"));
+            if (not checkExistence(path)) return;
+            log::info("deleting mod at {}", path);
+            #ifdef GEODE_WINDOWS
+            auto modulename = path.string().c_str();
+            auto handle = GetModuleHandle(modulename);
+            if (handle) {
+                log::warn(
+                    "calling FreeLibrary for handle (0x{}) of module by name \"{}\"",
+                    (std::stringstream() << std::hex << (int)handle).str(),
+                    modulename
+                );
+                FreeLibrary(handle);
+            }
+            #endif
+            if (ghc::filesystem::remove(path))
+                log::warn("removed file at {}", path.string());
+            Notification::create(strKeyOfdata("title") + " got deleted!")->show();
+            what->setID("reload");
+            what->activate();
+        }
     }
+    //ModViewLayer
     static void openMe(matjson::Value data) {
         auto scene = CCScene::create();
         auto pModViewLayer = ModViewLayer::create(data);
@@ -1203,6 +1249,10 @@ public:
         pMDTextArea->setID("pMDTextArea");
         pMDTextArea->setPosition(rtn->getContentSize() / 2);
         rtn->addChild(pMDTextArea, -1);
+        //asd
+        auto loadingLabel = CCLabelBMFont::create("Loading...", "bigFont.fnt");
+        loadingLabel->setPosition(rtn->getContentSize() / 2);
+        rtn->addChild(loadingLabel, 1, 2319);
         return rtn;
     }
     void loadRepo(int step = 0, std::string owerwrite_endpoint = "") {
