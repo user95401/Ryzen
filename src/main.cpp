@@ -269,6 +269,50 @@ public:
     }
 };
 
+class ModListLayer : public CCLayer, public TextInputDelegate {
+public:
+    GJListLayer* m_list = nullptr;
+    CCClippingNode* m_tabsGradientNode = nullptr;
+    CCSprite* m_tabsGradientSprite = nullptr;
+    CCSprite* m_tabsGradientStencil = nullptr;
+    CCLabelBMFont* m_listLabel;
+    CCLabelBMFont* m_indexUpdateLabel;
+    CCMenu* m_menu;
+    CCMenu* m_topMenu;
+    CCMenuItemToggler* m_installedTabBtn;
+    CCMenuItemToggler* m_downloadTabBtn;
+    CCMenuItemToggler* m_featuredTabBtn;
+    CCMenuItemSpriteExtra* m_searchBtn;
+    CCMenuItemSpriteExtra* m_searchClearBtn;
+    CCMenuItemSpriteExtra* m_checkForUpdatesBtn = nullptr;
+    CCNode* m_searchBG = nullptr;
+    CCTextInputNode* m_searchInput = nullptr;
+    LoadingCircle* m_loadingCircle = nullptr;
+    CCMenuItemSpriteExtra* m_filterBtn;
+    //ModListQuery m_query;
+    //ModListDisplay m_display = ModListDisplay::Concise;
+    //EventListener<IndexUpdateFilter> m_indexListener;
+    static inline ModListLayer* lastCreatedOne;
+    void tryCustomSetup(float);
+};
+class PackSelectLayer : public CCLayer {
+public:
+    ScrollLayer* m_availableList = nullptr;
+    ScrollLayer* m_appliedList = nullptr;
+    static inline PackSelectLayer* lastCreatedOne;
+    void tryCustomSetup(float);
+    void back(CCObject*) {
+        //CCMessageBox("asd", __FUNCTION__);
+        CCDirector::get()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
+    }
+    static void openLastCreatedOne() {
+        if (not lastCreatedOne) return;
+        auto scene = CCScene::create();
+        scene->addChild(lastCreatedOne);
+        CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
+    }
+};
+
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
         //setup
@@ -1032,7 +1076,7 @@ public:
     matjson::Value DATA() {
         auto json_container = dynamic_cast<CCLabelBMFont*>(
             this->getChildByIDRecursive("json_container")
-            );//ini_container
+            );
         auto json_str = std::string(json_container->getString());
         return matjson::parse(json_str);
     }
@@ -1079,23 +1123,32 @@ public:
                     if (not downloadBtn) return;
                     web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
                         .then(
-                            [this, downloadBtn](std::monostate const& who) {
-                                downloadBtn->m_label->setString("Download Again");
+                            [this, downloadBtn, path](std::monostate const& who) {
+                                downloadBtn->m_label->setString("Update");
                                 downloadBtn->m_label->setScale(
                                     (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
                                 );
                                 if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
-                                auto asd = geode::createQuickPopup(
-                                    "Restart Game?",
-                                    "To load new mod",
-                                    "Later", "Yes",
-                                    [](auto, bool btn2) {
-                                        if (btn2) utils::game::restart();
-                                    },
-                                    false
-                                );
-                                asd->m_scene = this;
-                                asd->show();
+                                if (string::contains(path.string(), "geode.texture-loader")) {
+                                    FLAlertLayer* asd = geode::createQuickPopup(
+                                        "Pack Downloaded",
+                                        "Open pack select menu?",
+                                        "Later", "Open",
+                                        [path](auto, bool btn2) {
+                                            if (btn2) PackSelectLayer::openLastCreatedOne();
+                                        }
+                                    );
+                                }
+                                else {
+                                    FLAlertLayer* asd = geode::createQuickPopup(
+                                        "Restart Game?",
+                                        "To load new mod",
+                                        "Later", "Yes",
+                                        [](auto, bool btn2) {
+                                            if (btn2) utils::game::restart();
+                                        }
+                                    );
+                                }
                             })
                         //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
                                 .progress(
@@ -1125,26 +1178,28 @@ public:
                                     });
                 }
             );
-            auto body_data = fmt::format(
-                "# From:" "\n"
-                "{}" "\n"
-                "# To:" "\n" 
-                "<cj>__{}__",
-                endpoint,
-                path.string()
-            );
-            auto mdtextarea = MDTextArea::create(body_data, { 360.f, 140.f });
-            mdtextarea->setPositionY(96.f);//(-(mdtextarea->getContentSize() / 2));
-            pop->m_buttonMenu->addChild(mdtextarea);
-            handleTouchPriority(pop);
-            if (auto delte_btnspr = ButtonSprite::create("Delete Installed Mod", "goldFont.fnt", "GJ_button_05.png")) {
-                delte_btnspr->setScale(0.7f);
-                auto delete_item = CCMenuItemSpriteExtra::create(delte_btnspr, this, menu_selector(ModViewLayer::onBtn));
-                delete_item->setID("delete");
-                delete_item->setAnchorPoint({ 0.5f, 1.f });
-                delete_item->setPositionY(-33.f);
-                if (checkExistence(path)) pop->m_buttonMenu->addChild(delete_item);
-            }
+            if (pop) {
+                auto body_data = fmt::format(
+                    "# From:" "\n"
+                    "{}" "\n"
+                    "# To:" "\n"
+                    "<cj>__{}__",
+                    endpoint,
+                    path.string()
+                );
+                auto mdtextarea = MDTextArea::create(body_data, { 360.f, 140.f });
+                mdtextarea->setPositionY(96.f);//(-(mdtextarea->getContentSize() / 2));
+                pop->m_buttonMenu->addChild(mdtextarea);
+                handleTouchPriority(pop);
+                if (auto delte_btnspr = ButtonSprite::create("Delete Installed Mod", "goldFont.fnt", "GJ_button_05.png")) {
+                    delte_btnspr->setScale(0.7f);
+                    auto delete_item = CCMenuItemSpriteExtra::create(delte_btnspr, this, menu_selector(ModViewLayer::onBtn));
+                    delete_item->setID("delete");
+                    delete_item->setAnchorPoint({ 0.5f, 1.f });
+                    delete_item->setPositionY(-33.f);
+                    if (checkExistence(path)) pop->m_buttonMenu->addChild(delete_item);
+                }
+            };
         };
         if (what->getID() == "delete") {
             AppDelegate::sharedApplication()->trySaveGame(false);
@@ -2132,7 +2187,7 @@ public:
             basicRznLayersInit(rtn, menu_selector(IssuesListLayer::onBtn));
             GitHubAuthPopup::addMyBtn(rtn);
             GameManager::sharedState()->fadeInMusic(
-                "WhiteNoiseBlackVoid - Night Walk Through the Grayland.mp3"
+                "Fishbone.mp3"
                 ""_spr
             );
             {
@@ -2279,63 +2334,40 @@ public:
     }
 };
 
-class ModListLayer : public CCLayer, public TextInputDelegate {
-public:
-    GJListLayer* m_list = nullptr;
-    CCClippingNode* m_tabsGradientNode = nullptr;
-    CCSprite* m_tabsGradientSprite = nullptr;
-    CCSprite* m_tabsGradientStencil = nullptr;
-    CCLabelBMFont* m_listLabel;
-    CCLabelBMFont* m_indexUpdateLabel;
-    CCMenu* m_menu;
-    CCMenu* m_topMenu;
-    CCMenuItemToggler* m_installedTabBtn;
-    CCMenuItemToggler* m_downloadTabBtn;
-    CCMenuItemToggler* m_featuredTabBtn;
-    CCMenuItemSpriteExtra* m_searchBtn;
-    CCMenuItemSpriteExtra* m_searchClearBtn;
-    CCMenuItemSpriteExtra* m_checkForUpdatesBtn = nullptr;
-    CCNode* m_searchBG = nullptr;
-    CCTextInputNode* m_searchInput = nullptr;
-    LoadingCircle* m_loadingCircle = nullptr;
-    CCMenuItemSpriteExtra* m_filterBtn;
-    //ModListQuery m_query;
-    //ModListDisplay m_display = ModListDisplay::Concise;
-    //EventListener<IndexUpdateFilter> m_indexListener;
-    void tryCustomSetup(float) {
-        if (!this) return;
-        //if (this->m_menu) this->m_menu->setRotation(12.f);
-        //RyzenLayerBtn
-        auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
-            CCSprite::create("Ryzen_LogoBtn_001.png"_spr),
-            this, menu_selector(IssuesListLayer::openMe)
-        );
-        RyzenLayerBtn->getNormalImage()->setScale(0.6f);
-        RyzenLayerBtn->setPosition(-210.f, -33.f);
-        this->m_topMenu->addChild(RyzenLayerBtn, 999, 5819);
-    }
-};
-class PackSelectLayer : public CCLayer {
-public:
-    ScrollLayer* m_availableList = nullptr;
-    ScrollLayer* m_appliedList = nullptr;
-    void tryCustomSetup(float) {
-        if (!this) return;
-        auto menu = cocos::getChildOfType<CCMenu>(this, 0);
-        //button
-        auto text = CCLabelTTF::create("Search for TPs!", "Comic Sans MS.ttf"_spr, 15.f);
-        //item
-        auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
-            text,
-            this,
-            menu_selector(IssuesListLayer::openMeForPacks)
-        );
-        RyzenLayerBtn->m_animationEnabled = 0;
-        RyzenLayerBtn->m_colorEnabled = 1;
-        RyzenLayerBtn->setPositionY(110.f);
-        menu->addChild(RyzenLayerBtn);
-    }
-};
+void ModListLayer::tryCustomSetup(float) {
+    if (!this) return;
+    lastCreatedOne = this;
+    //if (this->m_menu) this->m_menu->setRotation(12.f);
+    //RyzenLayerBtn
+    auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
+        CCSprite::create("Ryzen_LogoBtn_001.png"_spr),
+        this, menu_selector(IssuesListLayer::openMe)
+    );
+    RyzenLayerBtn->getNormalImage()->setScale(0.6f);
+    RyzenLayerBtn->setPosition(-210.f, -33.f);
+    this->m_topMenu->addChild(RyzenLayerBtn, 999, 5819);
+}
+void PackSelectLayer::tryCustomSetup(float) {
+    if (!this) return;
+    lastCreatedOne = this;
+    auto menu = cocos::getChildOfType<CCMenu>(this, 0);
+    //back btn
+    auto backbtn = getChild<CCMenuItemSpriteExtra>(menu, 0);
+    backbtn->setTarget(this, menu_selector(PackSelectLayer::back));
+    //button
+    auto text = CCLabelTTF::create("Search for TPs!", "Comic Sans MS.ttf"_spr, 15.f);
+    //item
+    auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
+        text,
+        this,
+        menu_selector(IssuesListLayer::openMeForPacks)
+    );
+    RyzenLayerBtn->m_animationEnabled = 0;
+    RyzenLayerBtn->m_colorEnabled = 1;
+    RyzenLayerBtn->setPositionY(110.f);
+    menu->addChild(RyzenLayerBtn);
+}
+
 #include <Geode/modify/CCLayer.hpp>
 class $modify(CCLayerExt, CCLayer) {
     bool init() {
