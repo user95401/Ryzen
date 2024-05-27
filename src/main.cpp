@@ -299,10 +299,12 @@ class PackSelectLayer : public CCLayer {
 public:
     ScrollLayer* m_availableList = nullptr;
     ScrollLayer* m_appliedList = nullptr;
-    static inline PackSelectLayer* lastCreatedOne;
+    inline static PackSelectLayer* lastCreatedOne;
+    inline static CCScene* sceneCreatedFrom;
     void tryCustomSetup(float);
     static void openLastCreatedOne() {
         if (not lastCreatedOne) return;
+        sceneCreatedFrom = CCDirector::get()->m_pRunningScene;
         auto scene = CCScene::create();
         scene->addChild(lastCreatedOne);
         CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
@@ -2349,7 +2351,7 @@ void ModListLayer::tryCustomSetup(float) {
 }
 void PackSelectLayer::tryCustomSetup(float) {
     if (!this) return;
-    lastCreatedOne = this;
+    PackSelectLayer::lastCreatedOne = this;
     auto menu = cocos::getChildOfType<CCMenu>(this, 0);
     //button
     auto text = CCLabelTTF::create("Search for TPs!", "Comic Sans MS.ttf"_spr, 15.f);
@@ -2380,15 +2382,19 @@ class $modify(CCLayerExt, CCLayer) {
 };
 #include <Geode/modify/MenuLayer.hpp>
 class $modify(MenuLayer) {
-    bool init() {
-        if (!MenuLayer::init()) return false;
-        //back ward scene controller
+    static cocos2d::CCScene* scene(bool p0) {
+        auto rtn = MenuLayer::scene(p0);
+        //back w0rd scene controller
         auto running_scene = CCDirector::get()->m_pRunningScene;
-        if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->firstObject())) {
+        if (not running_scene) return rtn;
+        if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->objectAtIndex(0))) {
             if (auto pack_sel_lay = typeinfo_cast<PackSelectLayer*>(last_layer)) {
+                log::debug("PackSelectLayer::sceneCreatedFrom = {}", PackSelectLayer::sceneCreatedFrom);
+                if (PackSelectLayer::sceneCreatedFrom != nullptr) //CCMessageBox("asd", "asd");
+                    return PackSelectLayer::sceneCreatedFrom;
             }
         }
-        return true;
+        return rtn;
     }
 };
 
