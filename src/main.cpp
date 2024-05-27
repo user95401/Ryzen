@@ -301,10 +301,6 @@ public:
     ScrollLayer* m_appliedList = nullptr;
     static inline PackSelectLayer* lastCreatedOne;
     void tryCustomSetup(float);
-    void back(CCObject*) {
-        //CCMessageBox("asd", __FUNCTION__);
-        CCDirector::get()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
-    }
     static void openLastCreatedOne() {
         if (not lastCreatedOne) return;
         auto scene = CCScene::create();
@@ -312,6 +308,10 @@ public:
         CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
     }
 };
+void onBackDet(PackSelectLayer* self, CCObject* sender) {
+    CCMessageBox("asd", "asd");
+    //CCDirector::get()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
+}
 
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
@@ -2351,9 +2351,6 @@ void PackSelectLayer::tryCustomSetup(float) {
     if (!this) return;
     lastCreatedOne = this;
     auto menu = cocos::getChildOfType<CCMenu>(this, 0);
-    //back btn
-    auto backbtn = getChild<CCMenuItemSpriteExtra>(menu, 0);
-    backbtn->setTarget(this, menu_selector(PackSelectLayer::back));
     //button
     auto text = CCLabelTTF::create("Search for TPs!", "Comic Sans MS.ttf"_spr, 15.f);
     //item
@@ -2380,6 +2377,19 @@ class $modify(CCLayerExt, CCLayer) {
         if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
         return rtn;
     };
+};
+#include <Geode/modify/MenuLayer.hpp>
+class $modify(MenuLayer) {
+    bool init() {
+        if (!MenuLayer::init()) return false;
+        //back ward scene controller
+        auto running_scene = CCDirector::get()->m_pRunningScene;
+        if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->firstObject())) {
+            if (auto pack_sel_lay = typeinfo_cast<PackSelectLayer*>(last_layer)) {
+            }
+        }
+        return true;
+    }
 };
 
 #if defined(GEODE_IS_ANDROID)
