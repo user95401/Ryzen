@@ -14,9 +14,10 @@ bool checkExistence(T filename)
     std::ifstream Infield(filename);
     return Infield.good();
 }
-template <typename T>
-void remove_dir(T path) {
-    ghc::filesystem::remove_all(path);
+//template <typename T>
+void remove_dir(ghc::filesystem::path path) {
+    std::error_code _Ec;
+    ghc::filesystem::remove_all(path, _Ec);
     //lol
     //system(fmt::format("rd /s /q \"{}\"", path).data());
 // !GEODE_IS_WINDOWS
@@ -99,6 +100,12 @@ std::vector<std::string> explode(std::string separator, std::string input) {
 }(value)
 
 auto ryzen_dir = dirs::getGeodeDir() / "ryzen";
+auto mod_working_dir(matjson::Value issue_json, std::string file = "") {
+    auto dir = 
+        ryzen_dir / "mods" / fmt::format("{}[{}]", issue_json["number"].as_int(), issue_json["title"].as_string());
+    ghc::filesystem::create_directories(dir);
+    return (dir / file).string();
+}
 
 #define ghapiauth \
 .userAgent(Mod::get()->getID()) \
@@ -301,6 +308,14 @@ public:
     ScrollLayer* m_appliedList = nullptr;
     inline static PackSelectLayer* lastCreatedOne;
     inline static CCScene* sceneCreatedFrom;
+    void reloadList() {
+        if (auto menu = cocos::getChildOfType<CCMenu>(this, 0))
+            if (auto btn = cocos::getChildOfType<CCMenuItemSpriteExtra>(menu, 3))
+                btn->activate();
+    }
+    void deleteSceneSch(float) {
+        PackSelectLayer::sceneCreatedFrom = nullptr;
+    }
     void tryCustomSetup(float);
     static void openLastCreatedOne() {
         if (not lastCreatedOne) return;
@@ -310,10 +325,6 @@ public:
         CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
     }
 };
-void onBackDet(PackSelectLayer* self, CCObject* sender) {
-    CCMessageBox("asd", "asd");
-    //CCDirector::get()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
-}
 
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
@@ -873,7 +884,7 @@ public:
             /*some fun stuff*/ {
                 //logo
                 auto logo = CCSprite::create((ghc::filesystem::path(strKeyOfdata("workindir")) / ".logo").string().c_str());
-                if (!logo) logo = CCSprite::createWithSpriteFrameName("deleteFilter_none_001.png");
+                if (!logo) logo = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 if (logo) {
                     auto icon_size = CCSize(68.f, 68.f);
                     auto real_size = logo->getContentSize();
@@ -1131,10 +1142,11 @@ public:
                                     (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
                                 );
                                 if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
-                                if (string::contains(path.string(), "geode.texture-loader")) {
+                                if (string::contains(path.string(), "geode.texture-loader") and PackSelectLayer::lastCreatedOne) {
+                                    PackSelectLayer::lastCreatedOne->reloadList();
                                     FLAlertLayer* asd = geode::createQuickPopup(
                                         "Pack Downloaded",
-                                        "Open pack select menu?",
+                                        "Open pack select menu?\n<cr>pls dont reload resources, its for you be able to sort them and stuff</c> exit ryzen layers first...",
                                         "Later", "Open",
                                         [path](auto, bool btn2) {
                                             if (btn2) PackSelectLayer::openLastCreatedOne();
@@ -1193,7 +1205,7 @@ public:
                 mdtextarea->setPositionY(96.f);//(-(mdtextarea->getContentSize() / 2));
                 pop->m_buttonMenu->addChild(mdtextarea);
                 handleTouchPriority(pop);
-                if (auto delte_btnspr = ButtonSprite::create("Delete Installed Mod", "goldFont.fnt", "GJ_button_05.png")) {
+                if (auto delte_btnspr = ButtonSprite::create("   Uninstall   ", "goldFont.fnt", "GJ_button_05.png")) {
                     delte_btnspr->setScale(0.7f);
                     auto delete_item = CCMenuItemSpriteExtra::create(delte_btnspr, this, menu_selector(ModViewLayer::onBtn));
                     delete_item->setID("delete");
@@ -1239,6 +1251,41 @@ public:
     }
 };
 
+void downloadLogo(matjson::Value issue_json, std::string overwrite_endpoint, std::string and_branch) {
+    if (not issue_json.contains("body")) return;
+    log::debug("downloadLogo:\noverwrite_endpoint={}\nand_branch={}\nissue_json={}", overwrite_endpoint, and_branch, issue_json.dump());
+    //ini values
+    auto issue_ini = new CSimpleIni();
+    issue_ini->LoadData(issue_json["body"].as_string());
+    //other
+    auto default_branch = and_branch.empty() ? "main" : and_branch;
+    auto main_logo_url = std::string(issue_ini->GetValue("main", "logo_url", ""));
+    auto repo_name = std::string(issue_ini->GetValue("repo", "name", "unnamed_name"));
+    auto repo_owner = std::string(issue_ini->GetValue("repo", "owner", "unnamed_owner"));
+    auto file_url = not main_logo_url.empty() ? main_logo_url : fmt::format(
+        "https://raw.githubusercontent.com/{}/{}/{}/logo.png"
+        , repo_owner, repo_name, default_branch
+    );
+    if (not overwrite_endpoint.empty()) file_url = overwrite_endpoint;
+    log::debug("file_url = {}", file_url.data());
+    //expect
+    auto expect =
+        [issue_json, file_url](std::string const& what) {
+        log::error("{}", what);
+        if (string::contains(file_url, "logo.png"))
+            return downloadLogo(issue_json, string::replace(file_url, "logo.png", "pack.png"), "");
+        if (string::contains(file_url, "pack.png"))
+            return downloadLogo(issue_json, issue_json["user"]["avatar_url"].as_string(), "");
+        };
+    //then
+    auto then =
+        [issue_json, expect](std::monostate const& a) {
+        std::string str_badimg = "Bad image downloaded";
+        if (not CCSprite::create(mod_working_dir(issue_json, ".logo").data())) expect(str_badimg);
+        //CCMessageBox("asd", "ASD");
+        };
+    web::AsyncWebRequest().fetch(file_url).into(mod_working_dir(issue_json, ".logo")).then(then).expect(expect);
+}
 class ModLoadingLayer : public CCLayer {
 public:
     //data
@@ -1290,9 +1337,7 @@ public:
             rtn->addTextContainer(data::asset, "{}");
             rtn->addTextContainer(
                 data::working_dir_str,
-                (ryzen_dir / "mods" /
-                    fmt::format("{}[{}]", IssueJson["number"].as_int(), IssueJson["title"].as_string())
-                    ).string()
+                mod_working_dir(IssueJson)
             );
         }
         //log
@@ -1312,7 +1357,7 @@ public:
         rtn->addChild(loadingLabel, 1, 2319);
         return rtn;
     }
-    void loadRepo(int step = 0, std::string owerwrite_endpoint = "") {
+    void loadRepo(int step = 0, std::string overwrite_endpoint = "") {
         std::string main_logo = getIniData(data::issue_body_ini)->GetValue("main", "logo", "na");
         auto repo_owner = getIniData(data::issue_body_ini)->GetValue("repo", "owner", "na");
         auto repo_name = getIniData(data::issue_body_ini)->GetValue("repo", "name", "na");
@@ -1375,39 +1420,8 @@ public:
                 };
             web::AsyncWebRequest()ghapiauth.fetch(api_url).json().then(then).expect(expect);
         };
-        //logo
-        if (step == 2) {
-            auto default_branch = getJsonData(data::repo)["default_branch"].as_string();
-            log("## step2: download logo");
-            log(fmt::format("repo_owner = {}", repo_owner));
-            log(fmt::format("repo_name = {}", repo_name));
-            log(fmt::format("default_branch = {}", default_branch));
-            auto file_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/.logo"
-                , repo_owner, repo_name, default_branch
-            );
-            if (not owerwrite_endpoint.empty()) file_url = owerwrite_endpoint;
-            log(fmt::format("file_url = {}", file_url.data()));
-            //expect
-            auto expect =
-                [this, file_url](std::string const& what) {
-                log("## <cr>" + what + "</c>");
-                if (string::contains(file_url, ".logo"))
-                    loadRepo(2, string::replace(file_url, ".logo", "pack.png"));
-                if (string::contains(file_url, "pack.png"))
-                    loadRepo(2, getJsonData(data::repo)["owner"]["avatar_url"].as_string());
-                };
-            //then
-            auto then =
-                [this, expect](std::monostate const& a) {
-                if (not CCSprite::create(working_dir(".logo").string().data())) expect("Bad image downloaded");
-                log("```\nloaded :D\n```");
-                loadRepo(3);
-                };
-            web::AsyncWebRequest()ghapiauth.fetch(file_url).into(working_dir(".logo")).then(then).expect(expect);
-        }
         //FINAL OF LOADING REPO
-        if (step == 3) {
+        if (step == 2) {
             log("# FINAL OF LOADING REPO");
             log("setting data for mod view layer");
             log("values: workindir, title, devs, desc, size, downloads, body_base64, issue_json_base64, download_link, download_path");
@@ -1730,10 +1744,6 @@ public:
             log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
-            log("loading logo with ini main.logo_url");
-            web::fetchFile(getIniData(issue_body_ini)->GetValue("main", "logo_url", ""), working_dir(".logo"));
-            if(!CCSprite::create(working_dir(".logo").string().c_str()))
-                web::fetchFile(getJsonData(data::issue)["user"]["avatar_url"].as_string(), working_dir(".logo"));
             //open view lay
             setViewLayerInIt(json);
         }
@@ -1846,6 +1856,18 @@ public:
             360.f, nullptr, true
         );
     }
+    void updateLogo(float) {
+        if (this == nullptr) return;
+        auto item = reinterpret_cast<IssueItem*>(this->getParent());
+        auto logo = reinterpret_cast<CCSprite*>(this);
+        auto filep = mod_working_dir(item->json, ".logo");
+        auto exist = checkExistence(filep);
+        if (not exist) return;
+        auto logo_size = CCSize(40, 40);
+        logo->initWithFile(mod_working_dir(item->json, ".logo").c_str());
+        logo->setScale(logo_size.width / logo->getContentSize().width);
+        //logo->unschedule(schedule_selector(IssueItem::updateLogo));
+    }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
         auto pRtn = new IssueItem();
         if (pRtn->init()) {
@@ -1870,6 +1892,20 @@ public:
             //sBottomRightCornerText
             auto sBottomRightCornerText = issue_ini->GetValue("main", "bottom_right_corner_text", issue_num.data());
             sBottomRightCornerText = std::string(sBottomRightCornerText).empty() ? issue_num.data() : sBottomRightCornerText;
+            //logo
+            auto logo_size = CCSize(50, 50);
+            {
+                //start downloading
+                downloadLogo(pJson, "", "");
+                //sprite
+                auto logo = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
+                logo->setID("logo");
+                logo->setPosition({ 30.f, 32.f });
+                logo->schedule(schedule_selector(IssueItem::updateLogo), 0.01f);
+                logo->setScale(logo_size.width / logo->getContentSize().width);
+                pRtn->addChild(logo, 11);
+            }
+            //right shit
             {
                 //menu
                 auto menu = CCMenu::create();
@@ -1889,13 +1925,15 @@ public:
                 //fit up to scroll width
                 auto SIZE = pCCLayerColor->getContentSize();
                 auto POINTING_SIZE = pCCLayerColor->getContentSize() / 2;
+                POINTING_SIZE.width = POINTING_SIZE.width - logo_size.width;
+                //SIZE.width = SIZE.width - logo_size.width;
                 pRtn->setContentSize(SIZE);
                 //Ryzen_InfoBtn_001
                 CCMenuItemSpriteExtra* Ryzen_InfoBtn_001 = CCMenuItemSpriteExtra::create(
                     CCSprite::create("Ryzen_InfoBtn_001.png"_spr),
                     pRtn, menu_selector(IssueItem::onInfo)
                 );
-                Ryzen_InfoBtn_001->setPositionX(POINTING_SIZE.width - 8);
+                Ryzen_InfoBtn_001->setPositionX(POINTING_SIZE.width - 8 + logo_size.width);
                 Ryzen_InfoBtn_001->setPositionY(POINTING_SIZE.height - 8);
                 menu->addChild(Ryzen_InfoBtn_001);
                 /*ViewBtn*/ {
@@ -1905,7 +1943,7 @@ public:
                     CCMenuItemSpriteExtra* ViewBtn = CCMenuItemSpriteExtra::create(
                         View, pRtn, menu_selector(IssueItem::view)
                     );
-                    ViewBtn->setPositionX(POINTING_SIZE.width - 8);
+                    ViewBtn->setPositionX(POINTING_SIZE.width - 8 + logo_size.width);
                     ViewBtn->setAnchorPoint({ 1.0f, .5f });
                     ViewBtn->m_colorEnabled = true;
                     menu->addChild(ViewBtn);
@@ -1924,7 +1962,7 @@ public:
                 CCLabelTTFid->setOpacity(60);
                 CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
                 CCLabelTTFid->setAnchorPoint({ 1.0f, .0f });
-                CCLabelTTFid->setPositionX(POINTING_SIZE.width - 4);
+                CCLabelTTFid->setPositionX(POINTING_SIZE.width - 4 + logo_size.width);
                 CCLabelTTFid->setPositionY(3 - POINTING_SIZE.height);
                 menu->addChild(CCLabelTTFid);
                 //name and tags
@@ -2332,7 +2370,6 @@ public:
     };
     void keyBackClicked() {
         GameManager::sharedState()->fadeInMenuMusic();
-        PackSelectLayer::sceneCreatedFrom = nullptr;
         CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
     }
 };
@@ -2367,7 +2404,6 @@ void PackSelectLayer::tryCustomSetup(float) {
     RyzenLayerBtn->setPositionY(110.f);
     menu->addChild(RyzenLayerBtn);
 }
-
 #include <Geode/modify/CCLayer.hpp>
 class $modify(CCLayerExt, CCLayer) {
     bool init() {
@@ -2381,6 +2417,7 @@ class $modify(CCLayerExt, CCLayer) {
         return rtn;
     };
 };
+
 #include <Geode/modify/MenuLayer.hpp>
 class $modify(MenuLayer) {
     static cocos2d::CCScene* scene(bool p0) {
@@ -2390,9 +2427,11 @@ class $modify(MenuLayer) {
         if (not running_scene) return rtn;
         if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->objectAtIndex(0))) {
             if (auto pack_sel_lay = typeinfo_cast<PackSelectLayer*>(last_layer)) {
-                log::debug("PackSelectLayer::sceneCreatedFrom = {}", PackSelectLayer::sceneCreatedFrom);
-                if (PackSelectLayer::sceneCreatedFrom != nullptr) //CCMessageBox("asd", "asd");
+                //log::debug("PackSelectLayer::sceneCreatedFrom = {}", PackSelectLayer::sceneCreatedFrom);
+                if (PackSelectLayer::sceneCreatedFrom != nullptr) { //CCMessageBox("asd", "asd");
+                    pack_sel_lay->scheduleOnce(schedule_selector(PackSelectLayer::deleteSceneSch), 0.01f);
                     return PackSelectLayer::sceneCreatedFrom;
+                }
             }
         }
         return rtn;
