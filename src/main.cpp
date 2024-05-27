@@ -2386,7 +2386,8 @@ class $modify(MenuLayer) {
         auto running_scene = CCDirector::get()->m_pRunningScene;
         if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->objectAtIndex(0))) {
             if (auto pack_sel_lay = typeinfo_cast<PackSelectLayer*>(last_layer)) {
-                addChild(pack_sel_lay);
+                //addChild(pack_sel_lay);
+CCDirector::get()->popScene();
             }
         }
         return true;
