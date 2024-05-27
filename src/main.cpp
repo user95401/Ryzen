@@ -2384,8 +2384,9 @@ class $modify(MenuLayer) {
         if (!MenuLayer::init()) return false;
         //back ward scene controller
         auto running_scene = CCDirector::get()->m_pRunningScene;
-        if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->firstObject())) {
+        if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->objectAtIndex(0))) {
             if (auto pack_sel_lay = typeinfo_cast<PackSelectLayer*>(last_layer)) {
+                addChild(pack_sel_lay);
             }
         }
         return true;
