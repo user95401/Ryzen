@@ -2332,6 +2332,7 @@ public:
     };
     void keyBackClicked() {
         GameManager::sharedState()->fadeInMenuMusic();
+        PackSelectLayer::sceneCreatedFrom = nullptr;
         CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
     }
 };
