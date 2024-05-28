@@ -317,7 +317,6 @@ struct DownloadableLogoExt {
     }
     static void downloadLogo(matjson::Value issue_json, std::string overwrite_endpoint, std::string and_branch) {
         if (not issue_json.contains("body")) return;
-        log::debug("downloadLogo:\noverwrite_endpoint={}\nand_branch={}\nissue_json={}", overwrite_endpoint, and_branch, issue_json.dump());
         //ini values
         auto issue_ini = new CSimpleIni();
         issue_ini->LoadData(issue_json["body"].as_string());
@@ -331,11 +330,9 @@ struct DownloadableLogoExt {
             , repo_owner, repo_name, default_branch
         );
         if (not overwrite_endpoint.empty()) file_url = overwrite_endpoint;
-        log::debug("file_url = {}", file_url.data());
         //expect
         auto expect =
             [issue_json, file_url](std::string const& what) {
-            log::error("{}", what);
             if (string::contains(file_url, "logo.png"))
                 return downloadLogo(issue_json, string::replace(file_url, "logo.png", "pack.png"), "");
             if (string::contains(file_url, "pack.png"))
@@ -382,24 +379,13 @@ class PackSelectLayer : public CCLayer {
 public:
     ScrollLayer* m_availableList = nullptr;
     ScrollLayer* m_appliedList = nullptr;
-    inline static PackSelectLayer* lastCreatedOne;
-    inline static CCScene* sceneCreatedFrom;
+    static inline PackSelectLayer* lastCreatedOne;
     void reloadList() {
         if (auto menu = cocos::getChildOfType<CCMenu>(this, 0))
             if (auto btn = cocos::getChildOfType<CCMenuItemSpriteExtra>(menu, 3))
                 btn->activate();
     }
-    void deleteSceneSch(float) {
-        PackSelectLayer::sceneCreatedFrom = nullptr;
-    }
     void tryCustomSetup(float);
-    static void openLastCreatedOne() {
-        if (not lastCreatedOne) return;
-        sceneCreatedFrom = CCDirector::get()->m_pRunningScene;
-        auto scene = CCScene::create();
-        scene->addChild(lastCreatedOne);
-        CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
-    }
 };
 
 auto createWideMDPopup(char const* title, std::string const& content, char const* btn1, char const* btn2 = nullptr,
@@ -411,6 +397,7 @@ auto createWideMDPopup(char const* title, std::string const& content, char const
     );
     auto mdtextarea = MDTextArea::create(content, { 350.f, 180.f });
     mdtextarea->setPositionY(116.f);//(-(mdtextarea->getContentSize() / 2));
+    public_cast(mdtextarea, m_bgSprite)->setOpacity(36);
     pop->m_buttonMenu->addChild(mdtextarea);
     handleTouchPriority(pop);
     return pop;
@@ -1240,16 +1227,14 @@ public:
                                     (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
                                 );
                                 if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
-                                if (string::contains(path.string(), "geode.texture-loader") and PackSelectLayer::lastCreatedOne) {
+                                if (string::contains(path.string(), "geode.texture-loader")) {
                                     FLAlertLayer* asd = geode::createQuickPopup(
                                         "Pack Downloaded",
-                                        "Open pack select menu?\n<cr>pls dont reload resources, its for you be able to sort them and stuff</c> exit ryzen layers first...",
-                                        "Later", "Open",
-                                        [path](auto, bool btn2) {
-                                            if (btn2) PackSelectLayer::openLastCreatedOne();
-                                        }
+                                        "You can go back to packs select menu and apply it...",
+                                        "OK", nullptr,
+                                        nullptr
                                     );
-                                    PackSelectLayer::lastCreatedOne->reloadList();
+                                    if (PackSelectLayer::lastCreatedOne) PackSelectLayer::lastCreatedOne->reloadList();
                                 }
                                 else {
                                     FLAlertLayer* asd = geode::createQuickPopup(
@@ -1320,6 +1305,7 @@ public:
             auto path = ghc::filesystem::path(strKeyOfdata("download_path"));
             if (not checkExistence(path)) return;
             log::info("deleting mod at {}", path);
+            //try free
             #ifdef GEODE_IS_WINDOWS
             auto modulename = path.string().c_str();
             auto handle = GetModuleHandle(modulename);
@@ -1332,11 +1318,46 @@ public:
                 FreeLibrary(handle);
             }
             #endif
+            //remove
             if (ghc::filesystem::remove(path))
                 log::warn("removed file at {}", path.string());
-            Notification::create(strKeyOfdata("title") + " got deleted!")->show();
+            //reload
             what->setID("reload");
             what->activate();
+            //reload popup
+            if (string::contains(path.string(), "geode.texture-loader")) {
+                FLAlertLayer* asd = geode::createQuickPopup(
+                    "Pack deleted",
+                    "Reload resources?",
+                    "Later", "Yes",
+                    [path](auto, bool btn2) {
+                        if (btn2) {
+                            CCTextureCache::get()->removeAllTextures();
+                            CCSpriteFrameCache::get()->removeSpriteFrames();
+                            GameManager::get()->reloadAll(0, 0, 0);
+                        }
+                    },
+                    false
+                );
+                asd->m_scene = CCDirector::sharedDirector()->m_pNextScene;
+                asd->show();
+            }
+            else {
+                FLAlertLayer* asd = geode::createQuickPopup(
+                    "Restart Game?",
+                    "To take effect",
+                    "Later", "Yes",
+                    [](auto, bool btn2) {
+                        if (btn2) utils::game::restart();
+                    },
+                    false
+                );
+                asd->m_scene = CCDirector::sharedDirector()->m_pNextScene;
+                asd->show();
+            }
+            //ntfy
+            Notification::create(strKeyOfdata("title") + " got deleted!")->show();
+            if (PackSelectLayer::lastCreatedOne) PackSelectLayer::lastCreatedOne->reloadList();
         }
     }
     //ModViewLayer
@@ -1756,7 +1777,7 @@ public:
                     auto end = issue_body.find("^^^");
                     if(end == std::string::npos) end = issue_body.size();
                     //a
-                    std::string substring = issue_body.substr(start, end - start + 1);
+                    std::string substring = issue_body.substr(start, end - start);
                     set_to = substring;
                 }
                 set_to = ZipUtils::base64URLEncode(set_to);
@@ -2018,7 +2039,7 @@ public:
                 {
                     //container
                     auto container = CCMenu::create();
-                    container->setAnchorPoint({ 0.0f, -0.8f });
+                    container->setAnchorPoint({ 0.0f, -0.4f });
                     container->setPositionX(10 - POINTING_SIZE.width);
                     container->setPositionY(.9f);
                     container->setContentWidth(SIZE.width - 90.f);
@@ -2122,7 +2143,7 @@ public:
         if (what->getID() == "back") keyBackClicked();
         if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
         if (what->getID() == "reload") downloadMods();
-        if (what->getID() == "search")  {
+        if (what->getID() == "filter")  {
             auto local_issues_file = ryzen_dir / "issues.json";
             auto local_issues = std::ifstream(local_issues_file);
             if (local_issues.is_open())
@@ -2156,41 +2177,31 @@ public:
                 //filters
                 auto filters = explode("&", filter_str);
                 for (auto filter : filters) {
-                    //name
-                    if (filter.find("name:") != std::string::npos) {
-                        auto type = std::string("name:");
-                        auto val = filter.replace(filter.find(type), type.size(), "");
-                        auto at = catgirl["title"].as_string();
-                        skip = at.find(val) == std::string::npos;
+                    if (catgirl.contains(explode(":", filter)[0])) {
+                        auto type = explode(":", filter)[0];
+                        auto val = filter.replace(filter.find(type), type.size() + 1, "");
+                        auto at = catgirl[type].dump();
+                        auto contians = string::containsAll(at, explode(",", val));
+                        if (not skip) skip = !contians;
+                        fmt::format(//log::debug(
+                            "containsAll(\nat \"{}\", \nval \"{}\"\n) = {}",
+                            at, val, contians
+                        );
                     }
-                    //by
-                    else if (filter.find("by:") != std::string::npos) {
-                        auto type = std::string("by:");
-                        auto val = filter.replace(filter.find(type), type.size(), "");
-                        auto at = catgirl["user"]["login"].as_string();
-                        skip = at.find(val) == std::string::npos;
-                    }
-                    //labels
-                    else if (filter.find("labels:") != std::string::npos) {
-                        auto type = std::string("labels:");
-                        auto val = filter.replace(filter.find(type), type.size(), "");
-                        //all labels
-                        auto at = std::stringstream();
-                        for (auto label : catgirl["labels"].as_array())
-                            at << label["name"].dump();
-                        //asda
-                        auto vflt_labels = explode(",", val);
-                        bool founded = false;
-                        for (auto label : vflt_labels) {
-                            auto exact = "\"" + label + "\"";
-                            founded = at.str().find(exact) != std::string::npos;
-                            if (!founded) break;
-                        }
-                        skip = not founded;
+                    else if (catgirl.contains(explode("~:", filter)[0])) {
+                        auto type = explode("~:", filter)[0];
+                        auto val = filter.replace(filter.find(type), type.size() + 2, "");
+                        auto at = catgirl[type].dump();
+                        auto contians = string::containsAny(at, explode(",", val));
+                        if (not skip) skip = !contians;
+                        fmt::format(//log::debug(
+                            "containsAny(\nat \"{}\", \nval \"{}\"\n) = {}",
+                            at, val, contians
+                        );
                     }
                     //any
                     else if (not filter.empty()) {
-                        skip = catgirl.dump().find(filter) == std::string::npos;
+                        if (not skip) skip = catgirl.dump().find(filter) == std::string::npos;
                     }
                 }
             }
@@ -2304,14 +2315,16 @@ public:
                         });
                     reload->getNormalImage()->setScale(0.7f);
                     menu->addChild(reload);
-                    //Ryzen_FilterBtn_001
-                    auto search = CCMenuItemSpriteExtra::create(
+                    //filter
+                    auto filter = CCMenuItemSpriteExtra::create(
                         CCSprite::create("Ryzen_FilterBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
-                    search->setID("search");
-                    search->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
-                    menu->addChild(search);
+                    filter->setID("filter");
+                    filter->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
+                    filter->m_animationEnabled = 0;
+                    filter->m_colorEnabled = 1;
+                    menu->addChild(filter);
                     //filter_info
                     auto filter_info = CCMenuItemSpriteExtra::create(
                         CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"),
@@ -2320,8 +2333,8 @@ public:
                     filter_info->getNormalImage()->setScale(0.5f);
                     filter_info->setID("filter_info");
                     filter_info->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
-                    filter_info->setPositionX(filter_info->getPositionX() - 3 + (search->getContentWidth() / 2));
-                    filter_info->setPositionY(filter_info->getPositionY() - 3 + (search->getContentHeight() / 2));
+                    filter_info->setPositionX(filter_info->getPositionX() - 3 + (filter->getContentWidth() / 2));
+                    filter_info->setPositionY(filter_info->getPositionY() - 3 + (filter->getContentHeight() / 2));
                     menu->addChild(filter_info, 1);
                     //addmodbtn
                     CCMenuItemSpriteExtra* add_mod_btn = CCMenuItemSpriteExtra::create(
@@ -2330,6 +2343,8 @@ public:
                     );
                     add_mod_btn->setID("add_mod_btn");
                     add_mod_btn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
+                    add_mod_btn->m_animationEnabled = 0;
+                    add_mod_btn->m_colorEnabled = 1;
                     menu->addChild(add_mod_btn);
                 };
                 //scroll
@@ -2416,7 +2431,7 @@ public:
                     }
                 }
             };
-            rtn->sendBtnFunc("search");
+            rtn->sendBtnFunc("filter");
         }
         else {
             delete rtn;
@@ -2426,13 +2441,13 @@ public:
     }
     void openMe(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels:mod&");
+        auto pRyzenLayer = IssuesListLayer::create("labels:\"mod\"&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void openMeForPacks(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels:pack&");
+        auto pRyzenLayer = IssuesListLayer::create("labels:\"pack\"&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
@@ -2457,7 +2472,7 @@ void ModListLayer::tryCustomSetup(float) {
 }
 void PackSelectLayer::tryCustomSetup(float) {
     if (!this) return;
-    PackSelectLayer::lastCreatedOne = this;
+    lastCreatedOne = this;
     auto menu = cocos::getChildOfType<CCMenu>(this, 0);
     //button
     auto text = CCLabelTTF::create("Search for TPs!", "Comic Sans MS.ttf"_spr, 15.f);
@@ -2484,26 +2499,6 @@ class $modify(CCLayerExt, CCLayer) {
         if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
         return rtn;
     };
-};
-
-#include <Geode/modify/MenuLayer.hpp>
-class $modify(MenuLayer) {
-    static cocos2d::CCScene* scene(bool p0) {
-        auto rtn = MenuLayer::scene(p0);
-        //back w0rd scene controller
-        auto running_scene = CCDirector::get()->m_pRunningScene;
-        if (not running_scene) return rtn;
-        if (auto last_layer = dynamic_cast<CCLayer*>(running_scene->getChildren()->objectAtIndex(0))) {
-            if (auto pack_sel_lay = typeinfo_cast<PackSelectLayer*>(last_layer)) {
-                //log::debug("PackSelectLayer::sceneCreatedFrom = {}", PackSelectLayer::sceneCreatedFrom);
-                if (PackSelectLayer::sceneCreatedFrom != nullptr) { //CCMessageBox("asd", "asd");
-                    pack_sel_lay->scheduleOnce(schedule_selector(PackSelectLayer::deleteSceneSch), 0.01f);
-                    return PackSelectLayer::sceneCreatedFrom;
-                }
-            }
-        }
-        return rtn;
-    }
 };
 
 #if defined(GEODE_IS_ANDROID)

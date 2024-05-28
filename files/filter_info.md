@@ -1,25 +1,47 @@
 # Filters... yea
 
-One by one filter key is seperating by <cg>`&`</c>.
+One by one filter key is separating by <cr>`&`</c>.
 
-#### List:
-- `name:` - the title of issue
-- `by:` - the name of user that created issue
-- `labels:` - labels like `mod`, `hack`, `ui`. You can seperate them with <cg>`,`</c>
-- any word to find in whole json data dump of issue
+#### Filter key can be as:
+- any text to find in whole json data dump of issue
+- any json key, like `labels`, `title`, `locked`, `created_at`, `updated_at`
+
+Filter key formatted as key, separator <cr>`:`</c> or <cr>`~:`</c>, and value to find. (<co>key</c><cy>:</c><cr>value</c>)
+```
+title:The title
+```
+```
+the_any_word
+```
+
+Here can be multiple values to search. Separate them with <cr>`,`</c>
+
+Like: `user:shyFox,fineFox,shineFox`.
+
+Here is filter key variants for <cr>all `:`</c> or <co>any `~:`</c>.
+
+Also it's better to <cg>put them in quotes</c>, <co>especially for labels</c>.
+```
+labels:"mod","hack"
+```
 
 ## Examples:
-#### Filter for hack themed mods by user95401:
+
+Filter for hack themes mods by user95401:
 ```
-by:user95401&labels:mod,hack
-```
-#### Filter for packs with name that contains "icon":
-```
-labels:mod,hack&name:icon
+user:"user95401"&labels:"mod","hack"
 ```
 
-#### Filter any mods that posted at May 2024:
-i take part from json str `"created_at": "2024-05`
+Filter for packs with name that contains "icon":
 ```
-"created_at": "2024-05&labels:mod
+labels:"mod","hack"&title:icon
+```
+
+Filter any mods that posted at May 2024:
+```
+labels:"mod"&created_at:2024-05
+```
+Or ever on May 26...
+```
+labels:"mod"&created_at:05-26
 ```
