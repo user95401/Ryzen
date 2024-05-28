@@ -1143,7 +1143,6 @@ public:
                                 );
                                 if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
                                 if (string::contains(path.string(), "geode.texture-loader") and PackSelectLayer::lastCreatedOne) {
-                                    PackSelectLayer::lastCreatedOne->reloadList();
                                     FLAlertLayer* asd = geode::createQuickPopup(
                                         "Pack Downloaded",
                                         "Open pack select menu?\n<cr>pls dont reload resources, its for you be able to sort them and stuff</c> exit ryzen layers first...",
@@ -1152,6 +1151,7 @@ public:
                                             if (btn2) PackSelectLayer::openLastCreatedOne();
                                         }
                                     );
+                                    PackSelectLayer::lastCreatedOne->reloadList();
                                 }
                                 else {
                                     FLAlertLayer* asd = geode::createQuickPopup(
