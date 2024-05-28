@@ -276,6 +276,82 @@ public:
     }
 };
 
+struct DownloadableLogoExt {
+    void schedule(float) {
+        if (this == nullptr) return;
+        if (((CCSprite*)this)->getChildByID("data_container") == nullptr) return;
+        //nodes
+        auto logo = (CCSprite*)this;
+        auto data_container = (CCLabelBMFont*)logo->getChildByID("data_container");
+        //data
+        auto json = matjson::parse(data_container->getString());
+        auto logo_size = CCSize(data_container->getPosition());
+        auto filep = mod_working_dir(json, ".logo");
+        auto exist = checkExistence(filep);
+        //checkExistence
+        if (not exist) return;
+        //try init w file
+        if (not logo->initWithFile(mod_working_dir(json, ".logo").c_str())) return;
+        auto init_result_size = logo->getContentSize();
+        if (init_result_size.height > logo_size.height) {
+            logo->setScale(logo_size.height / init_result_size.height);
+        }
+        else {
+            logo->setScale(logo_size.width / init_result_size.width);
+        }
+        logo->setAnchorPoint(data_container->getAnchorPoint());
+        logo->unschedule(schedule_selector(DownloadableLogoExt::schedule));
+    }
+    static void attach(CCSprite* target, CCSize size, matjson::Value issue) {
+        //downloadLogo
+        downloadLogo(issue, "", "");
+        //issue_json child
+        auto data_container = CCLabelBMFont::create(issue.dump().data(), "chatFont.fnt");
+        data_container->setID("data_container");
+        data_container->setVisible(0);
+        target->addChild(data_container);
+        data_container->setPosition(size);
+        data_container->setAnchorPoint(target->getAnchorPoint());
+        //schedule
+        target->schedule(schedule_selector(DownloadableLogoExt::schedule), 0.01f);
+    }
+    static void downloadLogo(matjson::Value issue_json, std::string overwrite_endpoint, std::string and_branch) {
+        if (not issue_json.contains("body")) return;
+        log::debug("downloadLogo:\noverwrite_endpoint={}\nand_branch={}\nissue_json={}", overwrite_endpoint, and_branch, issue_json.dump());
+        //ini values
+        auto issue_ini = new CSimpleIni();
+        issue_ini->LoadData(issue_json["body"].as_string());
+        //other
+        auto default_branch = and_branch.empty() ? "main" : and_branch;
+        auto main_logo_url = std::string(issue_ini->GetValue("main", "logo_url", ""));
+        auto repo_name = std::string(issue_ini->GetValue("repo", "name", "unnamed_name"));
+        auto repo_owner = std::string(issue_ini->GetValue("repo", "owner", "unnamed_owner"));
+        auto file_url = not main_logo_url.empty() ? main_logo_url : fmt::format(
+            "https://raw.githubusercontent.com/{}/{}/{}/logo.png"
+            , repo_owner, repo_name, default_branch
+        );
+        if (not overwrite_endpoint.empty()) file_url = overwrite_endpoint;
+        log::debug("file_url = {}", file_url.data());
+        //expect
+        auto expect =
+            [issue_json, file_url](std::string const& what) {
+            log::error("{}", what);
+            if (string::contains(file_url, "logo.png"))
+                return downloadLogo(issue_json, string::replace(file_url, "logo.png", "pack.png"), "");
+            if (string::contains(file_url, "pack.png"))
+                return downloadLogo(issue_json, issue_json["user"]["avatar_url"].as_string(), "");
+            };
+        //then
+        auto then =
+            [issue_json, expect](std::monostate const& a) {
+            std::string str_badimg = "Bad image downloaded";
+            if (not CCSprite::create(mod_working_dir(issue_json, ".logo").data())) expect(str_badimg);
+            //CCMessageBox("asd", "ASD");
+            };
+        web::AsyncWebRequest().fetch(file_url).into(mod_working_dir(issue_json, ".logo")).then(then).expect(expect);
+    }
+};
+
 class ModListLayer : public CCLayer, public TextInputDelegate {
 public:
     GJListLayer* m_list = nullptr;
@@ -325,6 +401,20 @@ public:
         CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
     }
 };
+
+auto createWideMDPopup(char const* title, std::string const& content, char const* btn1, char const* btn2 = nullptr,
+    float width = 400.f, utils::MiniFunction<void(FLAlertLayer*, bool)> selected = nullptr, bool doShow = true) {
+    auto pop = createQuickPopup(
+        title,
+        "\n \n \n \n \n \n \n \n \n",
+        btn1, btn2 = nullptr, width, selected, doShow
+    );
+    auto mdtextarea = MDTextArea::create(content, { 350.f, 180.f });
+    mdtextarea->setPositionY(116.f);//(-(mdtextarea->getContentSize() / 2));
+    pop->m_buttonMenu->addChild(mdtextarea);
+    handleTouchPriority(pop);
+    return pop;
+}
 
 auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
     {
@@ -733,20 +823,21 @@ public:
             );
             return setupComments(matjson::parse(data));
         }
-        auto ntfy = geode::Notification::create("Loading comments...", NotificationIcon::Loading, 15.f);
-        ntfy->show();
-        auto a = [this, ntfy](matjson::Value const& catgirls) {
+        auto loading_circle = LoadingCircle::create();
+        loading_circle->setID("loading_circle");
+        loading_circle->setParentLayer(this);
+        loading_circle->setFade(true);
+        loading_circle->show();
+        auto a = [this, loading_circle](matjson::Value const& catgirls) {
             auto local_issues_save = (ghc::filesystem::path(data_strkey("workindir")) / "comments.json");
             ghc::filesystem::create_directories(local_issues_save.parent_path());
             std::ofstream(local_issues_save.string().c_str()) << catgirls.dump(); 
             setupComments(catgirls);
-            ntfy->setString("Comments loaded!");
-            ntfy->setIcon(NotificationIcon::Success);
-            ntfy->setTime(1.0f);
+            loading_circle->fadeAndRemove();
             };
-        auto b = [this, ntfy](std::string const& error)
-            {// something went wrong with our web request Q~Q
-                ntfy->hide();
+        auto b = [this, loading_circle](std::string const& error)
+            {
+                loading_circle->fadeAndRemove();
                 auto message = error;
                 auto asd = geode::createQuickPopup(
                     "Request exception",
@@ -801,6 +892,7 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
+        if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
         if (what->getID() == "post") {
             auto pop = FLAlertLayer::create(
                 this,
@@ -896,6 +988,7 @@ public:
                         logo->setScale(icon_size.width / real_size.width);
                     }
                     logo->setAnchorPoint(CCPointZero);
+                    DownloadableLogoExt::attach(logo, icon_size, ISSUE_DATA());
                     auto container = CCNode::create();
                     container->addChild(logo);
                     container->setID("icon_container");
@@ -1133,7 +1226,12 @@ public:
                 [this, endpoint, path, what](auto, bool btn2) {
                     if (not btn2) return;
                     auto downloadBtn = reinterpret_cast<ButtonSprite*>(this->getChildByIDRecursive("downloadBtn"));
-                    if (not downloadBtn) return;
+                    if (not downloadBtn) return; 
+                    auto loading_circle = LoadingCircle::create();
+                    loading_circle->setID("loading_circle");
+                    loading_circle->setParentLayer(this);
+                    loading_circle->setFade(true);
+                    loading_circle->show();
                     web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
                         .then(
                             [this, downloadBtn, path](std::monostate const& who) {
@@ -1166,9 +1264,10 @@ public:
                             })
                         //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
                                 .progress(
-                                    [downloadBtn](auto, double d1, double d2) {
+                                    [downloadBtn, loading_circle](auto, double d1, double d2) {
                                         if (d1 <= 0) return;
                                         if (d2 <= 0) return;
+                                        loading_circle->removeFromParent();
                                         downloadBtn->m_label->setString(
                                             fmt::format(
                                                 "{} of {}",
@@ -1181,7 +1280,8 @@ public:
                                         if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
                                     })
                                 .expect(
-                                    [this, endpoint, downloadBtn](std::string const& what) {
+                                    [this, endpoint, downloadBtn, loading_circle](std::string const& what) {
+                                        loading_circle->removeFromParent();
                                         auto asd = geode::createQuickPopup(
                                             "Request exception",
                                             what + "\n" + endpoint,
@@ -1251,41 +1351,6 @@ public:
     }
 };
 
-void downloadLogo(matjson::Value issue_json, std::string overwrite_endpoint, std::string and_branch) {
-    if (not issue_json.contains("body")) return;
-    log::debug("downloadLogo:\noverwrite_endpoint={}\nand_branch={}\nissue_json={}", overwrite_endpoint, and_branch, issue_json.dump());
-    //ini values
-    auto issue_ini = new CSimpleIni();
-    issue_ini->LoadData(issue_json["body"].as_string());
-    //other
-    auto default_branch = and_branch.empty() ? "main" : and_branch;
-    auto main_logo_url = std::string(issue_ini->GetValue("main", "logo_url", ""));
-    auto repo_name = std::string(issue_ini->GetValue("repo", "name", "unnamed_name"));
-    auto repo_owner = std::string(issue_ini->GetValue("repo", "owner", "unnamed_owner"));
-    auto file_url = not main_logo_url.empty() ? main_logo_url : fmt::format(
-        "https://raw.githubusercontent.com/{}/{}/{}/logo.png"
-        , repo_owner, repo_name, default_branch
-    );
-    if (not overwrite_endpoint.empty()) file_url = overwrite_endpoint;
-    log::debug("file_url = {}", file_url.data());
-    //expect
-    auto expect =
-        [issue_json, file_url](std::string const& what) {
-        log::error("{}", what);
-        if (string::contains(file_url, "logo.png"))
-            return downloadLogo(issue_json, string::replace(file_url, "logo.png", "pack.png"), "");
-        if (string::contains(file_url, "pack.png"))
-            return downloadLogo(issue_json, issue_json["user"]["avatar_url"].as_string(), "");
-        };
-    //then
-    auto then =
-        [issue_json, expect](std::monostate const& a) {
-        std::string str_badimg = "Bad image downloaded";
-        if (not CCSprite::create(mod_working_dir(issue_json, ".logo").data())) expect(str_badimg);
-        //CCMessageBox("asd", "ASD");
-        };
-    web::AsyncWebRequest().fetch(file_url).into(mod_working_dir(issue_json, ".logo")).then(then).expect(expect);
-}
 class ModLoadingLayer : public CCLayer {
 public:
     //data
@@ -1792,9 +1857,7 @@ public:
         /**/asd << "```\n";
         asd << json.dump();
         asd << "\n```";
-        auto pop = geode::MDPopup::create("Json data", asd.str(), "Yes");
-        public_cast(pop, m_closeBtn)->setVisible(0);
-        pop->show();
+        auto pop = createWideMDPopup("Json data", asd.str(), "Yes");
     }
     void onLabel(CCObject* sneder) {
         //node
@@ -1856,18 +1919,6 @@ public:
             360.f, nullptr, true
         );
     }
-    void updateLogo(float) {
-        if (this == nullptr) return;
-        auto item = reinterpret_cast<IssueItem*>(this->getParent());
-        auto logo = reinterpret_cast<CCSprite*>(this);
-        auto filep = mod_working_dir(item->json, ".logo");
-        auto exist = checkExistence(filep);
-        if (not exist) return;
-        auto logo_size = CCSize(40, 40);
-        logo->initWithFile(mod_working_dir(item->json, ".logo").c_str());
-        logo->setScale(logo_size.width / logo->getContentSize().width);
-        //logo->unschedule(schedule_selector(IssueItem::updateLogo));
-    }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
         auto pRtn = new IssueItem();
         if (pRtn->init()) {
@@ -1893,17 +1944,15 @@ public:
             auto sBottomRightCornerText = issue_ini->GetValue("main", "bottom_right_corner_text", issue_num.data());
             sBottomRightCornerText = std::string(sBottomRightCornerText).empty() ? issue_num.data() : sBottomRightCornerText;
             //logo
-            auto logo_size = CCSize(50, 50);
+            auto logo_size = CCSize(40, 40);
             {
-                //start downloading
-                downloadLogo(pJson, "", "");
                 //sprite
                 auto logo = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 logo->setID("logo");
-                logo->setPosition({ 30.f, 32.f });
-                logo->schedule(schedule_selector(IssueItem::updateLogo), 0.01f);
+                logo->setPosition({ 26.f, 30.f });
                 logo->setScale(logo_size.width / logo->getContentSize().width);
                 pRtn->addChild(logo, 11);
+                DownloadableLogoExt::attach(logo, logo_size, pRtn->json);
             }
             //right shit
             {
@@ -2071,6 +2120,7 @@ public:
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
+        if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
         if (what->getID() == "reload") downloadMods();
         if (what->getID() == "search")  {
             auto local_issues_file = ryzen_dir / "issues.json";
@@ -2086,8 +2136,15 @@ public:
             }
             else downloadMods();
         };
-        if (what->getID() == "add_link")  {
+        if (what->getID() == "add_mod_btn")  {
             web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
+        };
+        if (what->getID() == "filter_info")  {
+            createWideMDPopup(
+                "Filter Info",
+                read_file(Mod::get()->getTempDir() / "resources" / "filter_info.md"_spr),
+                "OK"
+            );
         };
     }
     std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
@@ -2181,28 +2238,29 @@ public:
         scroll->moveToTop();
     }
     void downloadMods() {
-        auto downloading_ntfy = geode::Notification::create("Downloading mods...", NotificationIcon::Loading, 15.f); 
-        downloading_ntfy->show();
+        auto loading_circle = LoadingCircle::create();
+        loading_circle->setID("loading_circle");
+        loading_circle->setParentLayer(this);
+        loading_circle->setFade(true);
+        loading_circle->show();
         web::AsyncWebRequest()
             ghapiauth
             .fetch("https://api.github.com/repos/user95401/Ryzen-Mods/issues")
             .json()
             .then(
-                [this, downloading_ntfy](matjson::Value const& catgirls) {
+                [this, loading_circle](matjson::Value const& catgirls) {
                     // do something with the catgirls :3
                     setupMods(catgirls);
                     auto local_issues_save = ryzen_dir / "issues.json";
                     ghc::filesystem::create_directories(local_issues_save.parent_path());
                     std::ofstream(local_issues_save.string().c_str()) << catgirls.dump();
-                    downloading_ntfy->setString("Mods downloaded!");
-                    downloading_ntfy->setIcon(NotificationIcon::Success);
-                    downloading_ntfy->setTime(1.0f);/**/
+                    loading_circle->fadeAndRemove();
                 }
             )
             .expect(
-                [this, downloading_ntfy](std::string const& error)
-                {// something went wrong with our web request Q~Q
-                    downloading_ntfy->hide();
+                [this, loading_circle](std::string const& error)
+                {
+                    loading_circle->fadeAndRemove();
                     auto message = error;
                     std::string* gofuckyourself;// = std::string("hatethisok");
                     auto json = matjson::parse(message, *gofuckyourself);
@@ -2245,24 +2303,34 @@ public:
                         (CCDirector::sharedDirector()->getWinSize().height / -2) + (reload->getContentHeight() / 2)
                         });
                     reload->getNormalImage()->setScale(0.7f);
-                    menu->addChild(reload);//add GJ_replayBtn_001
-                    //gj_findBtn
-                    auto gj_findBtn = CCMenuItemSpriteExtra::create(
-                        CCSprite::createWithSpriteFrameName("gj_findBtn_001.png"),
+                    menu->addChild(reload);
+                    //Ryzen_FilterBtn_001
+                    auto search = CCMenuItemSpriteExtra::create(
+                        CCSprite::create("Ryzen_FilterBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
-                    gj_findBtn->setID("search");
-                    gj_findBtn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
-                    menu->addChild(gj_findBtn);//add GJ_replayBtn_001
+                    search->setID("search");
+                    search->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
+                    menu->addChild(search);
+                    //filter_info
+                    auto filter_info = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"),
+                        rtn, menu_selector(IssuesListLayer::onBtn)
+                    );
+                    filter_info->getNormalImage()->setScale(0.5f);
+                    filter_info->setID("filter_info");
+                    filter_info->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
+                    filter_info->setPositionX(filter_info->getPositionX() - 3 + (search->getContentWidth() / 2));
+                    filter_info->setPositionY(filter_info->getPositionY() - 3 + (search->getContentHeight() / 2));
+                    menu->addChild(filter_info, 1);
                     //addmodbtn
-                    CCMenuItemSpriteExtra* GJ_plus3Btn_001 = CCMenuItemSpriteExtra::create(
-                        CCSprite::createWithSpriteFrameName("GJ_plus3Btn_001.png"),
+                    CCMenuItemSpriteExtra* add_mod_btn = CCMenuItemSpriteExtra::create(
+                        CCSprite::create("Ryzen_PlusBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
-                    GJ_plus3Btn_001->setID("add_link");
-                    GJ_plus3Btn_001->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
-                    GJ_plus3Btn_001->getNormalImage()->setScale(1.700f);
-                    menu->addChild(GJ_plus3Btn_001);//add GJ_replayBtn_001
+                    add_mod_btn->setID("add_mod_btn");
+                    add_mod_btn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
+                    menu->addChild(add_mod_btn);
                 };
                 //scroll
                 auto paddingx = 146.f;
