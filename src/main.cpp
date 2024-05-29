@@ -101,8 +101,10 @@ std::vector<std::string> explode(std::string separator, std::string input) {
 
 auto ryzen_dir = dirs::getGeodeDir() / "ryzen";
 auto mod_working_dir(matjson::Value issue_json, std::string file = "") {
-    auto dir = 
-        ryzen_dir / "mods" / fmt::format("{}[{}]", issue_json["number"].as_int(), issue_json["title"].as_string());
+    auto title = issue_json["title"].as_string();
+    title = std::regex_replace(title, std::regex("\\W"), "");
+    auto dir_name = fmt::format("{}[{}]", issue_json["number"].as_int(), title);
+    auto dir = ryzen_dir / "mods" / dir_name;
     ghc::filesystem::create_directories(dir);
     return (dir / file).string();
 }
@@ -317,6 +319,7 @@ struct DownloadableLogoExt {
     }
     static void downloadLogo(matjson::Value issue_json, std::string overwrite_endpoint, std::string and_branch) {
         if (not issue_json.contains("body")) return;
+        if (not issue_json["body"].is_string()) return;
         //ini values
         auto issue_ini = new CSimpleIni();
         issue_ini->LoadData(issue_json["body"].as_string());
@@ -1412,6 +1415,7 @@ public:
     }
     //a
     static auto create(matjson::Value IssueJson) {
+        if (not IssueJson["body"].is_string()) IssueJson["body"] = "BODY_PLACEHOLDER, why tf body can be null ever(((";
         auto rtn = new ModLoadingLayer;
         rtn->init();
         basicRznLayersInit(rtn, menu_selector(ModLoadingLayer::onBtn));
@@ -1936,11 +1940,12 @@ public:
         auto pop = createQuickPopup(
             "No Labels!", 
             "This <cg>issue item</c> <cr>has not</c> <cb>\"mod\"</c> or <co>\"pack\"</c> label!",
-            "Oh ok", nullptr, 
-            360.f, nullptr, true
+            "Oh ok", "LET ME IN",
+            360.f, [this](auto, bool btn2) {if (btn2) ModLoadingLayer::openMe(json); }, true
         );
     }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
+        if (not pJson["body"].is_string()) pJson["body"] = "BODY_PLACEHOLDER, why tf body can be null ever(((";
         auto pRtn = new IssueItem();
         if (pRtn->init()) {
             //json
@@ -2143,19 +2148,22 @@ public:
         if (what->getID() == "back") keyBackClicked();
         if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
         if (what->getID() == "reload") downloadMods();
+        if (what->getID() == "arrow_right") {
+            auto page = dynamic_cast<InputNode*>(this->getChildByIDRecursive("page"));
+            auto current = utils::numFromString<int>(page->getString()).value_or(1);
+            auto next = current + 1;
+            page->setString(fmt::to_string(next));
+            downloadMods();
+        }
+        if (what->getID() == "arrow_left") {
+            auto page = dynamic_cast<InputNode*>(this->getChildByIDRecursive("page"));
+            auto current = utils::numFromString<int>(page->getString()).value_or(1);
+            auto prev = current - 1;
+            page->setString(fmt::to_string(prev));
+            downloadMods();
+        }
+        if (what->getID() == "reload") downloadMods();
         if (what->getID() == "filter")  {
-            auto local_issues_file = ryzen_dir / "issues.json";
-            auto local_issues = std::ifstream(local_issues_file);
-            if (local_issues.is_open())
-            {
-                std::string line;
-                std::stringstream stream;
-                while (std::getline(local_issues, line)) {
-                    stream << line;
-                };
-                setupMods(matjson::parse(stream.str()));
-            }
-            else downloadMods();
         };
         if (what->getID() == "add_mod_btn")  {
             web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
@@ -2168,47 +2176,6 @@ public:
             );
         };
     }
-    std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
-        std::vector<matjson::Value> cutestcatgirls;
-        for (auto catgirl : catgirls.as_array()) {
-            bool skip = false;
-            if (auto input = dynamic_cast<CCTextInputNode*>(this->getChildByIDRecursive("input"))) {
-                auto filter_str = std::string(input->getString());
-                //filters
-                auto filters = explode("&", filter_str);
-                for (auto filter : filters) {
-                    if (catgirl.contains(explode(":", filter)[0])) {
-                        auto type = explode(":", filter)[0];
-                        auto val = filter.replace(filter.find(type), type.size() + 1, "");
-                        auto at = catgirl[type].dump();
-                        auto contians = string::containsAll(at, explode(",", val));
-                        if (not skip) skip = !contians;
-                        fmt::format(//log::debug(
-                            "containsAll(\nat \"{}\", \nval \"{}\"\n) = {}",
-                            at, val, contians
-                        );
-                    }
-                    else if (catgirl.contains(explode("~:", filter)[0])) {
-                        auto type = explode("~:", filter)[0];
-                        auto val = filter.replace(filter.find(type), type.size() + 2, "");
-                        auto at = catgirl[type].dump();
-                        auto contians = string::containsAny(at, explode(",", val));
-                        if (not skip) skip = !contians;
-                        fmt::format(//log::debug(
-                            "containsAny(\nat \"{}\", \nval \"{}\"\n) = {}",
-                            at, val, contians
-                        );
-                    }
-                    //any
-                    else if (not filter.empty()) {
-                        if (not skip) skip = catgirl.dump().find(filter) == std::string::npos;
-                    }
-                }
-            }
-            if (not skip) cutestcatgirls.push_back(catgirl);
-        }
-        return cutestcatgirls;
-    };
     void setupMods(matjson::Value catgirls) {
         if (not dynamic_cast<IssuesListLayer*>(this)) return;
         auto scroll = dynamic_cast<ScrollLayer*>(this->getChildByID("scroll"));
@@ -2216,8 +2183,7 @@ public:
         scroll->m_contentLayer->removeAllChildren();
         scroll->m_contentLayer->setContentHeight(0.f);
         auto index = 0;
-        auto cutestcatgirls = filterOutMods(catgirls);
-        for (auto catgirl : cutestcatgirls) {
+        for (auto catgirl : catgirls.as_array()) {
             //item add
             auto item = IssueItem::create(catgirl, scroll->m_contentLayer, scroll);
             //long down
@@ -2225,7 +2191,7 @@ public:
                 scroll->m_contentLayer->getContentHeight() + item->getContentHeight()
             );
             //add border if here next item will
-            if (cutestcatgirls.size() > index + 1) {
+            if (catgirls.as_array().size() > index + 1) {
                 CCScale9Sprite* border = CCScale9Sprite::createWithSpriteFrameName("floorLine_01_001.png");
                 scroll->m_contentLayer->addChild(border);
                 border->setContentWidth(scroll->getContentWidth());
@@ -2254,9 +2220,15 @@ public:
         loading_circle->setParentLayer(this);
         loading_circle->setFade(true);
         loading_circle->show();
+        auto input = dynamic_cast<CCTextInputNode*>(this->getChildByIDRecursive("input"));
+        auto page = dynamic_cast<InputNode*>(this->getChildByIDRecursive("page"));
+        auto urlapi = fmt::format(
+            "https://api.github.com/repos/user95401/Ryzen-Mods/issues?per_page=100&page={}&{}",
+            page->getString().data(), input->getString().data()
+        );
         web::AsyncWebRequest()
             ghapiauth
-            .fetch("https://api.github.com/repos/user95401/Ryzen-Mods/issues")
+            .fetch(urlapi)
             .json()
             .then(
                 [this, loading_circle](matjson::Value const& catgirls) {
@@ -2430,8 +2402,52 @@ public:
                         rtn->addChild(input);
                     }
                 }
+                //pages stuff
+                {
+                    //input label 
+                    auto label = CCLabelTTF::create("Page:", "arial", 16.f);
+                    label->CCNode::setPosition(36.f, 120.f);
+                    rtn->addChild(label);
+                    //InputNode
+                    auto page = InputNode::create(
+                        38,
+                        "int",
+                        "chatFont.fnt"
+                    );
+                    page->setString("1");
+                    page->getInput()->m_allowedChars = "0123456789";
+                    page->getInput()->setAllowedChars(page->getInput()->m_allowedChars);
+                    page->setID("page");
+                    page->setPosition(36.f, 90.f);
+                    rtn->addChild(page);
+                    //arrows
+                    CCMenu* arrows = CCMenu::create();
+                    arrows->setID("arrows");
+                    rtn->addChild(arrows);
+                    auto size = 1.5f;
+                    auto sizeMult = 3.f;
+                    CCMenuItemSpriteExtra* arrow_left = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("edit_leftBtn_001.png"),
+                        rtn,
+                        menu_selector(IssuesListLayer::onBtn)
+                    );
+                    arrow_left->setID("arrow_left");
+                    arrow_left->setSizeMult(sizeMult);
+                    arrow_left->getNormalImage()->setScale(size);
+                    arrows->addChild(arrow_left);
+                    CCMenuItemSpriteExtra* arrow_right = CCMenuItemSpriteExtra::create(
+                        CCSprite::createWithSpriteFrameName("edit_rightBtn_001.png"),
+                        rtn,
+                        menu_selector(IssuesListLayer::onBtn)
+                    );
+                    arrow_right->setID("arrow_right");
+                    arrow_right->setSizeMult(sizeMult);
+                    arrow_right->getNormalImage()->setScale(size);
+                    arrows->addChild(arrow_right);
+                    arrows->alignItemsHorizontallyWithPadding(rtn->getContentWidth() - 90.f);
+                }
             };
-            rtn->sendBtnFunc("filter");
+            rtn->downloadMods();
         }
         else {
             delete rtn;
@@ -2441,13 +2457,13 @@ public:
     }
     void openMe(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels:\"mod\"&");
+        auto pRyzenLayer = IssuesListLayer::create("labels=mod");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void openMeForPacks(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels:\"pack\"&");
+        auto pRyzenLayer = IssuesListLayer::create("labels=pack");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
