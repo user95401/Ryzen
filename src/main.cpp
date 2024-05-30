@@ -1200,15 +1200,17 @@ public:
     }
     //other shit
     void updateCustomDownloads() {
-        log::debug("start  {}", __FUNCTION__);
+        log::debug("{}", __FUNCTION__);
         //increment custom downloads
         auto letscountapi = fmt::format(
             "https://letscountapi.com/rzn_item_downloads/{}/increment",
             this->ISSUE_DATA()["number"].as_int()
         );
-        log::debug("{}.letscountapi={}", __FUNCTION__, letscountapi);
-        web::AsyncWebRequest().post(letscountapi);
-        log::debug("end of {}", __FUNCTION__);
+        CCHttpRequest* request = new CCHttpRequest;
+        request->setUrl(letscountapi.c_str());
+        request->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
+        CCHttpClient::getInstance()->send(request);
+        request->release(); 
     }
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCMenuItem*>(pCCObject);
@@ -1238,6 +1240,7 @@ public:
                 "Abort", "Start",
                 400.f,
                 [this, endpoint, path, what](auto, bool btn2) {
+                    if (not this) return;
                     if (not btn2) return;
                     auto downloadBtn = reinterpret_cast<ButtonSprite*>(this->getChildByIDRecursive("downloadBtn"));
                     if (not downloadBtn) return;
@@ -1734,7 +1737,7 @@ public:
         }
     }
     void loadCustom(CCHttpClient* client, CCHttpResponse* response) {
-        log(__FUNCTION__" for " + std::string(response->getHttpRequest()->getUrl()));
+        log(__FUNCTION__ + std::string(" for ") + std::string(response->getHttpRequest()->getUrl()));
         if (response->getResponseCode() != 200) 
             return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->getResponseCode(), response->getErrorBuffer()));
         //data
