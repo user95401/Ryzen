@@ -1,6 +1,3 @@
-
-## https://docs.github.com/ru/rest/issues/issues?apiVersion=2022-11-28#list-issues-assigned-to-the-authenticated-user
-
 # Filters... yea
 
 One by one filter key is separating by <cr>`&`</c>.

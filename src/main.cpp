@@ -85,6 +85,19 @@ std::vector<std::string> explode(std::string separator, std::string input) {
     log::debug("{}(separator \"{}\", input \"{}\").rtn({})", __FUNCTION__, separator, input, log.str());*/
     return vec;
 }
+std::string getValueFromHeader(std::string in, std::string for_key) {
+    log::debug("{}(in \"{}\", for_key \"{}\")", __FUNCTION__, in, for_key);
+    auto lines = explode("\n", in);
+    for (auto line : lines) {
+        log::debug("{}", line);
+        if (string::contains(line, ": ")) {
+            auto expl = explode(": ", line);
+            log::debug("expl: 0={}, 1={}", expl[0], expl[1]);
+            if (for_key == expl[0]) return expl[1];
+        };
+    }
+    return "";
+}
 #define public_cast(value, member) [](auto* v) { \
 	class FriendClass__; \
 	using T = std::remove_pointer<decltype(v)>::type; \
@@ -1051,7 +1064,7 @@ public:
                         parent->addChild(item);
                     }
                     //statsContainerMenu
-                    if (DATA()["size"].as_int() != 0) {
+                    {
                         CCMenu* statsContainerMenu = CCMenu::create();
                         parent->addChild(statsContainerMenu);
                         statsContainerMenu->setID("statsContainerMenu");
@@ -1073,7 +1086,7 @@ public:
                             download_count->setScale(0.65f);
                             download_count->addChild(CCSprite::createWithSpriteFrameName("GJ_sDownloadIcon_001.png"), 0, 521);
                             download_count->getChildByTag(521)->setAnchorPoint({ 1.0f, 0.0f });
-                            statsContainerMenu->addChild(download_count);
+                            if (DATA()["downloads"].as_int() != 0) statsContainerMenu->addChild(download_count);
                         }
                         /*size*/ {
                             auto size = CCLabelTTF::create(
@@ -1081,13 +1094,13 @@ public:
                                 "arial",
                                 12.f
                             );
-                            statsContainerMenu->addChild(size);
                             size->setID("size");
                             size->setAnchorPoint({ 0.f, 0.5f });
                             size->setScale(0.65f);
                             size->addChild(CCSprite::createWithSpriteFrameName("geode.loader/changelog.png"), 0, 521);
                             size->getChildByTag(521)->setAnchorPoint({ 1.10f, 0.0f });
                             size->getChildByTag(521)->setScale(0.6f);
+                            if (DATA()["size"].as_int() != 0) statsContainerMenu->addChild(size);
                         };
                         statsContainerMenu->updateLayout();
                     }
@@ -1186,6 +1199,17 @@ public:
         return DATA()[asd.data()].as_string();
     }
     //other shit
+    void updateCustomDownloads() {
+        log::debug("start  {}", __FUNCTION__);
+        //increment custom downloads
+        auto letscountapi = fmt::format(
+            "https://letscountapi.com/rzn_item_downloads/{}/increment",
+            this->ISSUE_DATA()["number"].as_int()
+        );
+        log::debug("{}.letscountapi={}", __FUNCTION__, letscountapi);
+        web::AsyncWebRequest().post(letscountapi);
+        log::debug("end of {}", __FUNCTION__);
+    }
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCMenuItem*>(pCCObject);
         if (not what) return;
@@ -1216,7 +1240,8 @@ public:
                 [this, endpoint, path, what](auto, bool btn2) {
                     if (not btn2) return;
                     auto downloadBtn = reinterpret_cast<ButtonSprite*>(this->getChildByIDRecursive("downloadBtn"));
-                    if (not downloadBtn) return; 
+                    if (not downloadBtn) return;
+                    updateCustomDownloads();
                     auto loading_circle = LoadingCircle::create();
                     loading_circle->setID("loading_circle");
                     loading_circle->setParentLayer(this);
@@ -1708,6 +1733,174 @@ public:
             setViewLayerInIt(json);
         }
     }
+    void loadCustom(CCHttpClient* client, CCHttpResponse* response) {
+        log(__FUNCTION__" for " + std::string(response->getHttpRequest()->getUrl()));
+        if (response->getResponseCode() != 200) 
+            return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->getResponseCode(), response->getErrorBuffer()));
+        //data
+        auto url = std::string(response->getHttpRequest()->getUrl());
+        std::string str_header(response->getResponseHeader()->begin(), response->getResponseHeader()->end());
+        str_header.replace(0, str_header.find("200 OK"), "");
+        //json
+        auto json = matjson::parse({
+            "{                                          \
+                    \"workindir\": \"\",                \
+                    \"title\": \"\",                    \
+                    \"devs\": \"\",                     \
+                    \"desc\": \"\",                     \
+                    \"size\": 0,                        \
+                    \"downloads\": 0,                   \
+                    \"body_base64\": \"\",              \
+                    \"issue_json_base64\": \"\",        \
+                    \"download_link\": \"\",            \
+                    \"download_path\": \"\",            \
+                    \"github_page_link\": \"\"          \
+                }"
+            }
+        );
+        /*workindir*/ {
+            auto val = "workindir";
+            std::string set_to = working_dir().string();
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*title*/ {
+            auto val = "title";
+            std::string set_to = getJsonData(issue)["title"].as_string();
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*devs*/ {
+            auto val = "devs";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "publisher", "");
+            if (std::string(set_to).empty()) set_to = fmt::format(
+                "{} [{}]",
+                getJsonData(issue)["user"]["login"].as_string(),
+                getJsonData(issue)["user"]["id"].as_int()
+            ).data();
+            set_to = ("By: " + std::string(set_to));
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*desc*/ {
+            auto val = "desc";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*body_base64*/ {
+            auto val = "body_base64";
+            std::string set_to = fmt::format(
+                "# {}\n{}",
+                json["title"].as_string(),
+                json["desc"].as_string()
+            );
+            auto issue_body = std::string(getData(issue_body_ini));
+            if (issue_body.find("body:") != std::string::npos) {
+                //pointas
+                auto start = issue_body.find("body:") + 7;
+                auto end = issue_body.find("^^^");
+                if (end == std::string::npos) end = issue_body.size();
+                //a
+                std::string substring = issue_body.substr(start, end - start);
+                set_to = substring;
+            }
+            set_to = ZipUtils::base64URLEncode(set_to);
+            json[val] = matjson::Value(std::string(set_to.data()).c_str());
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*issue_json_base64*/ {
+            auto val = "issue_json_base64";
+            std::string set_to = getData(data::issue);
+            set_to = ZipUtils::base64URLEncode(set_to);
+            json[val] = matjson::Value(std::string(set_to.data()).c_str());
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*size*/ {
+            auto size = utils::numFromString<int>(getValueFromHeader(str_header, "Content-Length"));
+            if (size.has_value()) {
+                auto val = "size";
+                auto set_to = size.value();
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+        }
+        /*download_link*/ {
+            auto val = "download_link";
+            std::string set_to = url;
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*download_path*/ {
+            auto val = "download_path";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
+            set_to = string::replace(set_to, "..", "");
+            if (std::string(set_to).empty()) {//so generate one
+                auto download_link = json["download_link"].as_string();
+                if (not download_link.empty()) {
+                    download_link = explode("?", download_link)[0];
+                    auto filename = ghc::filesystem::path(download_link).filename().string();
+                    auto geode = dirs::getGeodeDir().string();
+                    if (string::contains(filename, ".geode"))
+                        set_to = geode + std::string("/mods/") + filename;
+                    if (string::containsAny(filename, { ".dll", ".so" }))
+                        set_to = geode + std::string("/ryzen/loadit/") + filename;
+                    if (string::containsAny(filename, { ".zip" }))
+                        set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
+                }
+            }
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*github_page_link*/ {
+            auto val = "github_page_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            if (set_to.empty()) {
+                set_to = getJsonData(issue)["html_url"].as_string();
+            }
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        //FINISH and get downloads
+        auto temp_json_data = json.dump();
+        auto then = [this, temp_json_data](const matjson::Value& rtn_json) {
+            auto json = matjson::parse(temp_json_data);
+            //downloads
+            int current_value = 0;
+            if (rtn_json.contains("current_value")) current_value = rtn_json["current_value"].as_int();
+            json["downloads"] = current_value;
+            //finish
+            log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
+            log(json.dump());
+            std::ofstream(working_dir("main.json")) << json.dump();
+            //open view lay
+            setViewLayerInIt(json);
+        };
+        auto expect = [this, temp_json_data](std::string const& error) {
+            //use generated temp asd
+            auto json = matjson::parse(temp_json_data);
+            log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
+            log(json.dump());
+            std::ofstream(working_dir("main.json")) << json.dump();
+            setViewLayerInIt(json);
+            //popup
+            auto message = error;
+            auto asd = geode::createQuickPopup(
+                "Request exception",
+                message,
+                "Nah", nullptr, 420.f, nullptr, false
+            );
+            asd->m_scene = CCDirector::get()->m_pNextScene;
+            asd->show();
+        };
+        auto letscountapi = fmt::format("https://letscountapi.com/rzn_item_downloads/{}", getJsonData(issue)["number"]);
+        web::AsyncWebRequest().
+            contentType("application/json").
+            bodyRaw("{\"current_value\": 0}").
+            post(letscountapi).
+            json().
+            then(then).expect(expect);
+    }
     void load(matjson::Value IssueJson) {
         if (checkExistence(working_dir("main.json"))) return;
         CSimpleIni* main = new CSimpleIni;
@@ -1721,128 +1914,20 @@ public:
         }
         else {
             log("# \"custom\" type... setting stuff now");
-            //jsonsetup
-            auto json = matjson::parse(
-                "{                                  \
-                    \"workindir\": \"\",            \
-                    \"title\": \"\",                \
-                    \"devs\": \"\",                 \
-                    \"desc\": \"\",                 \
-                    \"size\": 0,                    \
-                    \"downloads\": 0,               \
-                    \"body_base64\": \"\",          \
-                    \"issue_json_base64\": \"\",    \
-                    \"download_link\": \"\",        \
-                    \"download_path\": \"\",        \
-                    \"github_page_link\": \"\"      \
-                }"
-            );
-            /*workindir*/ {
-                auto val = "workindir";
-                std::string set_to = working_dir().string();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*title*/ {
-                auto val = "title";
-                std::string set_to = getJsonData(issue)["title"].as_string();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*devs*/ {
-                auto val = "devs";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "publisher", "");
-                if (std::string(set_to).empty()) set_to = fmt::format(
-                    "{} [{}]",
-                    getJsonData(issue)["user"]["login"].as_string(),
-                    getJsonData(issue)["user"]["id"].as_int()
-                ).data();
-                set_to = ("By: " + std::string(set_to));
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*desc*/ {
-                auto val = "desc";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*body_base64*/ {
-                auto val = "body_base64";
-                std::string set_to = fmt::format(
-                    "# {}\n{}",
-                    json["title"].as_string(),
-                    json["desc"].as_string()
-                );
-                auto issue_body = std::string(getData(issue_body_ini));
-                if (issue_body.find("body:") != std::string::npos) {
-                    //pointas
-                    auto start = issue_body.find("body:") + 7;
-                    auto end = issue_body.find("^^^");
-                    if(end == std::string::npos) end = issue_body.size();
-                    //a
-                    std::string substring = issue_body.substr(start, end - start);
-                    set_to = substring;
-                }
-                set_to = ZipUtils::base64URLEncode(set_to);
-                json[val] = matjson::Value(std::string(set_to.data()).c_str());
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*issue_json_base64*/ {
-                auto val = "issue_json_base64";
-                std::string set_to = getData(data::issue);
-                set_to = ZipUtils::base64URLEncode(set_to);
-                json[val] = matjson::Value(std::string(set_to.data()).c_str());
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*download_link*/ {
-                auto val = "download_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_link", "");
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*download_path*/ {
-                auto val = "download_path";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
-                set_to = string::replace(set_to, "..", "");
-                if (std::string(set_to).empty()) {//so generate one
-                    auto download_link = json["download_link"].as_string();
-                    if (not download_link.empty()) {
-                        download_link = explode("?", download_link)[0];
-                        auto filename = ghc::filesystem::path(download_link).filename().string();
-                        auto geode = dirs::getGeodeDir().string();
-                        if (string::contains(filename, ".geode"))
-                            set_to = geode + std::string("/mods/") + filename;
-                        if (string::containsAny(filename, { ".dll", ".so" }))
-                            set_to = geode + std::string("/ryzen/loadit/") + filename;
-                        if (string::containsAny(filename, { ".zip" }))
-                            set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
-                    }
-                }
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*github_page_link*/ {
-                auto val = "github_page_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-                if (set_to.empty()) {
-                    set_to = getJsonData(issue)["html_url"].as_string();
-                }
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
-            log(json.dump());
-            std::ofstream(working_dir("main.json")) << json.dump();
-            //open view lay
-            setViewLayerInIt(json);
+            CCHttpRequest* request = new CCHttpRequest;
+            request->setTag("asd");
+            request->setUrl(getIniData(issue_body_ini)->GetValue("main", "download_link", ""));
+            request->setRequestType(CCHttpRequest::HttpRequestType::kHttpUnkown);
+            request->setResponseCallback(this, httpresponse_selector(ModLoadingLayer::loadCustom));
+            CCHttpClient::getInstance()->send(request);
+            request->release();
         }
     }
     void log(std::string str = "", std::string endl = "\n\n") {
         log::debug("{}", str);
         auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByID("pMDTextArea"));
         pMDTextArea->setString((pMDTextArea->getString() + str + endl).data());
-        pMDTextArea->getScrollLayer()->scrollLayer(pMDTextArea->getScrollLayer()->getContentHeight() * 2);
+        pMDTextArea->getScrollLayer()->scrollLayer(99999.f);
     }
     void setViewLayerInIt(matjson::Value data) {
         auto parent = this->getParent();
@@ -2152,18 +2237,46 @@ public:
             auto page = dynamic_cast<InputNode*>(this->getChildByIDRecursive("page"));
             auto current = utils::numFromString<int>(page->getString()).value_or(1);
             auto next = current + 1;
-            page->setString(fmt::to_string(next));
+            auto page_str = utils::numToString(next);
+            page->setString(page_str);
+            Mod::get()->setSavedValue<std::string>("page", page_str);
             downloadMods();
         }
         if (what->getID() == "arrow_left") {
             auto page = dynamic_cast<InputNode*>(this->getChildByIDRecursive("page"));
             auto current = utils::numFromString<int>(page->getString()).value_or(1);
             auto prev = current - 1;
-            page->setString(fmt::to_string(prev));
+            prev = prev < 1 ? 1 : prev;
+            auto page_str = utils::numToString(prev);
+            page->setString(page_str);
+            Mod::get()->setSavedValue<std::string>("page", page_str);
+            downloadMods();
+        }
+        if (what->getID() == "switch_sort") {
+            auto sort = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("sort"));
+            auto str_sort = std::string(sort->getString());
+            //Can be one of: created, updated, comments
+            if (str_sort == "created") str_sort = "updated";
+            else if (str_sort == "updated") str_sort = "comments";
+            else if (str_sort == "comments") str_sort = "created";
+            Mod::get()->setSavedValue<std::string>("sort", str_sort);
+            sort->setString(str_sort.c_str());
             downloadMods();
         }
         if (what->getID() == "reload") downloadMods();
         if (what->getID() == "filter")  {
+            auto local_issues_file = ryzen_dir / "issues.json";
+            auto local_issues = std::ifstream(local_issues_file);
+            if (local_issues.is_open())
+            {
+                std::string line;
+                std::stringstream stream;
+                while (std::getline(local_issues, line)) {
+                    stream << line;
+                };
+                setupMods(matjson::parse(stream.str()));
+            }
+            else downloadMods();
         };
         if (what->getID() == "add_mod_btn")  {
             web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
@@ -2174,8 +2287,50 @@ public:
                 read_file(Mod::get()->getTempDir() / "resources" / "filter_info.md"_spr),
                 "OK"
             );
+
         };
     }
+    std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
+        std::vector<matjson::Value> cutestcatgirls;
+        for (auto catgirl : catgirls.as_array()) {
+            bool skip = false;
+            if (auto input = dynamic_cast<CCTextInputNode*>(this->getChildByIDRecursive("input"))) {
+                auto filter_str = std::string(input->getString());
+                //filters
+                auto filters = explode("&", filter_str);
+                for (auto filter : filters) {
+                    if (catgirl.contains(explode(":", filter)[0])) {
+                        auto type = explode(":", filter)[0];
+                        auto val = filter.replace(filter.find(type), type.size() + 1, "");
+                        auto at = catgirl[type].dump();
+                        auto contians = string::containsAll(at, explode(",", val));
+                        if (not skip) skip = !contians;
+                        fmt::format(//log::debug(
+                            "containsAll(\nat \"{}\", \nval \"{}\"\n) = {}",
+                            at, val, contians
+                        );
+                    }
+                    else if (catgirl.contains(explode("~:", filter)[0])) {
+                        auto type = explode("~:", filter)[0];
+                        auto val = filter.replace(filter.find(type), type.size() + 2, "");
+                        auto at = catgirl[type].dump();
+                        auto contians = string::containsAny(at, explode(",", val));
+                        if (not skip) skip = !contians;
+                        fmt::format(//log::debug(
+                            "containsAny(\nat \"{}\", \nval \"{}\"\n) = {}",
+                            at, val, contians
+                        );
+                    }
+                    //any
+                    else if (not filter.empty()) {
+                        if (not skip) skip = catgirl.dump().find(filter) == std::string::npos;
+                    }
+                }
+            }
+            if (not skip) cutestcatgirls.push_back(catgirl);
+        }
+        return cutestcatgirls;
+    };
     void setupMods(matjson::Value catgirls) {
         if (not dynamic_cast<IssuesListLayer*>(this)) return;
         auto scroll = dynamic_cast<ScrollLayer*>(this->getChildByID("scroll"));
@@ -2183,7 +2338,8 @@ public:
         scroll->m_contentLayer->removeAllChildren();
         scroll->m_contentLayer->setContentHeight(0.f);
         auto index = 0;
-        for (auto catgirl : catgirls.as_array()) {
+        auto cutestcatgirls = filterOutMods(catgirls);
+        for (auto catgirl : cutestcatgirls) {
             //item add
             auto item = IssueItem::create(catgirl, scroll->m_contentLayer, scroll);
             //long down
@@ -2191,7 +2347,7 @@ public:
                 scroll->m_contentLayer->getContentHeight() + item->getContentHeight()
             );
             //add border if here next item will
-            if (catgirls.as_array().size() > index + 1) {
+            if (cutestcatgirls.size() > index + 1) {
                 CCScale9Sprite* border = CCScale9Sprite::createWithSpriteFrameName("floorLine_01_001.png");
                 scroll->m_contentLayer->addChild(border);
                 border->setContentWidth(scroll->getContentWidth());
@@ -2220,11 +2376,13 @@ public:
         loading_circle->setParentLayer(this);
         loading_circle->setFade(true);
         loading_circle->show();
-        auto input = dynamic_cast<CCTextInputNode*>(this->getChildByIDRecursive("input"));
+        auto per_page = Mod::get()->getSettingValue<int64_t>("per_page");
+        auto issues_repo = Mod::get()->getSettingValue<std::string>("issues_repo");
         auto page = dynamic_cast<InputNode*>(this->getChildByIDRecursive("page"));
+        auto sort = dynamic_cast<CCLabelTTF*>(this->getChildByIDRecursive("sort"));
         auto urlapi = fmt::format(
-            "https://api.github.com/repos/user95401/Ryzen-Mods/issues?per_page=100&page={}&{}",
-            page->getString().data(), input->getString().data()
+            "https://api.github.com/repos/{}/issues?per_page={}&page={}&sort={}&",
+            issues_repo, per_page, page->getString().data(), sort->getString()
         );
         web::AsyncWebRequest()
             ghapiauth
@@ -2409,12 +2567,15 @@ public:
                     label->CCNode::setPosition(36.f, 120.f);
                     rtn->addChild(label);
                     //InputNode
+                    auto page_sv = Mod::get()->getSavedValue<std::string>("page");
+                    page_sv = page_sv.empty() ? "1" : page_sv;
+                    Mod::get()->setSavedValue<std::string>("page", page_sv);
                     auto page = InputNode::create(
                         38,
                         "int",
                         "chatFont.fnt"
                     );
-                    page->setString("1");
+                    page->setString(page_sv.c_str());
                     page->getInput()->m_allowedChars = "0123456789";
                     page->getInput()->setAllowedChars(page->getInput()->m_allowedChars);
                     page->setID("page");
@@ -2446,8 +2607,42 @@ public:
                     arrows->addChild(arrow_right);
                     arrows->alignItemsHorizontallyWithPadding(rtn->getContentWidth() - 90.f);
                 }
+                //sort stuff
+                {
+                    auto menu = CCMenu::create();
+                    rtn->addChild(menu);
+                    menu->CCNode::setPosition(rtn->getContentWidth() - 36, 90.f);
+                    //label 
+                    auto label = CCLabelTTF::create("Sort:", "arial", 16.f);
+                    label->CCNode::setPosition(0.f, 30.f);
+                    menu->addChild(label);
+                    //btn
+                    auto sort_sv = Mod::get()->getSavedValue<std::string>("sort");
+                    sort_sv = sort_sv.empty() ? "created" : sort_sv;
+                    Mod::get()->setSavedValue<std::string>("sort", sort_sv);
+                    auto sort = CCLabelTTF::create(
+                        sort_sv.c_str(),
+                        "arial", 10.f
+                    );
+                    sort->setID("sort");
+                    auto item = CCMenuItemSpriteExtra::create(
+                        sort,
+                        rtn,
+                        menu_selector(IssuesListLayer::onBtn)
+                    );
+                    item->setID("switch_sort");
+                    item->m_colorEnabled = 1;
+                    item->m_animationEnabled = 0;
+                    item->setSizeMult(3.f);
+                    menu->addChild(item);
+                    //bg
+                    auto bg = CCScale9Sprite::create("square02_small.png");
+                    bg->setOpacity(75);
+                    bg->setContentSize(sort->getContentSize() + CCSize(16.f, 16.f));
+                    menu->addChild(bg, -2);
+                }
             };
-            rtn->downloadMods();
+            rtn->sendBtnFunc("filter");
         }
         else {
             delete rtn;
@@ -2457,13 +2652,13 @@ public:
     }
     void openMe(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels=mod");
+        auto pRyzenLayer = IssuesListLayer::create("labels:\"mod\"&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void openMeForPacks(cocos2d::CCObject* object) {
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels=pack");
+        auto pRyzenLayer = IssuesListLayer::create("labels:\"pack\"&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
@@ -2475,8 +2670,8 @@ public:
 
 void ModListLayer::tryCustomSetup(float) {
     if (!this) return;
+    if (!dynamic_cast<CCMenu*>(m_topMenu)) return;
     lastCreatedOne = this;
-    //if (this->m_menu) this->m_menu->setRotation(12.f);
     //RyzenLayerBtn
     auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
         CCSprite::create("Ryzen_LogoBtn_001.png"_spr),
@@ -2484,7 +2679,7 @@ void ModListLayer::tryCustomSetup(float) {
     );
     RyzenLayerBtn->getNormalImage()->setScale(0.6f);
     RyzenLayerBtn->setPosition(-210.f, -33.f);
-    this->m_topMenu->addChild(RyzenLayerBtn, 999, 5819);
+    m_topMenu->addChild(RyzenLayerBtn, 999, 5819);
 }
 void PackSelectLayer::tryCustomSetup(float) {
     if (!this) return;

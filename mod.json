@@ -3,15 +3,37 @@
 	"gd": "*",
 	"version": "v0.0.0",
 	"id": "user95401.ryzen",
-	"name": "Ryzen",
+	"name": "Ryzen | Mods & Resource Packs",
 	"developer": "user95401",
 	"description": "Brings a standalone catalog for any mods and resource packs.",
 	"repository": "https://github.com/user95401/Ryzen",
 	"early-load": true,
+	"dependencies": [
+		{
+			"id": "geode.texture-loader",
+			"version": ">=v1.4.0",
+			"importance": "recommended"
+		},
+		{
+			"id": "alphalaneous.ezclipboard",
+			"version": ">=v1.0.1",
+			"importance": "suggested"
+		}
+	],
 	"resources": {
 		"files": [ "files/*" ],
 		"sprites": [ "sprites/*.png", "*.png" ]
 	},
 	"settings": {
+		"issues_repo": {
+			"name": "Issues repo",
+			"type": "string",
+			"default": "user95401/Ryzen-Mods"
+		},
+		"per_page": {
+			"name": "Items per page",
+			"type": "int",
+			"default": 50
+		}
 	}
 }

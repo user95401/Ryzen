@@ -9,7 +9,9 @@ Brings a standalone catalog for any mods and resource packs.
 
 <cr>
 WARN: due to post-moderation (instant publishing) there may be posted malware for sometimes, check the download links carefully. 
-Also it's better to download verified mods only (they was checked).
+</c>
+<co>
+Also it's better to download <cg>verified</c> mods only <cy>(they was checked)</c>.
 </c>
 
 Menu music [Fishbone](https://youtu.be/5FWaeYwHZb4) by [WhiteNoiseBlackVoid](https://www.deviantart.com/whitenoiseblackvoid/about#about), `p` Ill-Advised Records
