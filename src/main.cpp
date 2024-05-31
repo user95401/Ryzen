@@ -86,13 +86,13 @@ std::vector<std::string> explode(std::string separator, std::string input) {
     return vec;
 }
 std::string getValueFromHeader(std::string in, std::string for_key) {
-    log::debug("{}(in \"{}\", for_key \"{}\")", __FUNCTION__, in, for_key);
+    //log::debug("{}(in \"{}\", for_key \"{}\")", __FUNCTION__, in, for_key);
     auto lines = explode("\n", in);
     for (auto line : lines) {
-        log::debug("{}", line);
+        //log::debug("{}", line);
         if (string::contains(line, ": ")) {
             auto expl = explode(": ", line);
-            log::debug("expl: 0={}, 1={}", expl[0], expl[1]);
+            //log::debug("expl: 0={}, 1={}", expl[0], expl[1]);
             if (for_key == expl[0]) return expl[1];
         };
     }
@@ -112,7 +112,8 @@ std::string getValueFromHeader(std::string in, std::string for_key) {
 	return c.get(reinterpret_cast<FriendeeClass__*>(v)); \
 }(value)
 
-auto ryzen_dir = dirs::getGeodeDir() / "ryzen";
+auto ryzen_game_dir = dirs::getGeodeDir() / "ryzen";
+auto ryzen_dir = Mod::get()->getSaveDir();
 auto mod_working_dir(matjson::Value issue_json, std::string file = "") {
     auto title = issue_json["title"].as_string();
     title = std::regex_replace(title, std::regex("\\W"), "");
@@ -194,7 +195,12 @@ public:
                     return;
                 }
                 set_ghc(catgirl["access_token"].as_string());
-                Notification::create("Access token saved")->show();
+                auto asd = geode::createQuickPopup(
+                    "Access token saved!",
+                    "Saved in: \n" + ghc_file.string(),
+                    "OK", nullptr,
+                    nullptr
+                );
                 };
             auto b = [this](std::string const& error)
                 {// something went wrong with our web request Q~Q
@@ -291,6 +297,24 @@ public:
     }
 };
 
+class BasicCCHttpReqCallback : public CCNode {
+public:
+    auto onResponse(CCHttpClient* client, CCHttpResponse* response) {
+        if (response->getResponseCode() != 200)
+            return log::error(
+                "request was failed with code \"{}\" (200 must be...), error buffer: \"{}\", url: \"{}\"",
+                response->getResponseCode(), 
+                response->getErrorBuffer(),
+                response->getHttpRequest()->getUrl()
+            );
+        log::info(
+            "{} with code \"{}\" for \"{}\"",
+            __FUNCTION__,
+            response->getResponseCode(),
+            response->getHttpRequest()->getUrl()
+        );
+    }
+};
 struct DownloadableLogoExt {
     void schedule(float) {
         if (this == nullptr) return;
@@ -397,6 +421,7 @@ public:
     ScrollLayer* m_appliedList = nullptr;
     static inline PackSelectLayer* lastCreatedOne;
     void reloadList() {
+        if (this == nullptr) return;
         if (auto menu = cocos::getChildOfType<CCMenu>(this, 0))
             if (auto btn = cocos::getChildOfType<CCMenuItemSpriteExtra>(menu, 3))
                 btn->activate();
@@ -429,7 +454,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
         backgroundSprite->setAnchorPoint({ 0, 0 });
         backgroundSprite->setColor({ 120, 120, 130 });
-        rtn->addChild(backgroundSprite, -2);
+        rtn->addChild(backgroundSprite, -10);
         /*SquareShadowCorners*/ {
             auto scale = 1.f;
             auto opacity = 160;
@@ -439,7 +464,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
             SquareShadowCorner1->setOpacity(opacity);
             SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
             SquareShadowCorner1->setAnchorPoint({ 0, 0 });
-            rtn->addChild(SquareShadowCorner1, -1);
+            rtn->addChild(SquareShadowCorner1, -9);
             //SquareShadowCorner2
             CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
             SquareShadowCorner2->setScaleX(-scale);
@@ -447,7 +472,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
             SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
             SquareShadowCorner2->setAnchorPoint({ 0, 0 });
             SquareShadowCorner2->setPositionX(CCDirector::sharedDirector()->getScreenRight());
-            rtn->addChild(SquareShadowCorner2, -1);
+            rtn->addChild(SquareShadowCorner2, -9);
         };
         /*gauntletCorners*/ {
             //gauntletCorner_001
@@ -963,6 +988,46 @@ public:
         return rtn;
     }
     void customSetup() {
+        /* custom bg */ {
+            auto bg_filep = mod_working_dir(ISSUE_DATA(), ".bg");
+            auto custom_bg_link = strKeyOfdata("custom_bg_link");
+            auto then = [this, bg_filep](std::monostate some_shit) {
+                if (this == nullptr) return;
+                auto sprite = CCSprite::create(bg_filep.c_str());
+                if (auto child = this->getChildByTag(768921)) {
+                    child->removeFromParent();
+                }
+                if (sprite != nullptr) {
+                    CCTextureCache::sharedTextureCache()->reloadTexture(bg_filep.c_str());
+                    sprite->setAnchorPoint(CCPointZero);
+                    sprite->setScaleX(this->getContentWidth() / sprite->getContentWidth());
+                    sprite->setScaleY(this->getContentHeight() / sprite->getContentHeight());
+                    this->addChild(sprite, -2, 768921);
+                }
+            };
+            then(std::monostate());
+            web::AsyncWebRequest().fetch(custom_bg_link).into(bg_filep).then(then);
+        }
+        /* overlay */ {
+            auto overlay_filep = mod_working_dir(ISSUE_DATA(), ".overlay");
+            auto custom_bg_link = strKeyOfdata("overlay_link");
+            auto then = [this, overlay_filep](std::monostate some_shit) {
+                if (this == nullptr) return;
+                auto sprite = CCSprite::create(overlay_filep.c_str());
+                if (auto child = this->getChildByTag(57198)) {
+                    child->removeFromParent();
+                }
+                if (sprite != nullptr) {
+                    CCTextureCache::sharedTextureCache()->reloadTexture(overlay_filep.c_str());
+                    sprite->setAnchorPoint(CCPointZero);
+                    sprite->setScaleX(this->getContentWidth() / sprite->getContentWidth());
+                    sprite->setScaleY(this->getContentHeight() / sprite->getContentHeight());
+                    this->addChild(sprite, 10, 57198);
+                }
+            };
+            then(std::monostate());
+            web::AsyncWebRequest().fetch(custom_bg_link).into(overlay_filep).then(then);
+        }
         /* top center card */ {
             auto menu = CCMenu::create();
             menu->setID("card");
@@ -1206,9 +1271,11 @@ public:
             "https://letscountapi.com/rzn_item_downloads/{}/increment",
             this->ISSUE_DATA()["number"].as_int()
         );
+        //web::fetch(letscountapi); why all web ns shit is crashing game with that link
         CCHttpRequest* request = new CCHttpRequest;
         request->setUrl(letscountapi.c_str());
         request->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
+        request->setResponseCallback(this, httpresponse_selector(BasicCCHttpReqCallback::onResponse));
         CCHttpClient::getInstance()->send(request);
         request->release(); 
     }
@@ -1252,7 +1319,9 @@ public:
                     loading_circle->show();
                     web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
                         .then(
-                            [this, downloadBtn, path](std::monostate const& who) {
+                            [this, downloadBtn, loading_circle, path](std::monostate const& who) {
+                                if (downloadBtn == nullptr) return;
+                                if (loading_circle) loading_circle->fadeAndRemove();
                                 downloadBtn->m_label->setString("Update");
                                 downloadBtn->m_label->setScale(
                                     (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
@@ -1263,9 +1332,10 @@ public:
                                         "Pack Downloaded",
                                         "You can go back to packs select menu and apply it...",
                                         "OK", nullptr,
-                                        nullptr
+                                        [](auto, auto) {
+                                            PackSelectLayer::lastCreatedOne->reloadList();
+                                        }
                                     );
-                                    if (PackSelectLayer::lastCreatedOne) PackSelectLayer::lastCreatedOne->reloadList();
                                 }
                                 else {
                                     FLAlertLayer* asd = geode::createQuickPopup(
@@ -1281,9 +1351,11 @@ public:
                         //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
                                 .progress(
                                     [downloadBtn, loading_circle](auto, double d1, double d2) {
+                                        //return;
                                         if (d1 <= 0) return;
                                         if (d2 <= 0) return;
-                                        loading_circle->removeFromParent();
+                                        if (downloadBtn == nullptr) return;
+                                        if (loading_circle) loading_circle->setVisible(0);
                                         downloadBtn->m_label->setString(
                                             fmt::format(
                                                 "{} of {}",
@@ -1352,20 +1424,22 @@ public:
             //remove
             if (ghc::filesystem::remove(path))
                 log::warn("removed file at {}", path.string());
-            //reload
-            what->setID("reload");
-            what->activate();
             //reload popup
             if (string::contains(path.string(), "geode.texture-loader")) {
                 FLAlertLayer* asd = geode::createQuickPopup(
                     "Pack deleted",
                     "Reload resources?",
                     "Later", "Yes",
-                    [path](auto, bool btn2) {
+                    [path, what](auto, bool btn2) {
                         if (btn2) {
                             CCTextureCache::get()->removeAllTextures();
                             CCSpriteFrameCache::get()->removeSpriteFrames();
                             GameManager::get()->reloadAll(0, 0, 0);
+                        }
+                        else {
+                            //reload
+                            what->setID("reload");
+                            what->activate();
                         }
                     },
                     false
@@ -1378,8 +1452,13 @@ public:
                     "Restart Game?",
                     "To take effect",
                     "Later", "Yes",
-                    [](auto, bool btn2) {
+                    [what](auto, bool btn2) {
                         if (btn2) utils::game::restart();
+                        else {
+                            //reload
+                            what->setID("reload");
+                            what->activate();
+                        }
                     },
                     false
                 );
@@ -1387,7 +1466,6 @@ public:
                 asd->show();
             }
             //ntfy
-            Notification::create(strKeyOfdata("title") + " got deleted!")->show();
             if (PackSelectLayer::lastCreatedOne) PackSelectLayer::lastCreatedOne->reloadList();
         }
     }
@@ -1598,7 +1676,9 @@ public:
                     \"issue_json_base64\": \"\",    \
                     \"download_link\": \"\",        \
                     \"download_path\": \"\",        \
-                    \"github_page_link\": \"\"      \
+                    \"github_page_link\": \"\",     \
+                    \"custom_bg_link\": \"\",       \
+                    \"overlay_link\": \"\"          \
                 }"
             );
             /*workindir*/ {
@@ -1729,6 +1809,18 @@ public:
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
             }
+            /*custom_bg_link*/ {
+                auto val = "custom_bg_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
+            /*overlay_link*/ {
+                auto val = "overlay_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
             log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
             log(json.dump());
             std::ofstream(working_dir("main.json")) << json.dump();
@@ -1757,10 +1849,11 @@ public:
                     \"issue_json_base64\": \"\",        \
                     \"download_link\": \"\",            \
                     \"download_path\": \"\",            \
-                    \"github_page_link\": \"\"          \
+                    \"github_page_link\": \"\",         \
+                    \"custom_bg_link\": \"\",           \
+                    \"overlay_link\": \"\"              \
                 }"
-            }
-        );
+            });
         /*workindir*/ {
             auto val = "workindir";
             std::string set_to = working_dir().string();
@@ -1864,7 +1957,19 @@ public:
             json[val] = (set_to);
             log(fmt::format("{} = {}", val, set_to));
         }
-        //FINISH and get downloads
+        /*custom_bg_link*/ {
+            auto val = "custom_bg_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*overlay_link*/ {
+            auto val = "overlay_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        //FINISH while getting downloads
         auto temp_json_data = json.dump();
         auto then = [this, temp_json_data](const matjson::Value& rtn_json) {
             auto json = matjson::parse(temp_json_data);
@@ -1915,15 +2020,16 @@ public:
             log("# repo type... getting repo now/");
             loadRepo();
         }
+        //custom type
         else {
             log("# \"custom\" type... setting stuff now");
             CCHttpRequest* request = new CCHttpRequest;
-            request->setTag("asd");
             request->setUrl(getIniData(issue_body_ini)->GetValue("main", "download_link", ""));
             request->setRequestType(CCHttpRequest::HttpRequestType::kHttpUnkown);
             request->setResponseCallback(this, httpresponse_selector(ModLoadingLayer::loadCustom));
             CCHttpClient::getInstance()->send(request);
             request->release();
+            log("request for " + std::string(request->getUrl()) + " was sent");
         }
     }
     void log(std::string str = "", std::string endl = "\n\n") {
@@ -2722,7 +2828,7 @@ class $modify(CCLayerExt, CCLayer) {
 #include <unistd.h>
 #endif
 void loadMods() {
-    auto path = ryzen_dir / "loadit";
+    auto path = ryzen_game_dir / "loadit";
     ghc::filesystem::create_directories(path);
     for (const auto& entry : ghc::filesystem::directory_iterator(path)) {
         auto filename = entry.path().filename();
