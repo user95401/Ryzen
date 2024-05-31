@@ -1227,6 +1227,14 @@ public:
                 github_item->setID("github");
                 menu->addChild(github_item);
             };
+            //website_link
+            if (auto github = CCSprite::create("Ryzen_WebBtn_001.png"_spr)) {
+                CCMenuItemSpriteExtra* webpage = CCMenuItemSpriteExtra::create(
+                    github, this, menu_selector(ModViewLayer::onBtn)
+                );
+                webpage->setID("website_link");
+                if (not strKeyOfdata("website_link").empty()) menu->addChild(webpage);
+            };
             menu->updateLayout();
         }
         /* md */ {
@@ -1285,6 +1293,9 @@ public:
         if (what->getID() == "back") keyBackClicked();
         if (what->getID() == "github") {
             web::openLinkInBrowser(strKeyOfdata("github_page_link"));
+        };
+        if (what->getID() == "website_link") {
+            web::openLinkInBrowser(strKeyOfdata("website_link"));
         };
         if (what->getID() == "comments") {
             IssueCommentsLayer::openMe(DATA());
@@ -1676,6 +1687,7 @@ public:
                     \"issue_json_base64\": \"\",    \
                     \"download_link\": \"\",        \
                     \"download_path\": \"\",        \
+                    \"website_link\": \"\",         \
                     \"github_page_link\": \"\",     \
                     \"custom_bg_link\": \"\",       \
                     \"overlay_link\": \"\"          \
@@ -1798,6 +1810,12 @@ public:
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
             }
+            /*website_link*/ {
+                auto val = "website_link";
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+                json[val] = (set_to);
+                log(fmt::format("{} = {}", val, set_to));
+            }
             /*github_page_link*/ {
                 auto val = "github_page_link";
                 std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
@@ -1849,6 +1867,7 @@ public:
                     \"issue_json_base64\": \"\",        \
                     \"download_link\": \"\",            \
                     \"download_path\": \"\",            \
+                    \"website_link\": \"\",             \
                     \"github_page_link\": \"\",         \
                     \"custom_bg_link\": \"\",           \
                     \"overlay_link\": \"\"              \
@@ -1945,6 +1964,12 @@ public:
                         set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
                 }
             }
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*website_link*/ {
+            auto val = "website_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
             json[val] = (set_to);
             log(fmt::format("{} = {}", val, set_to));
         }
