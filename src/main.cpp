@@ -1709,7 +1709,7 @@ public:
             }
             /*devs*/ {
                 auto val = "devs";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "publisher", "");
+                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "developer", "");
                 if (pack.contains("author")) set_to = pack["author"].as_string();
                 if (pack.contains("authors")) set_to = pack["authors"].dump();
                 if (mod.contains("developer")) set_to = mod["developer"].as_string();
@@ -1887,7 +1887,7 @@ public:
         }
         /*devs*/ {
             auto val = "devs";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "publisher", "");
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "developer", "");
             if (std::string(set_to).empty()) set_to = fmt::format(
                 "{} [{}]",
                 getJsonData(issue)["user"]["login"].as_string(),
@@ -2181,7 +2181,7 @@ public:
             issue_ini->SetMultiLine(1);
             issue_ini->LoadData(pJson["body"].as_string());
             //sPublisher
-            auto sPublisher = issue_ini->GetValue("main", "publisher", issue_publisher.data());
+            auto sPublisher = issue_ini->GetValue("main", "developer", issue_publisher.data());
             sPublisher = std::string(sPublisher).empty() ? issue_publisher.data() : sPublisher;
             //sDesc
             auto sDesc = issue_ini->GetValue("main", "desc", "issue body ini hasn't desc value in main section");
@@ -2505,6 +2505,7 @@ public:
         scroll->moveToTop();
     }
     void downloadMods() {
+        CCMessageBox("asd", "asd");
         auto loading_circle = LoadingCircle::create();
         loading_circle->setID("loading_circle");
         loading_circle->setParentLayer(this);
