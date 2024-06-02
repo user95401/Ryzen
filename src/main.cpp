@@ -2369,9 +2369,9 @@ void openLastViewed() {
     ModLoadingLayer::openMe(LAST_VIEWED_ISSUE);
 };
 
-class InstalledModsManager : public CCLayer {
+class InstalledModsList : public CCLayer {
 public:
-    CREATE_FUNC(InstalledModsManager);
+    CREATE_FUNC(InstalledModsList);
     float scroll_gap = 12.f;
     bool init() {
         this->CCLayer::init();
@@ -2446,7 +2446,7 @@ public:
         }
     }
     void setupList() {
-        if (not dynamic_cast<InstalledModsManager*>(this)) return;
+        if (not dynamic_cast<InstalledModsList*>(this)) return;
         auto scroll = dynamic_cast<ScrollLayer*>(this->getChildByID("scroll"));
         auto content = scroll->m_contentLayer;
         content->removeAllChildren();
@@ -2468,7 +2468,7 @@ public:
                     download_path->setVisible(0);
                     item->addChild(download_path);
                     //run updater
-                    item->schedule(schedule_selector(InstalledModsManager::itemWaitForRemove), 0.1f);
+                    item->schedule(schedule_selector(InstalledModsList::itemWaitForRemove), 0.1f);
                     //set bottom label
                     if (auto id_label = dynamic_cast<CCLabelTTF*>(item->getChildByIDRecursive("id"))) {
                         id_label->setString(
@@ -2512,7 +2512,7 @@ public:
         return this->onBtn(BtnCmd);
     }
     cocos2d::SEL_MenuHandler btnSel() {
-        return menu_selector(InstalledModsManager::onBtn);
+        return menu_selector(InstalledModsList::onBtn);
     }
     void keyBackClicked() {
         CCDirector::sharedDirector()->popScene();
@@ -2592,7 +2592,7 @@ public:
 
         };
         if (what->getID() == "manage_installed") {
-            auto layer = InstalledModsManager::create();
+            auto layer = InstalledModsList::create();
             auto scene = CCScene::create();
             scene->addChild(layer);
             CCDirector::get()->pushScene(scene);
