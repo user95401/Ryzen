@@ -3,6 +3,7 @@
 #include <Geode/Utils.hpp>
 #include <Geode/ui/TextInput.hpp>
 using namespace geode::prelude;
+namespace fs = ghc::filesystem;
 
 #include <regex>
 
@@ -15,14 +16,14 @@ bool checkExistence(T filename)
     return Infield.good();
 }
 //template <typename T>
-void remove_dir(ghc::filesystem::path path) {
+void remove_dir(fs::path path) {
     std::error_code _Ec;
-    ghc::filesystem::remove_all(path, _Ec);
+    fs::remove_all(path, _Ec);
     //lol
     //system(fmt::format("rd /s /q \"{}\"", path).data());
 // !GEODE_IS_WINDOWS
 }
-auto read_file(ghc::filesystem::path path) -> std::string {
+auto read_file(fs::path path) -> std::string {
     constexpr auto read_size = std::size_t(4096);
     auto stream = std::ifstream(path);
     stream.exceptions(std::ios_base::badbit);
@@ -119,7 +120,7 @@ auto mod_working_dir(matjson::Value issue_json, std::string file = "") {
     title = std::regex_replace(title, std::regex("\\W"), "");
     auto dir_name = fmt::format("{}[{}]", issue_json["number"].as_int(), title);
     auto dir = ryzen_dir / "mods" / dir_name;
-    ghc::filesystem::create_directories(dir);
+    fs::create_directories(dir);
     return (dir / file).string();
 }
 
@@ -132,11 +133,11 @@ const char* AuthorizationHeaderName() {
     return checkExistence(ghc_file) ? "Authorization" : "AuthDisabled";
 }
 const char* get_ghc() {
-    ghc::filesystem::create_directories(ryzen_dir);
+    fs::create_directories(ryzen_dir);
     return read_file(ghc_file).data();
 }
 void set_ghc(std::string token) {
-    ghc::filesystem::create_directories(ryzen_dir);
+    fs::create_directories(ryzen_dir);
     std::ofstream(ghc_file) << token;
 }
 class GitHubAuthPopup : public FLAlertLayer, FLAlertLayerProtocol {
@@ -260,7 +261,7 @@ public:
             if (not checkExistence(ghc_file)) return logout_btnspr->setString("Here is no save file anymore...");
             logout_btnspr->setString("Access token save file was deleted!");
             logout_btnspr->setScale(0.625f); 
-            ghc::filesystem::remove(ghc_file);
+            fs::remove(ghc_file);
         }
     }
     void onPasteToInput(CCObject* btnObj) {
@@ -274,13 +275,20 @@ public:
     }
     static auto addMyBtn(CCNode* parent_lay, bool animate = false) {
         //item
-        auto repoBtn = CCMenuItemSpriteExtra::create(
+        auto github = CCMenuItemSpriteExtra::create(
             CCSprite::createWithSpriteFrameName("geode.loader/github.png"),
             parent_lay,
             menu_selector(GitHubAuthPopup::onOpenupBtn)
         );
+        //buttom label
+        auto label = CCLabelBMFont::create("OAuth App", "goldFont.fnt");
+        label->setPositionX(github->getContentWidth() / 2);
+        label->setPositionY(-6.f);
+        label->setScale(0.3f);
+        github->addChild(label);
+        //update btn
         if (not checkExistence(ghc_file)) {
-            if (animate) repoBtn->getNormalImage()->runAction({
+            if (animate) github->getNormalImage()->runAction({
                     CCRepeatForever::create(CCSequence::create(
                         CCEaseSineInOut::create(CCScaleTo::create(0.5f, 1.05f)),
                         CCEaseSineInOut::create(CCScaleTo::create(0.5f, 1.f)),
@@ -288,9 +296,9 @@ public:
                     ))
                 });
         }
-        else repoBtn->setOpacity(60);
+        else github->setOpacity(60);
         //menu
-        auto menu = CCMenu::create(repoBtn, nullptr);
+        auto menu = CCMenu::create(github, nullptr);
         menu->setPositionX(32.f);
         menu->setPositionY(73.f + menu->getPositionY());
         parent_lay->addChild(menu);
@@ -559,7 +567,7 @@ public:
                 auto b = [this, sprite](std::string const& error)
                     {
                     };
-                ghc::filesystem::create_directories(dirs::getTempDir() / "avatars");
+                fs::create_directories(dirs::getTempDir() / "avatars");
                 web::AsyncWebRequest().fetch(m_json["user"]["avatar_url"].as_string())
                     .into(filep).then(a).expect(b);
             }
@@ -842,7 +850,7 @@ public:
         content->updateLayout();
     }
     void load() {
-        auto local_issues_file = (ghc::filesystem::path(data_strkey("workindir")) / "comments.json");
+        auto local_issues_file = (fs::path(data_strkey("workindir")) / "comments.json");
         auto local_issues = std::ifstream(local_issues_file);
         if (local_issues.is_open()) {
             std::string data(
@@ -857,8 +865,8 @@ public:
         loading_circle->setFade(true);
         loading_circle->show();
         auto a = [this, loading_circle](matjson::Value const& catgirls) {
-            auto local_issues_save = (ghc::filesystem::path(data_strkey("workindir")) / "comments.json");
-            ghc::filesystem::create_directories(local_issues_save.parent_path());
+            auto local_issues_save = (fs::path(data_strkey("workindir")) / "comments.json");
+            fs::create_directories(local_issues_save.parent_path());
             std::ofstream(local_issues_save.string().c_str()) << catgirls.dump(); 
             setupComments(catgirls);
             loading_circle->fadeAndRemove();
@@ -938,8 +946,8 @@ public:
             auto input = TextInput::create(md_prev->getContentWidth(), "", "chatFont.fnt");
             input->setID("input");
             input->hideBG();
-            input->setContentHeight(md_prev->getContentHeight());
-            input->getInputNode()->setContentHeight(md_prev->getContentHeight());
+            input->setContentHeight(md_prev->getContentHeight() * 2);
+            input->getInputNode()->setContentHeight(md_prev->getContentHeight() * 2);
             input->getInputNode()->m_placeholderLabel->setOpacity(0);
             input->getInputNode()->m_cursor->setOpacity(0);
             input->getInputNode()->m_filterSwearWords = (0);
@@ -947,7 +955,7 @@ public:
                 " !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
                 );
             input->setDelegate(this);
-            input->setPosition(md_prev->getPosition());
+            input->setPosition(md_prev->getPosition() * 2);
             pop->m_buttonMenu->addChild(input);
             //last popup setup
             handleTouchPriority(pop);
@@ -955,9 +963,9 @@ public:
             pop->show();
         };
         if (what->getID() == "reload") {
-            auto jsonfilepath = ghc::filesystem::path(data_strkey("workindir")) / "comments.json";
+            auto jsonfilepath = fs::path(data_strkey("workindir")) / "comments.json";
             if (checkExistence(jsonfilepath))
-                ghc::filesystem::remove(jsonfilepath);
+                fs::remove(jsonfilepath);
             load();
         };
     }
@@ -1043,7 +1051,7 @@ public:
             );
             /*some fun stuff*/ {
                 //logo
-                auto logo = CCSprite::create((ghc::filesystem::path(strKeyOfdata("workindir")) / ".logo").string().c_str());
+                auto logo = CCSprite::create((fs::path(strKeyOfdata("workindir")) / ".logo").string().c_str());
                 if (!logo) logo = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 if (logo) {
                     auto icon_size = CCSize(68.f, 68.f);
@@ -1115,7 +1123,7 @@ public:
                         ->setAxisReverse(true)
                     );
                     if (auto downloadBtn = ButtonSprite::create("Download", "goldFont.fnt", "GJ_button_05.png")) {
-                        if (checkExistence(ghc::filesystem::path(strKeyOfdata("download_path")))) {
+                        if (checkExistence(fs::path(strKeyOfdata("download_path")))) {
                             downloadBtn->m_label->setString("Update");
                             downloadBtn->m_label->setScale(
                                 (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
@@ -1301,8 +1309,8 @@ public:
             IssueCommentsLayer::openMe(DATA());
         }
         if (what->getID() == "reload") {
-            if (checkExistence(ghc::filesystem::path(strKeyOfdata("workindir")) / "main.json"))
-                remove_dir(ghc::filesystem::path(strKeyOfdata("workindir")));
+            if (checkExistence(fs::path(strKeyOfdata("workindir")) / "main.json"))
+                remove_dir(fs::path(strKeyOfdata("workindir")));
             auto issue_json_text = ZipUtils::base64URLDecode(strKeyOfdata("issue_json_base64"));
             keyBackClicked();
             openLastViewed();
@@ -1310,7 +1318,7 @@ public:
         if (what->getID() == "download") {
             //endpoint
             auto endpoint = std::string(strKeyOfdata("download_link"));
-            auto path = ghc::filesystem::path(strKeyOfdata("download_path"));
+            auto path = fs::path(strKeyOfdata("download_path"));
             //Popup
             auto pop = createQuickPopup(
                 "Download mod?",
@@ -1416,7 +1424,7 @@ public:
         };
         if (what->getID() == "delete") {
             AppDelegate::sharedApplication()->trySaveGame(false);
-            auto path = ghc::filesystem::path(strKeyOfdata("download_path"));
+            auto path = fs::path(strKeyOfdata("download_path"));
             if (not checkExistence(path)) return;
             log::info("deleting mod at {}", path);
             //try free
@@ -1433,7 +1441,7 @@ public:
             }
             #endif
             //remove
-            if (ghc::filesystem::remove(path))
+            if (fs::remove(path))
                 log::warn("removed file at {}", path.string());
             //reload popup
             if (string::contains(path.string(), "geode.texture-loader")) {
@@ -1525,8 +1533,8 @@ public:
         return matjson::parse(getData(type));
     }
     auto working_dir(std::string file = "") {
-        ghc::filesystem::path working_dir = getData(data::working_dir_str);
-        ghc::filesystem::create_directories(working_dir);
+        fs::path working_dir = getData(data::working_dir_str);
+        fs::create_directories(working_dir);
         if (not file.empty()) return working_dir / file;
         return working_dir;
     }
@@ -1796,7 +1804,7 @@ public:
                             set_to = geode + std::string("/config/geode.texture-loader/packs/") + file;
                     }
                     else {
-                        auto link_path = ghc::filesystem::path(json["download_link"].as_string());
+                        auto link_path = fs::path(json["download_link"].as_string());
                         auto file = link_path.filename().string();
                         auto geode = dirs::getGeodeDir().string();
                         if (string::contains(file, ".geode"))
@@ -1954,7 +1962,7 @@ public:
                 auto download_link = json["download_link"].as_string();
                 if (not download_link.empty()) {
                     download_link = explode("?", download_link)[0];
-                    auto filename = ghc::filesystem::path(download_link).filename().string();
+                    auto filename = fs::path(download_link).filename().string();
                     auto geode = dirs::getGeodeDir().string();
                     if (string::contains(filename, ".geode"))
                         set_to = geode + std::string("/mods/") + filename;
@@ -2177,14 +2185,12 @@ public:
             auto issue_num = fmt::format("#{}", pJson["number"].as_int());
             //ini values
             auto issue_ini = new CSimpleIni();
-            issue_ini->SetAllowKeyOnly(0);
-            issue_ini->SetMultiLine(1);
             issue_ini->LoadData(pJson["body"].as_string());
             //sPublisher
-            auto sPublisher = issue_ini->GetValue("main", "developer", issue_publisher.data());
+            auto sPublisher = issue_ini->GetValue("main", "developer", "");
             sPublisher = std::string(sPublisher).empty() ? issue_publisher.data() : sPublisher;
             //sDesc
-            auto sDesc = issue_ini->GetValue("main", "desc", "issue body ini hasn't desc value in main section");
+            auto sDesc = issue_ini->GetValue("main", "desc", " ");
             //sBottomRightCornerText
             auto sBottomRightCornerText = issue_ini->GetValue("main", "bottom_right_corner_text", issue_num.data());
             sBottomRightCornerText = std::string(sBottomRightCornerText).empty() ? issue_num.data() : sBottomRightCornerText;
@@ -2208,6 +2214,7 @@ public:
                 pRtn->addChild(menu, 10);
                 //square bg
                 auto pCCLayerColor = CCLayerColor::create({ 0,0,0,75 });
+                pCCLayerColor->setID("pCCLayerColor");
                 if (string::contains(pJson["labels"].dump(), "\"name\": \"verified\""))
                     pCCLayerColor->setColor({ 5, 25, 5 });
                 if (string::contains(pJson["labels"].dump(), "\"name\": \"featured\""))
@@ -2227,16 +2234,19 @@ public:
                     CCSprite::create("Ryzen_InfoBtn_001.png"_spr),
                     pRtn, menu_selector(IssueItem::onInfo)
                 );
+                Ryzen_InfoBtn_001->setID("Ryzen_InfoBtn_001");
                 Ryzen_InfoBtn_001->setPositionX(POINTING_SIZE.width - 8 + logo_size.width);
                 Ryzen_InfoBtn_001->setPositionY(POINTING_SIZE.height - 8);
                 menu->addChild(Ryzen_InfoBtn_001);
                 /*ViewBtn*/ {
                     //text
                     CCLabelTTF* View = CCLabelTTF::create("   View   ", "Comic Sans MS.ttf"_spr, 12.f);
+                    View->setID("ViewBtn.View");
                     //btn
                     CCMenuItemSpriteExtra* ViewBtn = CCMenuItemSpriteExtra::create(
                         View, pRtn, menu_selector(IssueItem::view)
                     );
+                    ViewBtn->setID("ViewBtn");
                     ViewBtn->setPositionX(POINTING_SIZE.width - 8 + logo_size.width);
                     ViewBtn->setAnchorPoint({ 1.0f, .5f });
                     ViewBtn->m_colorEnabled = true;
@@ -2246,6 +2256,7 @@ public:
                         ccColor4B(10, 10, 10, 30),
                         ccColor4B(10, 10, 10, 130)
                     );
+                    grad->setID("ViewBtn.grad");
                     auto padding = 5.f;
                     grad->setContentSize(View->getContentSize() + CCPoint(padding, padding));
                     grad->setPosition(CCPoint(-padding, -padding) / 2);
@@ -2253,6 +2264,7 @@ public:
                 }
                 //id
                 CCLabelTTF* CCLabelTTFid = CCLabelTTF::create(sBottomRightCornerText, "arial", 8.f);
+                CCLabelTTFid->setID("id");
                 CCLabelTTFid->setOpacity(60);
                 CCLabelTTFid->setHorizontalAlignment(kCCTextAlignmentRight);
                 CCLabelTTFid->setAnchorPoint({ 1.0f, .0f });
@@ -2263,6 +2275,7 @@ public:
                 {
                     //container
                     auto container = CCMenu::create();
+                    container->setID("name_container");
                     container->setAnchorPoint({ 0.0f, -0.4f });
                     container->setPositionX(10 - POINTING_SIZE.width);
                     container->setPositionY(.9f);
@@ -2279,6 +2292,7 @@ public:
                         name->setColor({ 190, 255, 190 });
                     if (string::contains(pJson["labels"].dump(), "\"name\": \"featured\""))
                         name->setColor({ 255, 255, 190 });
+                    name->setID("name");
                     name->setHorizontalAlignment(kCCTextAlignmentLeft);
                     name->setAnchorPoint(CCPointZero);
                     container->addChild(name);
@@ -2323,6 +2337,7 @@ public:
                         sPublisher,
                         sDesc
                     ), "chatFont.fnt", 0.6f, 2000.f, { 0.0f, 1.0f }, 10.0f, false);
+                desc->setID("desc");
                 desc->setPositionX(10 - POINTING_SIZE.width);
                 desc->setAnchorPoint({ 0.0f, 0.6f });
                 desc->setOpacity(180);
@@ -2354,15 +2369,168 @@ void openLastViewed() {
     ModLoadingLayer::openMe(LAST_VIEWED_ISSUE);
 };
 
-class IssuesListLayer : public CCLayer, DynamicScrollDelegate {
+class InstalledModsManager : public CCLayer {
 public:
+    CREATE_FUNC(InstalledModsManager);
+    float scroll_gap = 12.f;
+    bool init() {
+        this->CCLayer::init();
+        basicRznLayersInit(this, btnSel());
+        /* scroll lay */ {
+            auto paddingx = 190.f;
+            auto paddingt = 32.f;
+            auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt);
+            auto scroll = geode::ScrollLayer::create(scroll_size);
+            {
+                scroll->setID("scroll");
+                scroll->enableScrollWheel();
+                scroll->m_cutContent = (false);
+                scroll->m_contentLayer->setLayout(
+                    ColumnLayout::create()
+                    ->setGap(scroll_gap)
+                    ->setAxisReverse(true)
+                    ->setAxisAlignment(AxisAlignment::End)
+                );
+                scroll->setPositionX(paddingx / 2 + 2);
+                this->addChild(scroll, -1);
+                //shadow_cornerl
+                CCSprite* shadow_cornerl = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                shadow_cornerl->setID("shadow_cornerl");
+                shadow_cornerl->setOpacity(60);
+                shadow_cornerl->setScaleY(-6.f);
+                shadow_cornerl->setScaleX(-0.1f);
+                shadow_cornerl->setAnchorPoint({ -0.3f, 1.f });
+                scroll->addChild(shadow_cornerl, -1);
+                //shadow_cornerr
+                CCSprite* shadow_cornerr = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                shadow_cornerr->setID("shadow_cornerr");
+                shadow_cornerr->setOpacity(60);
+                shadow_cornerr->setScaleY(6.f);
+                shadow_cornerr->setScaleX(0.1f);
+                shadow_cornerr->setPositionX(scroll_size.width);
+                shadow_cornerr->setAnchorPoint({ -0.3f, 0.f });
+                scroll->addChild(shadow_cornerr, -1);
+                //shadow_cornerb
+                CCSprite* shadow_cornerb = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                shadow_cornerb->setID("shadow_cornerb");
+                shadow_cornerb->setOpacity(90);
+                shadow_cornerb->setScaleY(((scroll_size.width + 20) / shadow_cornerb->getContentSize().width));
+                shadow_cornerb->setScaleX(CCDirector::get()->getScreenTop() / shadow_cornerb->getContentHeight());
+                shadow_cornerb->setRotation(-90.f);
+                shadow_cornerb->setPositionX(scroll_size.width / 2);
+                shadow_cornerb->setAnchorPoint({ 0.f, 0.5f });
+                scroll->addChild(shadow_cornerb, -1);
+            };
+            //top label
+            {
+                auto label = CCLabelBMFont::create("Installed Mods List", "bigFont.fnt");
+                label->setPositionX(this->getContentWidth() / 2);
+                label->setPositionY(this->getContentHeight());
+                label->setAnchorPoint(CCPoint(0.5f, 1.05f));
+                label->setScale(0.8f);
+                this->addChild(label);
+            }
+        }
+        setupList();
+        return 1;
+    }
+    void itemWaitForRemove(float) {
+        auto item = reinterpret_cast<IssueItem*>(this);
+        auto download_path = dynamic_cast<CCLabelBMFont*>(item->getChildByIDRecursive("download_path"));
+        if (download_path == nullptr) return;
+        else if (not checkExistence(download_path->getString())) {
+            auto content = item->getParent();
+            item->removeFromParentAndCleanup(0);
+            content->updateLayout();
+            return item->unscheduleAllSelectors();
+        }
+    }
+    void setupList() {
+        if (not dynamic_cast<InstalledModsManager*>(this)) return;
+        auto scroll = dynamic_cast<ScrollLayer*>(this->getChildByID("scroll"));
+        auto content = scroll->m_contentLayer;
+        content->removeAllChildren();
+        content->setContentHeight(0.f);
+        for (const auto& entry : fs::directory_iterator(ryzen_dir / "mods")) {
+            log::debug("{}", entry.path().string());
+            auto main_jsonp = entry / "main.json";
+            if (checkExistence(main_jsonp)) {
+                auto main_json = matjson::parse(read_file(main_jsonp));
+                if (checkExistence(main_json["download_path"].as_string())) {
+                    auto issue_json = matjson::parse(ZipUtils::base64URLDecode(main_json["issue_json_base64"].as_string()));
+                    auto item = IssueItem::create(issue_json, content, scroll);
+                    content->setContentHeight(//make content layer longer
+                        content->getContentHeight() + item->getContentHeight() + (scroll_gap / 2) + 6
+                    );
+                    //for testing after
+                    auto download_path = CCLabelBMFont::create(main_json["download_path"].as_string().c_str(), "chatFont.fnt");
+                    download_path->setID("download_path");
+                    download_path->setVisible(0);
+                    item->addChild(download_path);
+                    //run updater
+                    item->schedule(schedule_selector(InstalledModsManager::itemWaitForRemove), 0.1f);
+                    //set bottom label
+                    if (auto id_label = dynamic_cast<CCLabelTTF*>(item->getChildByIDRecursive("id"))) {
+                        id_label->setString(
+                            fmt::format(
+                                "{} | {} | #{}",
+                                fs::path(main_json["download_path"].as_string()).filename().string(),
+                                convertSize(main_json["size"].as_int()),
+                                issue_json["number"].as_int()
+                            ).c_str()
+                        );
+                    }
+                };
+            }
+        }
+        //fix some shit goes when content smaller than scroll
+        if (content->getContentSize().height < scroll->getContentSize().height) {
+            content->setContentSize({
+                content->getContentSize().width,
+                scroll->getContentSize().height
+                });
+        }
+        if (content->getChildrenCount() == 0) {
+            content->addChild(
+                CCLabelBMFont::create(
+                    "Oh, seems like you haven't installed anything yet.", 
+                    "bigFont.fnt", 
+                    content->getContentWidth()
+                )
+            );
+        }
+        content->updateLayout();
+    }
+    void onBtn(CCObject* pCCObject) {
+        auto what = dynamic_cast<CCNode*>(pCCObject);
+        if (not what) return;
+        if (what->getID() == "back") keyBackClicked();
+    }
     void sendBtnFunc(std::string id) {
         auto BtnCmd = CCNode::create();
         BtnCmd->setID(id);
         return this->onBtn(BtnCmd);
     }
+    cocos2d::SEL_MenuHandler btnSel() {
+        return menu_selector(InstalledModsManager::onBtn);
+    }
+    void keyBackClicked() {
+        CCDirector::sharedDirector()->popScene();
+    }
+    void keyDown(cocos2d::enumKeyCodes key) {
+        this->CCLayer::keyDown(key);
+    }
+};
+
+class IssuesListLayer : public CCLayer, DynamicScrollDelegate, TextInputDelegate {
+public:
+    void sendBtnFunc(std::string id) {
+        auto btn = dynamic_cast<CCMenuItem*>(this->getChildByIDRecursive(id));
+        if (!btn) return;
+        btn->activate();
+    }
     void onBtn(CCObject* pCCObject) {
-        auto what = dynamic_cast<CCNode*>(pCCObject);
+        auto what = dynamic_cast<CCMenuItem*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
         if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
@@ -2423,6 +2591,23 @@ public:
             );
 
         };
+        if (what->getID() == "manage_installed") {
+            auto layer = InstalledModsManager::create();
+            auto scene = CCScene::create();
+            scene->addChild(layer);
+            CCDirector::get()->pushScene(scene);
+        }
+    }
+    void keyBackClicked() {
+        GameManager::sharedState()->fadeInMenuMusic();
+        CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
+    }
+    void keyDown(cocos2d::enumKeyCodes key) {
+        this->CCLayer::keyDown(key);
+        //log::debug("{}({})", __FUNCTION__, (int)key);
+        if (key == KEY_Enter) sendBtnFunc("filter");
+        if (key == KEY_Left) sendBtnFunc("arrow_left");
+        if (key == KEY_Right) sendBtnFunc("arrow_right");
     }
     std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
         std::vector<matjson::Value> cutestcatgirls;
@@ -2505,7 +2690,6 @@ public:
         scroll->moveToTop();
     }
     void downloadMods() {
-        CCMessageBox("asd", "asd");
         auto loading_circle = LoadingCircle::create();
         loading_circle->setID("loading_circle");
         loading_circle->setParentLayer(this);
@@ -2528,7 +2712,7 @@ public:
                     // do something with the catgirls :3
                     setupMods(catgirls);
                     auto local_issues_save = ryzen_dir / "issues.json";
-                    ghc::filesystem::create_directories(local_issues_save.parent_path());
+                    fs::create_directories(local_issues_save.parent_path());
                     std::ofstream(local_issues_save.string().c_str()) << catgirls.dump();
                     loading_circle->fadeAndRemove();
                 }
@@ -2565,7 +2749,7 @@ public:
                 ""_spr
             );
             {
-                /*toprightbar*/ {
+                /*menu*/ {
                     auto menu = CCMenu::create();
                     rtn->addChild(menu);
                     //reloadmodsbtn
@@ -2580,6 +2764,18 @@ public:
                         });
                     reload->getNormalImage()->setScale(0.7f);
                     menu->addChild(reload);
+                    //manage_installed
+                    CCMenuItemSpriteExtra* manage_installed = CCMenuItemSpriteExtra::create(
+                        CCSprite::create("Ryzen_ManageInstelledBtn_001.png"_spr),
+                        rtn, menu_selector(IssuesListLayer::onBtn)
+                    );
+                    manage_installed->setID("manage_installed");
+                    manage_installed->setPosition({
+                        (CCDirector::sharedDirector()->getWinSize().width / -2) + (manage_installed->getContentWidth() / 2),
+                        (CCDirector::sharedDirector()->getWinSize().height / -2) + (manage_installed->getContentHeight() / 2)
+                        });
+                    manage_installed->getNormalImage()->setScale(0.7f);
+                    menu->addChild(manage_installed);
                     //filter
                     auto filter = CCMenuItemSpriteExtra::create(
                         CCSprite::create("Ryzen_FilterBtn_001.png"_spr),
@@ -2797,10 +2993,6 @@ public:
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
-    void keyBackClicked() {
-        GameManager::sharedState()->fadeInMenuMusic();
-        CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
-    }
 };
 
 void ModListLayer::tryCustomSetup(float) {
@@ -2855,8 +3047,8 @@ class $modify(CCLayerExt, CCLayer) {
 #endif
 void loadMods() {
     auto path = ryzen_game_dir / "loadit";
-    ghc::filesystem::create_directories(path);
-    for (const auto& entry : ghc::filesystem::directory_iterator(path)) {
+    fs::create_directories(path);
+    for (const auto& entry : fs::directory_iterator(path)) {
         auto filename = entry.path().filename();
         bool loadrtn = false;
         //loadit
@@ -2877,10 +3069,10 @@ void loadMods() {
 
             std::string gamePath = "/data/data/" + std::string(application_id);
 
-            ghc::filesystem::copy_file(
+            fs::copy_file(
                 entry.path(), 
                 gamePath / entry.path().filename(),
-                ghc::filesystem::copy_options::update_existing
+                fs::copy_options::update_existing
             );
             
             loadrtn = dlopen(
