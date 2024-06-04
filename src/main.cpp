@@ -2430,7 +2430,6 @@ public:
             //top label
             {
                 auto label = CCLabelBMFont::create("Installed Mods List", "bigFont.fnt");
-                label->setIsBatched(0);
                 label->setID("top_label");
                 label->setPositionX(this->getContentWidth() / 2);
                 label->setPositionY(this->getContentHeight());
