@@ -458,11 +458,20 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         rtn->setKeypadEnabled(true);
         rtn->setTouchEnabled(true);
         CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
-        backgroundSprite->setScaleX(CCDirector::sharedDirector()->getWinSize().width / backgroundSprite->getContentSize().width);
-        backgroundSprite->setScaleY(CCDirector::sharedDirector()->getWinSize().height / backgroundSprite->getContentSize().height);
-        backgroundSprite->setAnchorPoint({ 0, 0 });
+        backgroundSprite->runAction(CCRepeatForever::create(CCShaky3D::create(1.0f, { 1.f, 1.f }, 1, 0)));
+        backgroundSprite->setScaleX(rtn->getContentSize().width / backgroundSprite->getContentSize().width);
+        backgroundSprite->setScaleY(rtn->getContentSize().height / backgroundSprite->getContentSize().height);
+        backgroundSprite->setAnchorPoint({ 0.5f, 0.5f });
+        backgroundSprite->setPosition(rtn->getContentSize() / 2);
         backgroundSprite->setColor({ 120, 120, 130 });
         rtn->addChild(backgroundSprite, -10);
+        //a
+        auto doting = CCSprite::create("doting.png"_spr);
+        doting->setAnchorPoint(CCPoint());
+        doting->setScaleX((rtn->getContentSize().width / doting->getContentSize().width));
+        doting->setScaleY((rtn->getContentSize().height / doting->getContentSize().height));
+        doting->runAction(CCRepeatForever::create(CCShaky3D::create(1.0f, CCSizeMake(5, 5), 50, true)));
+        rtn->addChild(doting, -10, 5931);
         /*SquareShadowCorners*/ {
             auto scale = 1.f;
             auto opacity = 160;
