@@ -538,8 +538,9 @@ public:
     void customSetup(CCNode* parent) {
         this->setContentWidth(parent->getContentWidth());
         //row
-        if (auto row = CCNode::create()) {
+        if (auto row = CCMenu::create()) {
             this->addChild(row);
+            row->setAnchorPoint(CCPointZero);
             row->setLayout(
                 RowLayout::create()
                 ->setAxisAlignment(AxisAlignment::Start)
@@ -547,21 +548,22 @@ public:
             );
             row->setContentWidth(parent->getContentWidth());
             //avatar
-            auto avatar = CCNode::create();
-            if (avatar) {
-                row->addChild(avatar);
-                avatar->setContentSize({ 30.f, 30.f });
-                //
+            auto avatar_size = CCSize(30.f, 30.f);
+            {
+                //sprite
                 auto sprite = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
-                sprite->setAnchorPoint(CCPointZero);
-                sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
-                avatar->addChild(sprite);
+                sprite->setScale(avatar_size.width / sprite->getContentSize().width);
+                //item
+                auto avatar = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(IssueCommentItem::onAvatar));
+                avatar->m_animationEnabled = 0;
+                avatar->m_colorEnabled = 1;
+                avatar->setContentSize(avatar_size);
+                row->addChild(avatar);
                 //
                 auto filep = dirs::getTempDir() / "avatars" /("." + m_json["user"]["login"].as_string());
                 auto a = [this, sprite, filep, avatar](std::monostate const& asd) {
                     if (not sprite) return;
                     sprite->initWithFile(filep.string().c_str());
-                    sprite->setAnchorPoint(CCPointZero);
                     sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
                     };
                 auto b = [this, sprite](std::string const& error)
@@ -580,7 +582,7 @@ public:
                     ->setAxisReverse(true)
                     ->setGap(0.f)
                 );
-                text->setContentWidth(parent->getContentWidth() - avatar->getContentWidth());
+                text->setContentWidth(parent->getContentWidth() - avatar_size.width);
                 //user
                 auto updated_at = m_json["updated_at"].as_string();
                 updated_at = string::replace(updated_at, "T", " ");
@@ -658,7 +660,7 @@ public:
         };
     }
     //IssueCommentItem
-    void deleteComment(CCObject*) {
+    void deleteComment(CCObject*)  {
         auto a = [this](std::string const& rtn)
             {
                 if (auto reload = dynamic_cast<CCMenuItemSpriteExtra*>(CCDirector::get()->m_pRunningScene->getChildByIDRecursive("reload")))
@@ -685,6 +687,13 @@ public:
             .method("DELETE")
             .fetch(m_json["url"].as_string())
             .text().then(a).expect(b);
+    }
+    void onAvatar(CCObject*) {
+        if (not m_json.contains("user")) return;
+        if (not m_json["user"].contains("html_url")) return;
+        else web::openLinkInBrowser(m_json["user"]["html_url"].as_string());
+    }
+    void onCreateReaction(CCObject*) {
     }
 };
 
@@ -1427,19 +1436,6 @@ public:
             auto path = fs::path(strKeyOfdata("download_path"));
             if (not checkExistence(path)) return;
             log::info("deleting mod at {}", path);
-            //try free
-            #ifdef GEODE_IS_WINDOWS
-            auto modulename = path.string().c_str();
-            auto handle = GetModuleHandle(modulename);
-            if (handle) {
-                log::warn(
-                    "calling FreeLibrary for handle (0x{}) of module by name \"{}\"",
-                    (std::stringstream() << std::hex << (int)handle).str(),
-                    modulename
-                );
-                FreeLibrary(handle);
-            }
-            #endif
             //remove
             if (fs::remove(path))
                 log::warn("removed file at {}", path.string());
@@ -2376,11 +2372,12 @@ public:
     bool init() {
         this->CCLayer::init();
         basicRznLayersInit(this, btnSel());
+        ScrollLayer* scroll = nullptr;
         /* scroll lay */ {
             auto paddingx = 190.f;
-            auto paddingt = 32.f;
+            auto paddingt = 42.f;
             auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt);
-            auto scroll = geode::ScrollLayer::create(scroll_size);
+            scroll = geode::ScrollLayer::create(scroll_size);
             {
                 scroll->setID("scroll");
                 scroll->enableScrollWheel();
@@ -2413,7 +2410,7 @@ public:
                 //shadow_cornerb
                 CCSprite* shadow_cornerb = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerb->setID("shadow_cornerb");
-                shadow_cornerb->setOpacity(90);
+                shadow_cornerb->setOpacity(190);
                 shadow_cornerb->setScaleY(((scroll_size.width + 20) / shadow_cornerb->getContentSize().width));
                 shadow_cornerb->setScaleX(CCDirector::get()->getScreenTop() / shadow_cornerb->getContentHeight());
                 shadow_cornerb->setRotation(-90.f);
@@ -2424,14 +2421,43 @@ public:
             //top label
             {
                 auto label = CCLabelBMFont::create("Installed Mods List", "bigFont.fnt");
+                label->setIsBatched(0);
+                label->setID("top_label");
                 label->setPositionX(this->getContentWidth() / 2);
                 label->setPositionY(this->getContentHeight());
                 label->setAnchorPoint(CCPoint(0.5f, 1.05f));
                 label->setScale(0.8f);
                 this->addChild(label);
+                //top_label_shadow
+                CCSprite* top_label_shadow = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                top_label_shadow->setID("top_label_shadow");
+                top_label_shadow->setOpacity(190);
+                top_label_shadow->setRotation(-90);
+                top_label_shadow->setScaleX(0.115f);
+                top_label_shadow->setScaleY(scroll->getContentWidth() / top_label_shadow->getContentWidth());
+                top_label_shadow->setPosition(label->getPosition());
+                top_label_shadow->setAnchorPoint(CCPoint(1.f, .5f));
+                this->addChild(top_label_shadow, -1);
             }
         }
+        /* menu */ {
+            auto menu = CCMenu::create();
+            menu->setLayout(AnchorLayout::create());
+            if (auto GJ_infoIcon_001 = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png")) {
+                auto info = CCMenuItemSpriteExtra::create(GJ_infoIcon_001, this, btnSel());
+                info->setID("info");
+                info->setLayoutOptions(
+                    AnchorLayoutOptions::create()
+                    ->setAnchor(Anchor::TopRight)
+                    ->setOffset(CCPoint(1, 1) * -26.f) //xd
+                );
+                menu->addChild(info);
+            }
+            menu->updateLayout();
+            this->addChild(menu);
+        };
         setupList();
+        scroll->moveToTop();
         return 1;
     }
     void itemWaitForRemove(float) {
@@ -2493,27 +2519,38 @@ public:
         if (content->getChildrenCount() == 0) {
             content->addChild(
                 CCLabelBMFont::create(
-                    "Oh, seems like you haven't installed anything yet.", 
-                    "bigFont.fnt", 
+                    "Oh, seems like you haven't installed anything yet.",
+                    "bigFont.fnt",
                     content->getContentWidth()
                 )
             );
         }
         content->updateLayout();
     }
+    //btn
+    cocos2d::SEL_MenuHandler btnSel() {
+        return menu_selector(InstalledModsList::onBtn);
+    }
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCNode*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
-    }
+        if (what->getID() == "info") {
+            createQuickPopup(
+                "Info",
+                "Here is a list of mods that were installed."
+                "\n" "btw, click the \"Update\" button to find the \"Delete\" button.",
+                "OK", nullptr,
+                nullptr
+            );
+        };
+    };
     void sendBtnFunc(std::string id) {
-        auto BtnCmd = CCNode::create();
-        BtnCmd->setID(id);
-        return this->onBtn(BtnCmd);
+        auto btn = dynamic_cast<CCMenuItem*>(this->getChildByIDRecursive(id));
+        if (!btn) return;
+        btn->activate();
     }
-    cocos2d::SEL_MenuHandler btnSel() {
-        return menu_selector(InstalledModsList::onBtn);
-    }
+    //keys
     void keyBackClicked() {
         CCDirector::sharedDirector()->popScene();
     }
@@ -3046,9 +3083,14 @@ class $modify(CCLayerExt, CCLayer) {
 #include <unistd.h>
 #endif
 void loadMods() {
-    auto path = ryzen_game_dir / "loadit";
-    fs::create_directories(path);
-    for (const auto& entry : fs::directory_iterator(path)) {
+    //copy to runtime loading folder.
+    auto runtime = ryzen_dir / "loadit_runtime_temp";
+    auto container = ryzen_game_dir / "loadit";
+    fs::remove_all(runtime);
+    fs::create_directories(runtime);
+    fs::create_directories(container);
+    fs::copy(container, runtime);
+    for (const auto& entry : fs::directory_iterator(runtime)) {
         auto filename = entry.path().filename();
         bool loadrtn = false;
         //loadit
