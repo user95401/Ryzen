@@ -458,19 +458,35 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         rtn->setKeypadEnabled(true);
         rtn->setTouchEnabled(true);
         CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
-        backgroundSprite->runAction(CCRepeatForever::create(CCShaky3D::create(1.0f, { 1.f, 1.f }, 1, 0)));
         backgroundSprite->setScaleX(rtn->getContentSize().width / backgroundSprite->getContentSize().width);
         backgroundSprite->setScaleY(rtn->getContentSize().height / backgroundSprite->getContentSize().height);
         backgroundSprite->setAnchorPoint({ 0.5f, 0.5f });
         backgroundSprite->setPosition(rtn->getContentSize() / 2);
         backgroundSprite->setColor({ 120, 120, 130 });
+        auto baseBgCol = backgroundSprite->getColor();
+        backgroundSprite->runAction({
+            CCRepeatForever::create(CCSequence::create(
+                    CCTintTo::create(0.0f, baseBgCol.r + -2, baseBgCol.g + -2, baseBgCol.b + 0),
+                    CCDelayTime::create(0.01f),
+                    CCTintTo::create(0.0f, baseBgCol.r + 0, baseBgCol.g + 0, baseBgCol.b + 0),
+                    CCDelayTime::create(0.1f),
+                    CCTintTo::create(0.0f, baseBgCol.r + 1, baseBgCol.g + 1, baseBgCol.b + 1),
+                    CCDelayTime::create(0.01f),
+                    CCTintTo::create(0.0f, baseBgCol.r + 5, baseBgCol.g + 5, baseBgCol.b + 0),
+                    CCDelayTime::create(0.01f),
+                    CCTintTo::create(0.0f, baseBgCol.r + 2, baseBgCol.g + 2, baseBgCol.b + -1),
+                    CCDelayTime::create(0.10f),
+                    nullptr
+                ))
+            });
+        backgroundSprite->runAction(CCRepeatForever::create(CCShaky3D::create(10.0f, CCSizeMake(1, 10), 1, 0)));
         rtn->addChild(backgroundSprite, -10);
         //a
         auto doting = CCSprite::create("doting.png"_spr);
         doting->setAnchorPoint(CCPoint());
         doting->setScaleX((rtn->getContentSize().width / doting->getContentSize().width));
         doting->setScaleY((rtn->getContentSize().height / doting->getContentSize().height));
-        doting->runAction(CCRepeatForever::create(CCShaky3D::create(1.0f, CCSizeMake(5, 5), 50, true)));
+        doting->runAction(CCRepeatForever::create(CCShaky3D::create(5.0f, CCSizeMake(5, 5), 50, 0)));
         rtn->addChild(doting, -10, 5931);
         /*SquareShadowCorners*/ {
             auto scale = 1.f;
@@ -1456,8 +1472,15 @@ public:
                     "Later", "Yes",
                     [path, what](auto, bool btn2) {
                         if (btn2) {
-                            CCTextureCache::get()->removeAllTextures();
+                            //remove frames
+                            CCSpriteFrameCache::get()->removeUnusedSpriteFrames();
                             CCSpriteFrameCache::get()->removeSpriteFrames();
+                            CCSpriteFrameCache::get()->m_pLoadedFileNames->clear();
+                            //remove textures
+                            CCTextureCache::get()->removeUnusedTextures();
+                            CCTextureCache::get()->removeAllTextures();
+                            CCTextureCache::get()->m_pTextures->removeAllObjects();
+                            //reload
                             GameManager::get()->reloadAll(0, 0, 0);
                         }
                         else {
@@ -3070,17 +3093,66 @@ void PackSelectLayer::tryCustomSetup(float) {
     RyzenLayerBtn->m_colorEnabled = 1;
     RyzenLayerBtn->setPositionY(110.f);
     menu->addChild(RyzenLayerBtn);
+    //extensions
+    auto bottomLeft = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    auto cornerSize = bottomLeft->getTextureRect().size;
+    bottomLeft->setPosition({ cornerSize.width / 2, cornerSize.height / 2 });
+    auto bottomRight = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    bottomRight->setFlipX(true);
+    bottomRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, cornerSize.height / 2});
+    auto topLeft = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    topLeft->setFlipY(true);
+    topLeft->setPosition({ cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
+    auto topRight = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    topRight->setFlipX(true);
+    topRight->setFlipY(true);
+    topRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
+    this->addChild(bottomLeft);
+    this->addChild(bottomRight);
+    this->addChild(topLeft);
+    this->addChild(topRight);
+    //folderBtn
+    if (auto folderBtn = dynamic_cast<CCMenuItemSpriteExtra*>(getChildBySpriteFrameName(menu, "gj_folderBtn_001.png"))) {
+        //folderSprite
+        auto folderSprite = CCSprite::createWithSpriteFrameName("GJ_duplicateBtn_001.png");
+        folderSprite->setID("folderSprite");
+        //set folderSprite
+        folderBtn->setNormalImage(folderSprite);
+        folderBtn->setSelectedImage(folderSprite);
+        //other sets
+        folderBtn->setPosition(this->getContentSize().width / 2 - 35.0f, (this->getContentSize().height / -2) + 35.0f);
+        folderBtn->setSizeMult(1.5f);
+        folderBtn->setID("folderBtn");
+    }
+    //reloadBtn
+    if (auto reloadBtn = dynamic_cast<CCMenuItemSpriteExtra*>(getChildBySpriteFrameName(menu, "GJ_updateBtn_001.png"))) {
+        //the sets
+        reloadBtn->getNormalImage()->setScale(1.f);
+        reloadBtn->setPosition((this->getContentSize().width / -2) + 35.0f, (this->getContentSize().height / -2) + 35.0f);
+        reloadBtn->setSizeMult(2.5f);
+        reloadBtn->setID("reloadBtn");
+    }
 }
-#include <Geode/modify/CCLayer.hpp>
-class $modify(CCLayerExt, CCLayer) {
-    bool init() {
-        auto rtn = CCLayer::init();
+class NotificationExt : public Notification {
+public:
+    void tryCustomSetup(float) {
+        if (not dynamic_cast<Notification*>(this)) return;
+        setRotation(12.f);
+    };
+};
+#include <Geode/modify/CCObject.hpp>
+class $modify(CCObjectExt, CCObject) {
+    CCObject* autorelease() {
+        auto rtn = CCObject::autorelease();
         //ModListLayer
         ModListLayer* pModListLayer = typeinfo_cast<ModListLayer*>(this);
         if (pModListLayer) pModListLayer->scheduleOnce(schedule_selector(ModListLayer::tryCustomSetup), 0.001f);
         //PackSelectLayer
         PackSelectLayer* pPackSelectLayer = typeinfo_cast<PackSelectLayer*>(this);
         if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
+        //PackSelectLayer
+        Notification* pNotification = typeinfo_cast<Notification*>(this);
+        if (pNotification) pNotification->scheduleOnce(schedule_selector(NotificationExt::tryCustomSetup), 0.001f);
         return rtn;
     };
 };
