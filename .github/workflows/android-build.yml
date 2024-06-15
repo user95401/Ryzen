@@ -33,6 +33,8 @@ jobs:
         with:
           combine: true
           target: ${{ matrix.config.target }}
+          cli: 'v2.13.0'
+          sdk: 'tag/v2.0.0-beta.27'
 
   package:
     name: Package and release builds
