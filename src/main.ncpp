@@ -1,9 +1,10 @@
 #include <Geode/Geode.hpp>
 #include <Geode/utils/web.hpp>
+#include "old_web.hpp"
 #include <Geode/Utils.hpp>
 #include <Geode/ui/TextInput.hpp>
 using namespace geode::prelude;
-namespace fs = ghc::filesystem;
+namespace fs = std::filesystem;
 
 #include <regex>
 
@@ -234,7 +235,7 @@ public:
         auto protocol = new GitHubAuthPopup;
         auto pop = FLAlertLayer::create(
             protocol,
-            "Authorization", 
+            "Authorization",
             "<co>Authorize</c> your <cy>GitHub Account</c> to <cg>reduce</c> <cr>limits</c> and be <cg>able to create comments</c> in game.\nAfter click on the <co>\"Continue\" button</c> you will be <cr>redirected to</c> <cy>browser auth interfaces</c>.",
             "Abort", "Continue",
             360.f
@@ -244,7 +245,7 @@ public:
             logout_btnspr->setScale(0.7f);
             auto logout = CCMenuItemSpriteExtra::create(logout_btnspr, pop, menu_selector(GitHubAuthPopup::onLogout));
             logout->setID("logout");
-            logout->setAnchorPoint({0.5f, 1.f});
+            logout->setAnchorPoint({ 0.5f, 1.f });
             logout->setPositionY(-33.f);
             logout_btnspr->m_BGSprite->setOpacity(0);
             logout_btnspr->m_BGSprite->runAction(CCEaseExponentialIn::create(CCFadeIn::create(2.0f)));
@@ -260,7 +261,7 @@ public:
             if (not logout_btnspr) return;
             if (not checkExistence(ghc_file)) return logout_btnspr->setString("Here is no save file anymore...");
             logout_btnspr->setString("Access token save file was deleted!");
-            logout_btnspr->setScale(0.625f); 
+            logout_btnspr->setScale(0.625f);
             fs::remove(ghc_file);
         }
     }
@@ -311,7 +312,7 @@ public:
         if (response->getResponseCode() != 200)
             return log::error(
                 "request was failed with code \"{}\" (200 must be...), error buffer: \"{}\", url: \"{}\"",
-                response->getResponseCode(), 
+                response->getResponseCode(),
                 response->getErrorBuffer(),
                 response->getHttpRequest()->getUrl()
             );
@@ -415,7 +416,7 @@ public:
     CCMenuItemSpriteExtra* m_checkForUpdatesBtn = nullptr;
     CCNode* m_searchBG = nullptr;
     CCTextInputNode* m_searchInput = nullptr;
-    LoadingCircle* m_loadingCircle = nullptr;
+    LoadingCircle* m_LoadingCircle = nullptr;
     CCMenuItemSpriteExtra* m_filterBtn;
     //ModListQuery m_query;
     //ModListDisplay m_display = ModListDisplay::Concise;
@@ -552,7 +553,7 @@ void openLastViewed();
 
 class IssueCommentItem : public CCMenuItem {
 public:
-    matjson::Value m_json; 
+    matjson::Value m_json;
     static auto create(CCNode* parent, matjson::Value json) {
         auto rtn = new IssueCommentItem();
         rtn->m_json = json;
@@ -585,7 +586,7 @@ public:
                 avatar->setContentSize(avatar_size);
                 row->addChild(avatar);
                 //
-                auto filep = dirs::getTempDir() / "avatars" /("." + m_json["user"]["login"].as_string());
+                auto filep = dirs::getTempDir() / "avatars" / ("." + m_json["user"]["login"].as_string());
                 auto a = [this, sprite, filep, avatar](std::monostate const& asd) {
                     if (not sprite) return;
                     sprite->initWithFile(filep.string().c_str());
@@ -652,7 +653,7 @@ public:
                 }
                 //body
                 auto body = public_cast(
-                    MDTextArea::create(m_json["body"].as_string(), { text->getContentWidth(), 10}),
+                    MDTextArea::create(m_json["body"].as_string(), { text->getContentWidth(), 10 }),
                     m_content
                 );
                 body->setVisible(1);
@@ -685,7 +686,7 @@ public:
         };
     }
     //IssueCommentItem
-    void deleteComment(CCObject*)  {
+    void deleteComment(CCObject*) {
         auto a = [this](std::string const& rtn)
             {
                 if (auto reload = dynamic_cast<CCMenuItemSpriteExtra*>(CCDirector::get()->m_pRunningScene->getChildByIDRecursive("reload")))
@@ -888,7 +889,7 @@ public:
         auto local_issues = std::ifstream(local_issues_file);
         if (local_issues.is_open()) {
             std::string data(
-                (std::istreambuf_iterator<char>(local_issues)), 
+                (std::istreambuf_iterator<char>(local_issues)),
                 std::istreambuf_iterator<char>()
             );
             return setupComments(matjson::parse(data));
@@ -901,7 +902,7 @@ public:
         auto a = [this, loading_circle](matjson::Value const& catgirls) {
             auto local_issues_save = (fs::path(data_strkey("workindir")) / "comments.json");
             fs::create_directories(local_issues_save.parent_path());
-            std::ofstream(local_issues_save.string().c_str()) << catgirls.dump(); 
+            std::ofstream(local_issues_save.string().c_str()) << catgirls.dump();
             setupComments(catgirls);
             loading_circle->fadeAndRemove();
             };
@@ -1046,7 +1047,7 @@ public:
                     sprite->setScaleY(this->getContentHeight() / sprite->getContentHeight());
                     this->addChild(sprite, -2, 768921);
                 }
-            };
+                };
             then(std::monostate());
             web::AsyncWebRequest().fetch(custom_bg_link).into(bg_filep).then(then);
         }
@@ -1066,7 +1067,7 @@ public:
                     sprite->setScaleY(this->getContentHeight() / sprite->getContentHeight());
                     this->addChild(sprite, 10, 57198);
                 }
-            };
+                };
             then(std::monostate());
             web::AsyncWebRequest().fetch(custom_bg_link).into(overlay_filep).then(then);
         }
@@ -1327,7 +1328,7 @@ public:
         request->setRequestType(CCHttpRequest::HttpRequestType::kHttpPost);
         request->setResponseCallback(this, httpresponse_selector(BasicCCHttpReqCallback::onResponse));
         CCHttpClient::getInstance()->send(request);
-        request->release(); 
+        request->release();
     }
     void onBtn(CCObject* pCCObject) {
         auto what = dynamic_cast<CCMenuItem*>(pCCObject);
@@ -1585,7 +1586,7 @@ public:
         }
         //log
         auto pMDTextArea = geode::MDTextArea::create(
-            "", 
+            "",
             CCSize(
                 rtn->getContentSize().width - 70,
                 rtn->getContentSize().height - 20
@@ -1616,7 +1617,7 @@ public:
             );
             log(fmt::format("api_url = {}", api_url.data()));
             //then
-            auto then = 
+            auto then =
                 [this](matjson::Value const& catgirl) {
                 setData(data::repo, catgirl.dump());
                 log("```\nloaded :D\n```");
@@ -1641,7 +1642,7 @@ public:
             );
             log(fmt::format("api_url = {}", api_url.data()));
             //then
-            auto then = 
+            auto then =
                 [this](matjson::Value const& catgirl) {
                 //release
                 setData(data::release, catgirl.dump());
@@ -1857,7 +1858,7 @@ public:
                 std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
                 if (set_to.empty()) {
                     set_to = getJsonData(issue)["html_url"].as_string();
-                    if (getJsonData(repo).contains("html_url")) 
+                    if (getJsonData(repo).contains("html_url"))
                         set_to = getJsonData(repo)["html_url"].as_string();
                 }
                 json[val] = (set_to);
@@ -1884,7 +1885,7 @@ public:
     }
     void loadCustom(CCHttpClient* client, CCHttpResponse* response) {
         log(__FUNCTION__ + std::string(" for ") + std::string(response->getHttpRequest()->getUrl()));
-        if (response->getResponseCode() != 200) 
+        if (response->getResponseCode() != 200)
             return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->getResponseCode(), response->getErrorBuffer()));
         //data
         auto url = std::string(response->getHttpRequest()->getUrl());
@@ -2044,7 +2045,7 @@ public:
             std::ofstream(working_dir("main.json")) << json.dump();
             //open view lay
             setViewLayerInIt(json);
-        };
+            };
         auto expect = [this, temp_json_data](std::string const& error) {
             //use generated temp asd
             auto json = matjson::parse(temp_json_data);
@@ -2061,7 +2062,7 @@ public:
             );
             asd->m_scene = CCDirector::get()->m_pNextScene;
             asd->show();
-        };
+            };
         auto letscountapi = fmt::format("https://letscountapi.com/rzn_item_downloads/{}", getJsonData(issue)["number"]);
         web::AsyncWebRequest().
             contentType("application/json").
@@ -2153,7 +2154,7 @@ public:
         }
         if (not label_json.contains("id")) return;
         auto color = cocos::cc3bFromHexString(label_json["color"].as_string()).value_or(ccColor3B(190, 190, 200));
-        if (label_json["description"].is_null()) 
+        if (label_json["description"].is_null())
             label_json["description"] = "seems to be created label by \n publisher via !setlabels comment";
         //pop
         auto pop = geode::createQuickPopup("", "\n \n \n ", "OK", nullptr, nullptr);
@@ -2190,10 +2191,10 @@ public:
         //CSimpleIni* TEMPONEEEA = new CSimpleIni;
         if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos)
             return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
-        if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos) 
+        if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos)
             return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
         auto pop = createQuickPopup(
-            "No Labels!", 
+            "No Labels!",
             "This <cg>issue item</c> <cr>has not</c> <cb>\"mod\"</c> or <co>\"pack\"</c> label!",
             "Oh ok", "LET ME IN",
             360.f, [this](auto, bool btn2) {if (btn2) ModLoadingLayer::openMe(json); }, true
@@ -2247,7 +2248,7 @@ public:
                     pCCLayerColor->setColor({ 5, 25, 5 });
                 if (string::contains(pJson["labels"].dump(), "\"name\": \"featured\""))
                     pCCLayerColor->setColor({ 25, 25, 5 });
-                pCCLayerColor->setContentSize({ pScrollLayer->getContentWidth(), 60.f});//THE SIZE OF ITEM GOES HERE
+                pCCLayerColor->setContentSize({ pScrollLayer->getContentWidth(), 60.f });//THE SIZE OF ITEM GOES HERE
                 pCCLayerColor->setPosition(-(pCCLayerColor->getContentSize() / 2));
                 menu->addChild(pCCLayerColor, -1);//add bg
                 menu->setPosition(pCCLayerColor->getContentSize() / 2);//center the menu
@@ -2510,7 +2511,7 @@ public:
         content->setContentHeight(0.f);
         for (const auto& entry : fs::directory_iterator(ryzen_dir / "mods")) {
             log::debug("{}", entry.path().string());
-            auto main_jsonp = entry / "main.json";
+            auto main_jsonp = entry.path() / "main.json";
             if (checkExistence(main_jsonp)) {
                 auto main_json = matjson::parse(read_file(main_jsonp));
                 if (checkExistence(main_json["download_path"].as_string())) {
@@ -2634,7 +2635,7 @@ public:
             downloadMods();
         }
         if (what->getID() == "reload") downloadMods();
-        if (what->getID() == "filter")  {
+        if (what->getID() == "filter") {
             auto local_issues_file = ryzen_dir / "issues.json";
             auto local_issues = std::ifstream(local_issues_file);
             if (local_issues.is_open())
@@ -2648,10 +2649,10 @@ public:
             }
             else downloadMods();
         };
-        if (what->getID() == "add_mod_btn")  {
+        if (what->getID() == "add_mod_btn") {
             web::openLinkInBrowser("https://github.com/user95401/Ryzen-Mods/issues/new/choose");
         };
-        if (what->getID() == "filter_info")  {
+        if (what->getID() == "filter_info") {
             createWideMDPopup(
                 "Filter Info",
                 read_file(Mod::get()->getTempDir() / "resources" / "filter_info.md"_spr),
@@ -2803,7 +2804,7 @@ public:
                     asd->m_scene = this;
                     asd->show();
                 }
-           );
+                );
     }
     static IssuesListLayer* create(std::string withFilter = "") {
         auto rtn = new IssuesListLayer();
@@ -2899,7 +2900,7 @@ public:
                     header->setContentSize({
                         scroll_size.width + 3, // for right left borders
                         paddingt + 1 // transept border away 
-                    });
+                        });
                     header->setAnchorPoint({ 0.5f, 1.0f });
                     header->setColor(ccBLACK);
                     header->setPositionX(CCDirector::get()->getScreenRight() / 2);
@@ -3098,7 +3099,7 @@ void PackSelectLayer::tryCustomSetup(float) {
     bottomLeft->setPosition({ cornerSize.width / 2, cornerSize.height / 2 });
     auto bottomRight = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
     bottomRight->setFlipX(true);
-    bottomRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, cornerSize.height / 2});
+    bottomRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, cornerSize.height / 2 });
     auto topLeft = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
     topLeft->setFlipY(true);
     topLeft->setPosition({ cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
@@ -3175,33 +3176,33 @@ void loadMods() {
         bool loadrtn = false;
         //loadit
 #if defined(GEODE_IS_WINDOWS)
-        if(filename.extension() == ".dll") {
+        if (filename.extension() == ".dll") {
             loadrtn = LoadLibrary(entry.path().string().data());
         }
 #elif defined(GEODE_IS_ANDROID)
         if (filename.extension() == ".so") {
             //fuck
-            char path[64] = {0};
+            char path[64] = { 0 };
             sprintf(path, "/proc/%d/cmdline", getpid());
             FILE* cmdline = fopen(path, "r");
 
-            char application_id[64] = {0};
+            char application_id[64] = { 0 };
             fread(application_id, sizeof(application_id), 1, cmdline);
             fclose(cmdline);
 
             std::string gamePath = "/data/data/" + std::string(application_id);
 
             fs::copy_file(
-                entry.path(), 
+                entry.path(),
                 gamePath / entry.path().filename(),
                 fs::copy_options::update_existing
             );
-            
+
             loadrtn = dlopen(
                 (gamePath / entry.path().filename()).string().data(),
                 RTLD_LAZY
             );
-        }   
+        }
 #endif
         auto log = fmt::format(
             "the {} {}",
