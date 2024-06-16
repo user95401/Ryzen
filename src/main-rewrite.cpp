@@ -88,19 +88,56 @@ std::vector<std::string> explode(std::string separator, std::string input) {
     log::debug("{}(separator \"{}\", input \"{}\").rtn({})", __FUNCTION__, separator, input, log.str());*/
     return vec;
 }
-std::string getValueFromHeader(std::string in, std::string for_key) {
-    //log::debug("{}(in \"{}\", for_key \"{}\")", __FUNCTION__, in, for_key);
-    auto lines = explode("\n", in);
-    for (auto line : lines) {
-        //log::debug("{}", line);
-        if (string::contains(line, ": ")) {
-            auto expl = explode(": ", line);
-            //log::debug("expl: 0={}, 1={}", expl[0], expl[1]);
-            if (for_key == expl[0]) return expl[1];
-        };
+namespace geode::utils::web {
+    void asd(std::string const& url, fs::path container_path) {
+        //wait for file
+        while (not checkExistence(container_path));
     }
-    return "";
+    Result<std::string> fetch(std::string const& url) {
+        //file
+        auto id = std::string(ZipUtils::base64URLEncode(url).data());
+        fs::path container_path = Mod::get()->getTempDir() / "web" / ("." + id);
+        fs::create_directories(Mod::get()->getTempDir() / "web");
+        if (checkExistence(container_path)) fs::remove(container_path);
+        //task
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [container_path](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    std::ofstream(container_path) << res->string().value_or("err");
+                    log::debug("{}", res->string().value_or("err"));
+                }
+            }
+        );
+        auto req = web::WebRequest();
+        listener->setFilter(req.send("GET", url));
+        //wait
+        std::thread thread(asd, url, container_path);
+        thread.join();
+        return Ok(read_file(container_path));
+    };
+    Result<matjson::Value> fetchJSON(std::string const& url) {
+        //json
+        std::string error;
+        auto json_val = matjson::parse(fetch(url).value(), error);
+        return Ok(json_val);
+    };
 }
+class CCSpriteExt : public CCSprite {
+public:
+    static CCSprite* create(const char* pszFileName) {
+        auto rtn = CCSprite::create(pszFileName);
+        auto boolUserObj = dynamic_cast<CCBool*>(rtn->getUserObject("geode.texture-loader/fallback"));
+        if (boolUserObj) return nullptr;
+        else return rtn;
+    };
+    static CCSprite* createWithSpriteFrameName(const char* pszSpriteFrameName) {
+        auto rtn = CCSprite::createWithSpriteFrameName(pszSpriteFrameName);
+        auto boolUserObj = dynamic_cast<CCBool*>(rtn->getUserObject("geode.texture-loader/fallback"));
+        if (boolUserObj) return nullptr;
+        else return rtn;
+    };
+};
 #endif
 #define public_cast(value, member) [](auto* v) { \
 	class FriendClass__; \
@@ -287,7 +324,7 @@ public:
     static auto addMyBtn(CCNode* parent_lay, bool animate = false) {
         //item
         auto github = CCMenuItemSpriteExtra::create(
-            CCSprite::createWithSpriteFrameName("geode.loader/github.png"),
+            CCSpriteExt::createWithSpriteFrameName("geode.loader/github.png"),
             parent_lay,
             menu_selector(GitHubAuthPopup::onOpenupBtn)
         );
@@ -353,7 +390,7 @@ struct DownloadableLogoExt {
         if (not exist) return;
         //try init w file
         if (not logo->initWithFile(mod_working_dir(json, ".logo").c_str())) return;
-        auto init_result_size = logo->getContentSize();
+        auto  init_result_size = logo->getContentSize();
         if (init_result_size.height > logo_size.height) {
             logo->setScale(logo_size.height / init_result_size.height);
         }
@@ -363,7 +400,7 @@ struct DownloadableLogoExt {
         logo->setAnchorPoint(data_container->getAnchorPoint());
         logo->unschedule(schedule_selector(DownloadableLogoExt::schedule));
     }
-    static void attach(CCSprite* target, CCSize size, matjson::Value issue) {
+    static void attach(auto target, CCSize size, matjson::Value issue) {
         //downloadLogo
         downloadLogo(issue, "", "");
         //issue_json child
@@ -392,22 +429,31 @@ struct DownloadableLogoExt {
             , repo_owner, repo_name, default_branch
         );
         if (not overwrite_endpoint.empty()) file_url = overwrite_endpoint;
-        //expect
-        auto expect =
-            [issue_json, file_url](std::string const& what) {
-            if (string::contains(file_url, "logo.png"))
-                return downloadLogo(issue_json, string::replace(file_url, "logo.png", "pack.png"), "");
-            if (string::contains(file_url, "pack.png"))
-                return downloadLogo(issue_json, issue_json["user"]["avatar_url"].as_string(), "");
-            };
-        //then
-        auto then =
-            [issue_json, expect](std::monostate const& a) {
-            std::string str_badimg = "Bad image downloaded";
-            if (not CCSprite::create(mod_working_dir(issue_json, ".logo").data())) expect(str_badimg);
-            //CCMessageBox("asd", "ASD");
-            };
         //web::AsyncWebRequest().fetch(file_url).into(mod_working_dir(issue_json, ".logo")).then(then).expect(expect);
+        auto webTaskListener = new EventListener<web::WebTask>;
+        auto req = web::WebRequest();
+        webTaskListener->bind(
+            [issue_json, file_url](web::WebTask::Event* e) {
+                auto b = [issue_json, file_url](std::string const& what) {
+                    if (string::contains(file_url, "logo.png"))
+                        return downloadLogo(issue_json, string::replace(file_url, "logo.png", "pack.png"), "");
+                    if (string::contains(file_url, "pack.png"))
+                        return downloadLogo(issue_json, issue_json["user"]["avatar_url"].as_string(), "");
+                    };
+                auto a = [issue_json, b]() {
+                    std::string str_badimg = "Bad image downloaded";
+                    if (not CCSpriteExt::create(mod_working_dir(issue_json, ".logo").data())) b(str_badimg);
+                    //CCMessageBox("asd", "ASD");
+                    };
+                if (web::WebResponse* res = e->getValue()) {
+                    auto result = res->into(mod_working_dir(issue_json, ".logo"));
+                    //call the some shit
+                    if (res->code() < 399) a();
+                    else b(result.error());
+                }
+            }
+        );
+        webTaskListener->setFilter(req.send("GET", file_url));
     }
 };
 #endif
@@ -468,7 +514,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         //setup
         rtn->setKeypadEnabled(true);
         rtn->setTouchEnabled(true);
-        CCSprite* backgroundSprite = CCSprite::create("GJ_gradientBG.png");
+        auto backgroundSprite = CCSpriteExt::create("GJ_gradientBG.png");
         backgroundSprite->setScaleX(rtn->getContentSize().width / backgroundSprite->getContentSize().width);
         backgroundSprite->setScaleY(rtn->getContentSize().height / backgroundSprite->getContentSize().height);
         backgroundSprite->setAnchorPoint({ 0.5f, 0.5f });
@@ -493,7 +539,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         backgroundSprite->runAction(CCRepeatForever::create(CCShaky3D::create(10.0f, CCSizeMake(1, 10), 1, 0)));
         rtn->addChild(backgroundSprite, -10);
         //a
-        auto doting = CCSprite::create("doting.png"_spr);
+        auto doting = CCSpriteExt::create("doting.png"_spr);
         doting->setAnchorPoint(CCPoint());
         doting->setScaleX((rtn->getContentSize().width / doting->getContentSize().width));
         doting->setScaleY((rtn->getContentSize().height / doting->getContentSize().height));
@@ -503,14 +549,14 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
             auto scale = 1.f;
             auto opacity = 160;
             //SquareShadowCorner1
-            CCSprite* SquareShadowCorner1 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+            auto SquareShadowCorner1 = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
             SquareShadowCorner1->setScaleX(scale);
             SquareShadowCorner1->setOpacity(opacity);
             SquareShadowCorner1->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner1->getContentSize().height);
             SquareShadowCorner1->setAnchorPoint({ 0, 0 });
             rtn->addChild(SquareShadowCorner1, -9);
             //SquareShadowCorner2
-            CCSprite* SquareShadowCorner2 = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+            auto SquareShadowCorner2 = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
             SquareShadowCorner2->setScaleX(-scale);
             SquareShadowCorner2->setOpacity(opacity);
             SquareShadowCorner2->setScaleY(CCDirector::sharedDirector()->getWinSize().height / SquareShadowCorner2->getContentSize().height);
@@ -520,13 +566,13 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         };
         /*gauntletCorners*/ {
             //gauntletCorner_001
-            CCSprite* gauntletCorner_001 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+            auto gauntletCorner_001 = CCSpriteExt::createWithSpriteFrameName("gauntletCorner_001.png");
             gauntletCorner_001->setPosition({ 0, 0 });
             gauntletCorner_001->setRotation(0);
             gauntletCorner_001->setAnchorPoint({ 0.f,0.f });
             rtn->addChild(gauntletCorner_001);//add gauntletCorner_001
             //gauntletCorner_002
-            CCSprite* gauntletCorner_002 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+            auto gauntletCorner_002 = CCSpriteExt::createWithSpriteFrameName("gauntletCorner_001.png");
             gauntletCorner_002->setPosition({
                 CCDirector::sharedDirector()->getWinSize().width,
                 0.f
@@ -535,7 +581,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
             gauntletCorner_002->setAnchorPoint({ 0.f,0.f });
             rtn->addChild(gauntletCorner_002);//add gauntletCorner_002
             //gauntletCorner_003
-            CCSprite* gauntletCorner_003 = CCSprite::createWithSpriteFrameName("gauntletCorner_001.png");
+            auto gauntletCorner_003 = CCSpriteExt::createWithSpriteFrameName("gauntletCorner_001.png");
             gauntletCorner_003->setPosition({
                 (CCDirector::sharedDirector()->getWinSize().width),
                 (CCDirector::sharedDirector()->getWinSize().height)
@@ -546,7 +592,7 @@ auto basicRznLayersInit(CCLayer* rtn, cocos2d::SEL_MenuHandler onBtnSel) {
         };
         /*backBtn*/ {
             auto back = CCMenuItemSpriteExtra::create(
-                CCSprite::createWithSpriteFrameName("GJ_arrow_03_001.png"),
+                CCSpriteExt::createWithSpriteFrameName("GJ_arrow_03_001.png"),
                 rtn,
                 onBtnSel
             );
@@ -590,7 +636,7 @@ public:
             auto avatar_size = CCSize(30.f, 30.f);
             {
                 //sprite
-                auto sprite = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
+                auto sprite = CCSpriteExt::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 sprite->setScale(avatar_size.width / sprite->getContentSize().width);
                 //item
                 auto avatar = CCMenuItemSpriteExtra::create(sprite, this, menu_selector(IssueCommentItem::onAvatar));
@@ -609,8 +655,8 @@ public:
                     {
                     };
                 fs::create_directories(dirs::getTempDir() / "avatars");
-               /* web::AsyncWebRequest().fetch(m_json["user"]["avatar_url"].as_string())
-                    .into(filep).then(a).expect(b);*/
+                /* web::AsyncWebRequest().fetch(m_json["user"]["avatar_url"].as_string())
+                     .into(filep).then(a).expect(b);*/
             }
             //text
             if (auto text = CCNode::create()) {
@@ -653,7 +699,7 @@ public:
                     );
                     user->addChild(menu);
                     //delete_btn
-                    auto edit_delBtn_001 = CCSprite::createWithSpriteFrameName("edit_delBtn_001.png");
+                    auto edit_delBtn_001 = CCSpriteExt::createWithSpriteFrameName("edit_delBtn_001.png");
                     edit_delBtn_001->setScale(0.5f);
                     auto delete_btn = CCMenuItemSpriteExtra::create(
                         edit_delBtn_001,
@@ -686,7 +732,7 @@ public:
         //update size
         this->setLayout(RowLayout::create());
         //bg
-        CCSprite* bg = CCSprite::create("Ryzen_SquareShadow_001.png"_spr); {
+        auto bg = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr); {
             bg->setID("bg");
             bg->setOpacity(90);
             bg->setScaleX(((this->getContentSize().width + 12) / bg->getContentSize().width));
@@ -721,11 +767,11 @@ public:
                 );
                 asd->show();
             };
-       /* web::AsyncWebRequest()
-            ghapiauth
-            .method("DELETE")
-            .fetch(m_json["url"].as_string())
-            .text().then(a).expect(b);*/
+        /* web::AsyncWebRequest()
+             ghapiauth
+             .method("DELETE")
+             .fetch(m_json["url"].as_string())
+             .text().then(a).expect(b);*/
     }
     void onAvatar(CCObject*) {
         if (not m_json.contains("user")) return;
@@ -814,7 +860,7 @@ public:
                 scroll->setPositionX(paddingx / 2 + 2);
                 this->addChild(scroll, -1);
                 //shadow_cornerl
-                CCSprite* shadow_cornerl = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto shadow_cornerl = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerl->setID("shadow_cornerl");
                 shadow_cornerl->setOpacity(60);
                 shadow_cornerl->setScaleY(-6.f);
@@ -822,7 +868,7 @@ public:
                 shadow_cornerl->setAnchorPoint({ -0.3f, 1.f });
                 scroll->addChild(shadow_cornerl, -1);
                 //shadow_cornerr
-                CCSprite* shadow_cornerr = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto shadow_cornerr = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerr->setID("shadow_cornerr");
                 shadow_cornerr->setOpacity(60);
                 shadow_cornerr->setScaleY(6.f);
@@ -831,7 +877,7 @@ public:
                 shadow_cornerr->setAnchorPoint({ -0.3f, 0.f });
                 scroll->addChild(shadow_cornerr, -1);
                 //shadow_cornerb
-                CCSprite* shadow_cornerb = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto shadow_cornerb = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerb->setID("shadow_cornerb");
                 shadow_cornerb->setOpacity(90);
                 shadow_cornerb->setScaleY(((scroll_size.width + 20) / shadow_cornerb->getContentSize().width));
@@ -855,7 +901,7 @@ public:
                 this->addChild(menu);
             };
             //reloadmodsbtn
-            if (auto sprite = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+            if (auto sprite = CCSpriteExt::create("Ryzen_ReloadBtn_001.png"_spr)) {
                 CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
                     sprite, this, menu_selector(IssueCommentsLayer::onBtn)
                 );
@@ -864,7 +910,7 @@ public:
                 menu->addChild(reload);
             };
             //post
-            if (auto sprite = CCSprite::create("Ryzen_CommentsBtn_001.png"_spr)) {
+            if (auto sprite = CCSpriteExt::create("Ryzen_CommentsBtn_001.png"_spr)) {
                 CCMenuItemSpriteExtra* post = CCMenuItemSpriteExtra::create(
                     sprite, this, menu_selector(IssueCommentsLayer::onBtn)
                 );
@@ -1049,7 +1095,7 @@ public:
             auto custom_bg_link = strKeyOfdata("custom_bg_link");
             auto then = [this, bg_filep](std::monostate some_shit) {
                 if (this == nullptr) return;
-                auto sprite = CCSprite::create(bg_filep.c_str());
+                auto sprite = CCSpriteExt::create(bg_filep.c_str());
                 if (auto child = this->getChildByTag(768921)) {
                     child->removeFromParent();
                 }
@@ -1069,7 +1115,7 @@ public:
             auto custom_bg_link = strKeyOfdata("overlay_link");
             auto then = [this, overlay_filep](std::monostate some_shit) {
                 if (this == nullptr) return;
-                auto sprite = CCSprite::create(overlay_filep.c_str());
+                auto sprite = CCSpriteExt::create(overlay_filep.c_str());
                 if (auto child = this->getChildByTag(57198)) {
                     child->removeFromParent();
                 }
@@ -1099,8 +1145,8 @@ public:
             );
             /*some fun stuff*/ {
                 //logo
-                auto logo = CCSprite::create((fs::path(strKeyOfdata("workindir")) / ".logo").string().c_str());
-                if (!logo) logo = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
+                auto logo = CCSpriteExt::create((fs::path(strKeyOfdata("workindir")) / ".logo").string().c_str());
+                if (!logo) logo = CCSpriteExt::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 if (logo) {
                     auto icon_size = CCSize(68.f, 68.f);
                     auto real_size = logo->getContentSize();
@@ -1205,7 +1251,7 @@ public:
                             download_count->setID("download_count");
                             download_count->setAnchorPoint({ 0.f, 0.5f });
                             download_count->setScale(0.65f);
-                            download_count->addChild(CCSprite::createWithSpriteFrameName("GJ_sDownloadIcon_001.png"), 0, 521);
+                            download_count->addChild(CCSpriteExt::createWithSpriteFrameName("GJ_sDownloadIcon_001.png"), 0, 521);
                             download_count->getChildByTag(521)->setAnchorPoint({ 1.0f, 0.0f });
                             if (DATA()["downloads"].as_int() != 0) statsContainerMenu->addChild(download_count);
                         }
@@ -1218,7 +1264,7 @@ public:
                             size->setID("size");
                             size->setAnchorPoint({ 0.f, 0.5f });
                             size->setScale(0.65f);
-                            size->addChild(CCSprite::createWithSpriteFrameName("geode.loader/changelog.png"), 0, 521);
+                            size->addChild(CCSpriteExt::createWithSpriteFrameName("geode.loader/changelog.png"), 0, 521);
                             size->getChildByTag(521)->setAnchorPoint({ 1.10f, 0.0f });
                             size->getChildByTag(521)->setScale(0.6f);
                             if (DATA()["size"].as_int() != 0) statsContainerMenu->addChild(size);
@@ -1244,7 +1290,7 @@ public:
                 this->addChild(menu);
             };
             //reloadmodsbtn
-            if (auto sprite = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+            if (auto sprite = CCSpriteExt::create("Ryzen_ReloadBtn_001.png"_spr)) {
                 CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
                     sprite, this, menu_selector(ModViewLayer::onBtn)
                 );
@@ -1253,7 +1299,7 @@ public:
                 menu->addChild(reload);
             };
             //comments
-            if (auto sprite = CCSprite::create("Ryzen_CommentsBtn_001.png"_spr)) {
+            if (auto sprite = CCSpriteExt::create("Ryzen_CommentsBtn_001.png"_spr)) {
                 CCMenuItemSpriteExtra* comments = CCMenuItemSpriteExtra::create(
                     sprite, this, menu_selector(ModViewLayer::onBtn)
                 );
@@ -1276,7 +1322,7 @@ public:
                 this->addChild(menu);
             };
             //github
-            if (auto github = CCSprite::createWithSpriteFrameName("geode.loader/github.png")) {
+            if (auto github = CCSpriteExt::createWithSpriteFrameName("geode.loader/github.png")) {
                 CCMenuItemSpriteExtra* github_item = CCMenuItemSpriteExtra::create(
                     github, this, menu_selector(ModViewLayer::onBtn)
                 );
@@ -1284,7 +1330,7 @@ public:
                 menu->addChild(github_item);
             };
             //website_link
-            if (auto github = CCSprite::create("Ryzen_WebBtn_001.png"_spr)) {
+            if (auto github = CCSpriteExt::create("Ryzen_WebBtn_001.png"_spr)) {
                 CCMenuItemSpriteExtra* webpage = CCMenuItemSpriteExtra::create(
                     github, this, menu_selector(ModViewLayer::onBtn)
                 );
@@ -1614,297 +1660,10 @@ public:
         rtn->addChild(loadingLabel, 1, 2319);
         return rtn;
     }
-    void loadRepo(int step = 0, std::string overwrite_endpoint = "") {
-        std::string main_logo = getIniData(data::issue_body_ini)->GetValue("main", "logo", "na");
-        auto repo_owner = getIniData(data::issue_body_ini)->GetValue("repo", "owner", "na");
-        auto repo_name = getIniData(data::issue_body_ini)->GetValue("repo", "name", "na");
-        auto release_tar = getIniData(data::issue_body_ini)->GetValue("release", "tar", "latest");
-        //repo_json
-        if (step == 0) {
-            log("## step0: load repo");
-            log(fmt::format("repo_owner = {}", repo_owner));
-            log(fmt::format("repo_name = {}", repo_name));
-            auto api_url = fmt::format(
-                "https://api.github.com/repos/{}/{}"
-                , repo_owner, repo_name
-            );
-            log(fmt::format("api_url = {}", api_url.data()));
-            //then
-            auto then =
-                [this](matjson::Value const& catgirl) {
-                setData(data::repo, catgirl.dump());
-                log("```\nloaded :D\n```");
-                loadRepo(1);
-                };
-            //expect
-            auto expect =
-                [this](std::string const& what) {
-                log("## <cr>" + what + "</c>");
-                };
-            //web::AsyncWebRequest()ghapiauth.fetch(api_url).json().then(then).expect(expect);
-        };
-        //releases
-        if (step == 1) {
-            log("## step1: load release");
-            log(fmt::format("repo_owner = {}", repo_owner));
-            log(fmt::format("repo_name = {}", repo_name));
-            log(fmt::format("release_tar = {}", release_tar));
-            auto api_url = fmt::format(
-                "https://api.github.com/repos/{}/{}/releases/{}"
-                , repo_owner, repo_name, release_tar
-            );
-            log(fmt::format("api_url = {}", api_url.data()));
-            //then
-            auto then =
-                [this](matjson::Value const& catgirl) {
-                //release
-                setData(data::release, catgirl.dump());
-                //asset
-                if (getJsonData(data::release).contains("assets")) {
-                    auto assets = getJsonData(data::release)["assets"].as_array();
-                    auto file = getIniData(data::issue_body_ini)->GetValue("release", "file", "mod.geode");
-                    for (auto asset : assets) {
-                        if (asset["name"].as_string() == file) setData(data::asset, asset.dump());
-                    }
-                }
-                log("```\nloaded :D\n```");
-                loadRepo(2);
-                };
-            //expect
-            auto expect =
-                [this](std::string const& what) {
-                log("## <cr>" + what + "</c>");
-                };
-            //web::AsyncWebRequest()ghapiauth.fetch(api_url).json().then(then).expect(expect);
-        };
-        //FINAL OF LOADING REPO
-        if (step == 2) {
-            log("# FINAL OF LOADING REPO");
-            log("setting data for mod view layer");
-            log("values: workindir, title, devs, desc, size, downloads, body_base64, issue_json_base64, download_link, download_path");
-            log("section: main");
-            //jsons and other text files
-            auto default_branch = getJsonData(data::repo)["default_branch"].as_string();
-            log(fmt::format("repo_owner = {}", repo_owner));
-            log(fmt::format("repo_name = {}", repo_name));
-            log(fmt::format("default_branch = {}", default_branch));
-            auto readmemd_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/README.md"
-                , repo_owner, repo_name, default_branch
-            );
-            log(fmt::format("readmemd_url = {}", readmemd_url));
-            auto aboutmd_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/about.md"
-                , repo_owner, repo_name, default_branch
-            );
-            log(fmt::format("aboutmd_url = {}", aboutmd_url));
-            auto modjson_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/mod.json"
-                , repo_owner, repo_name, default_branch
-            );
-            log(fmt::format("modjson_url = {}", modjson_url));
-            auto packjson_url = fmt::format(
-                "https://raw.githubusercontent.com/{}/{}/{}/pack.json"
-                , repo_owner, repo_name, default_branch
-            );
-            log(fmt::format("packjson_url = {}", packjson_url));
-            //readme
-            log("loading readme... ", "");
-            auto readme = std::string("todo :D");//web::fetch(readmemd_url).value_or("");
-            log(fmt::format("size: {}", readme.size()));
-            //about
-            log("loading about... ", "");
-            auto about = std::string("todo :D");//web::fetch(aboutmd_url).value_or("");
-            log(fmt::format("size: {}", about.size()));
-            //mod
-            log("loading mod.json... ", "");
-            auto mod = matjson::Value("{}");//web::fetchJSON(modjson_url).value_or("");
-            log(fmt::format("is good: {}", mod.contains("id")));
-            //pack
-            log("loading pack.json... ", "");
-            auto pack = matjson::Value("{}");//web::fetchJSON(packjson_url).value_or("");
-            log(fmt::format("is good: {}", pack.contains("id")));
-            //jsonsetup
-            auto json = matjson::parse(
-                "{                                  \
-                    \"workindir\": \"\",            \
-                    \"title\": \"\",                \
-                    \"devs\": \"\",                 \
-                    \"desc\": \"\",                 \
-                    \"size\": 0,                    \
-                    \"downloads\": 0,               \
-                    \"body_base64\": \"\",          \
-                    \"issue_json_base64\": \"\",    \
-                    \"download_link\": \"\",        \
-                    \"download_path\": \"\",        \
-                    \"website_link\": \"\",         \
-                    \"github_page_link\": \"\",     \
-                    \"custom_bg_link\": \"\",       \
-                    \"overlay_link\": \"\"          \
-                }"
-            );
-            /*workindir*/ {
-                auto val = "workindir";
-                std::string set_to = working_dir().string();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*title*/ {
-                auto val = "title";
-                std::string set_to = getJsonData(issue)["title"].as_string();
-                if (mod.contains("name")) set_to = mod["name"].as_string();
-                if (pack.contains("name")) set_to = pack["name"].as_string();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*devs*/ {
-                auto val = "devs";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "developer", "");
-                if (pack.contains("author")) set_to = pack["author"].as_string();
-                if (pack.contains("authors")) set_to = pack["authors"].dump();
-                if (mod.contains("developer")) set_to = mod["developer"].as_string();
-                if (mod.contains("developers")) set_to = mod["developers"].dump();
-                set_to = string::replace(set_to, "[", "");
-                set_to = string::replace(set_to, "]", "");
-                set_to = string::replace(set_to, "\"", "");
-                if (std::string(set_to).empty()) set_to = fmt::format(
-                    "{} [{}]",
-                    getJsonData(issue)["user"]["login"].as_string(),
-                    getJsonData(issue)["user"]["id"].as_int()
-                ).data();
-                set_to = ("By: " + std::string(set_to));
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*desc*/ {
-                auto val = "desc";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
-                if (mod.contains("description")) set_to = mod["description"].as_string();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            if (getJsonData(asset).contains("size")) {
-                auto val = "size";
-                auto set_to = getJsonData(asset)["size"].as_int();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            if (getJsonData(asset).contains("download_count")) {
-                auto val = "downloads";
-                auto set_to = getJsonData(asset)["download_count"].as_int();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*body_base64*/ {
-                auto val = "body_base64";
-                std::string set_to = fmt::format(
-                    "# {}\n{}",
-                    json["title"].as_string(),
-                    json["desc"].as_string()
-                );
-                if (not string::contains(readme, "404: Not Found"))
-                    set_to = readme;
-                if (not string::contains(about, "404: Not Found"))
-                    set_to = about;
-                set_to = ZipUtils::base64URLEncode(set_to);
-                json[val] = matjson::Value(std::string(set_to.data()).c_str());
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*issue_json_base64*/ {
-                auto val = "issue_json_base64";
-                std::string set_to = getData(data::issue);
-                set_to = ZipUtils::base64URLEncode(set_to);
-                json[val] = matjson::Value(std::string(set_to.data()).c_str());
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*download_link*/ {
-                auto val = "download_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_link", "");
-                if (std::string(set_to).empty()) {//so generate one
-                    if (getIniData(data::issue_body_ini)->SectionExists("release")) {
-                        auto file = getIniData(issue_body_ini)->GetValue("release", "file", "NO FILE NAME!!!");
-                        auto tar = getIniData(issue_body_ini)->GetValue("release", "tar", "latest");
-                        set_to = fmt::format("https://github.com/{}/{}/releases/{}/download/{}", repo_owner, repo_name, tar, file);
-                    }
-                }
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*download_path*/ {
-                auto val = "download_path";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
-                set_to = string::replace(set_to, "..", "");
-                if (std::string(set_to).empty()) {//so generate one
-                    if (getIniData(data::issue_body_ini)->SectionExists("release")) {
-                        auto file = getIniData(issue_body_ini)->GetValue("release", "file", "NO FILE NAME!!!");
-                        auto geode = dirs::getGeodeDir().string();
-                        if (string::contains(file, ".geode"))
-                            set_to = geode + std::string("/mods/") + file;
-                        if (string::containsAny(file, { ".dll", ".so" }))
-                            set_to = geode + std::string("/ryzen/loadit/") + file;
-                        if (string::containsAny(file, { ".zip" }))
-                            set_to = geode + std::string("/config/geode.texture-loader/packs/") + file;
-                    }
-                    else {
-                        auto link_path = fs::path(json["download_link"].as_string());
-                        auto file = link_path.filename().string();
-                        auto geode = dirs::getGeodeDir().string();
-                        if (string::contains(file, ".geode"))
-                            set_to = geode + std::string("/mods/") + file;
-                        if (string::containsAny(file, { ".dll", ".so" }))
-                            set_to = geode + std::string("/ryzen/loadit/") + file;
-                        if (string::containsAny(file, { ".zip" }))
-                            set_to = geode + std::string("/config/geode.texture-loader/packs/") + file;
-                    }
-                }
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*website_link*/ {
-                auto val = "website_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*github_page_link*/ {
-                auto val = "github_page_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-                if (set_to.empty()) {
-                    set_to = getJsonData(issue)["html_url"].as_string();
-                    if (getJsonData(repo).contains("html_url"))
-                        set_to = getJsonData(repo)["html_url"].as_string();
-                }
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*custom_bg_link*/ {
-                auto val = "custom_bg_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            /*overlay_link*/ {
-                auto val = "overlay_link";
-                std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            }
-            log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
-            log(json.dump());
-            std::ofstream(working_dir("main.json")) << json.dump();
-            //open view lay
-            setViewLayerInIt(json);
-        }
-    }
-    EventListener<web::WebTask> m_LetsCountAPITaskListener;
-    void loadCustom(CCHttpClient* client, CCHttpResponse* response) {
-        log(__FUNCTION__ + std::string(" for ") + std::string(response->getHttpRequest()->getUrl()));
-        if (response->getResponseCode() != 200)
-            return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->getResponseCode(), response->getErrorBuffer()));
-        //data
-        auto url = std::string(response->getHttpRequest()->getUrl());
-        std::string str_header(response->getResponseHeader()->begin(), response->getResponseHeader()->end());
-        str_header.replace(0, str_header.find("200 OK"), "");
+    void loadPt2(web::WebResponse* response, std::string url) {
+        log(__FUNCTION__);
+        if (response->code() != 200)
+            return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->code(), response->string().value_or("no inf")));
         //json
         auto json = matjson::parse({
             "{                                          \
@@ -1983,13 +1742,13 @@ public:
             log(fmt::format("{} = {}", val, set_to));
         }
         /*size*/ {
-            auto size = utils::numFromString<int>(getValueFromHeader(str_header, "Content-Length"));
-            if (size.has_value()) {
+            auto size = (int)response->string().value_or("").size();// utils::numFromString<int>();
+            //if (size.has_value()) {
                 auto val = "size";
-                auto set_to = size.value();
+                auto set_to = size;//.value();
                 json[val] = (set_to);
                 log(fmt::format("{} = {}", val, set_to));
-            }
+            //}
         }
         /*download_link*/ {
             auto val = "download_link";
@@ -2049,8 +1808,8 @@ public:
         auto temp_json_data = json.dump();
         auto letscountapi = fmt::format("https://letscountapi.com/rzn_item_downloads/{}", getJsonData(issue)["number"]);
         auto req = web::WebRequest();
-        auto& listener = m_LetsCountAPITaskListener;
-        listener.bind(
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
             [this, temp_json_data](web::WebTask::Event* e) {
                 auto a = [this, temp_json_data](const matjson::Value& rtn_json) {
                     auto json = matjson::parse(temp_json_data);
@@ -2093,10 +1852,10 @@ public:
                     else b(data);
                 }
             }
-        ); 
+        );
         req.header("Content-Type", "application/json");
         req.bodyString("{\"current_value\": 0}");
-        listener.setFilter(req.send("POST", letscountapi));
+        listener->setFilter(req.send("POST", letscountapi));
         /*web::AsyncWebRequest()
             post(letscountapi).
             json().
@@ -2108,22 +1867,17 @@ public:
         //issue_ini
         CSimpleIni issue_ini;
         issue_ini.LoadData(IssueJson["body"].as_string());
-        //repo type
-        if (issue_ini.SectionExists("repo")) {
-            log("# repo type... getting repo now/");
-            loadRepo();
-        }
-        //custom type
-        else {
-            log("# \"custom\" type... setting stuff now");
-            CCHttpRequest* request = new CCHttpRequest;
-            request->setUrl(getIniData(issue_body_ini)->GetValue("main", "download_link", ""));
-            request->setRequestType(CCHttpRequest::HttpRequestType::kHttpUnkown);
-            request->setResponseCallback(this, httpresponse_selector(ModLoadingLayer::loadCustom));
-            CCHttpClient::getInstance()->send(request);
-            request->release();
-            log("request for " + std::string(request->getUrl()) + " was sent");
-        }
+        //go
+        auto url = getIniData(issue_body_ini)->GetValue("main", "download_link", "");
+        auto webTaskListener = new EventListener<web::WebTask>;
+        webTaskListener->bind(
+            [this, url](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) loadPt2(res, url);
+            }
+        );
+        auto req = web::WebRequest();
+        webTaskListener->setFilter(req.send("GET", url));
+        log("request for \"" + std::string(url) + "\" was sent");
     }
     void log(std::string str = "", std::string endl = "\n\n") {
         log::debug("{}", str);
@@ -2264,7 +2018,7 @@ public:
             auto logo_size = CCSize(40, 40);
             {
                 //sprite
-                auto logo = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
+                auto logo = CCSpriteExt::createWithSpriteFrameName("edit_eDamageSquare_001.png");
                 logo->setID("logo");
                 logo->setPosition({ 26.f, 30.f });
                 logo->setScale(logo_size.width / logo->getContentSize().width);
@@ -2297,7 +2051,7 @@ public:
                 pRtn->setContentSize(SIZE);
                 //Ryzen_InfoBtn_001
                 CCMenuItemSpriteExtra* Ryzen_InfoBtn_001 = CCMenuItemSpriteExtra::create(
-                    CCSprite::create("Ryzen_InfoBtn_001.png"_spr),
+                    CCSpriteExt::create("Ryzen_InfoBtn_001.png"_spr),
                     pRtn, menu_selector(IssueItem::onInfo)
                 );
                 Ryzen_InfoBtn_001->setID("Ryzen_InfoBtn_001");
@@ -2462,7 +2216,7 @@ public:
                 scroll->setPositionX(paddingx / 2 + 2);
                 this->addChild(scroll, -1);
                 //shadow_cornerl
-                CCSprite* shadow_cornerl = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto shadow_cornerl = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerl->setID("shadow_cornerl");
                 shadow_cornerl->setOpacity(60);
                 shadow_cornerl->setScaleY(-6.f);
@@ -2470,7 +2224,7 @@ public:
                 shadow_cornerl->setAnchorPoint({ -0.3f, 1.f });
                 scroll->addChild(shadow_cornerl, -1);
                 //shadow_cornerr
-                CCSprite* shadow_cornerr = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto shadow_cornerr = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerr->setID("shadow_cornerr");
                 shadow_cornerr->setOpacity(60);
                 shadow_cornerr->setScaleY(6.f);
@@ -2479,7 +2233,7 @@ public:
                 shadow_cornerr->setAnchorPoint({ -0.3f, 0.f });
                 scroll->addChild(shadow_cornerr, -1);
                 //shadow_cornerb
-                CCSprite* shadow_cornerb = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto shadow_cornerb = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 shadow_cornerb->setID("shadow_cornerb");
                 shadow_cornerb->setOpacity(190);
                 shadow_cornerb->setScaleY(((scroll_size.width + 20) / shadow_cornerb->getContentSize().width));
@@ -2499,7 +2253,7 @@ public:
                 label->setScale(0.8f);
                 this->addChild(label);
                 //top_label_shadow
-                CCSprite* top_label_shadow = CCSprite::create("Ryzen_SquareShadow_001.png"_spr);
+                auto top_label_shadow = CCSpriteExt::create("Ryzen_SquareShadow_001.png"_spr);
                 top_label_shadow->setID("top_label_shadow");
                 top_label_shadow->setOpacity(190);
                 top_label_shadow->setRotation(-90);
@@ -2513,7 +2267,7 @@ public:
         /* menu */ {
             auto menu = CCMenu::create();
             menu->setLayout(AnchorLayout::create());
-            if (auto GJ_infoIcon_001 = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png")) {
+            if (auto GJ_infoIcon_001 = CCSpriteExt::createWithSpriteFrameName("GJ_infoIcon_001.png")) {
                 auto info = CCMenuItemSpriteExtra::create(GJ_infoIcon_001, this, btnSel());
                 info->setID("info");
                 info->setLayoutOptions(
@@ -2871,7 +2625,7 @@ public:
                     rtn->addChild(menu);
                     //reloadmodsbtn
                     CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
-                        CCSprite::create("Ryzen_ReloadBtn_001.png"_spr),
+                        CCSpriteExt::create("Ryzen_ReloadBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
                     reload->setID("reload");
@@ -2883,7 +2637,7 @@ public:
                     menu->addChild(reload);
                     //manage_installed
                     CCMenuItemSpriteExtra* manage_installed = CCMenuItemSpriteExtra::create(
-                        CCSprite::create("Ryzen_ManageInstelledBtn_001.png"_spr),
+                        CCSpriteExt::create("Ryzen_ManageInstelledBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
                     manage_installed->setID("manage_installed");
@@ -2895,7 +2649,7 @@ public:
                     menu->addChild(manage_installed);
                     //filter
                     auto filter = CCMenuItemSpriteExtra::create(
-                        CCSprite::create("Ryzen_FilterBtn_001.png"_spr),
+                        CCSpriteExt::create("Ryzen_FilterBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
                     filter->setID("filter");
@@ -2905,7 +2659,7 @@ public:
                     menu->addChild(filter);
                     //filter_info
                     auto filter_info = CCMenuItemSpriteExtra::create(
-                        CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"),
+                        CCSpriteExt::createWithSpriteFrameName("GJ_infoIcon_001.png"),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
                     filter_info->getNormalImage()->setScale(0.5f);
@@ -2916,7 +2670,7 @@ public:
                     menu->addChild(filter_info, 1);
                     //addmodbtn
                     CCMenuItemSpriteExtra* add_mod_btn = CCMenuItemSpriteExtra::create(
-                        CCSprite::create("Ryzen_PlusBtn_001.png"_spr),
+                        CCSpriteExt::create("Ryzen_PlusBtn_001.png"_spr),
                         rtn, menu_selector(IssuesListLayer::onBtn)
                     );
                     add_mod_btn->setID("add_mod_btn");
@@ -3036,7 +2790,7 @@ public:
                     auto size = 1.5f;
                     auto sizeMult = 3.f;
                     CCMenuItemSpriteExtra* arrow_left = CCMenuItemSpriteExtra::create(
-                        CCSprite::createWithSpriteFrameName("edit_leftBtn_001.png"),
+                        CCSpriteExt::createWithSpriteFrameName("edit_leftBtn_001.png"),
                         rtn,
                         menu_selector(IssuesListLayer::onBtn)
                     );
@@ -3045,7 +2799,7 @@ public:
                     arrow_left->getNormalImage()->setScale(size);
                     arrows->addChild(arrow_left);
                     CCMenuItemSpriteExtra* arrow_right = CCMenuItemSpriteExtra::create(
-                        CCSprite::createWithSpriteFrameName("edit_rightBtn_001.png"),
+                        CCSpriteExt::createWithSpriteFrameName("edit_rightBtn_001.png"),
                         rtn,
                         menu_selector(IssuesListLayer::onBtn)
                     );
@@ -3114,14 +2868,13 @@ public:
 
 #endif
 
-
 void ModsLayer::tryCustomSetup(float) {
     if (!this) return;
     if (!dynamic_cast<CCMenu*>(m_pageMenu)) return;
     lastCreatedOne = this;
     auto menu = dynamic_cast<CCMenu*>(m_tabs[0]->getParent());
     //RyzenLayerBtn
-    auto Ryzen_LogoBtn_001 = CCSprite::create("Ryzen_LogoBtn_001.png"_spr);
+    auto Ryzen_LogoBtn_001 = CCSpriteExt::create("Ryzen_LogoBtn_001.png"_spr);
     Ryzen_LogoBtn_001->setScale(0.6f);
     auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
         Ryzen_LogoBtn_001,
@@ -3129,10 +2882,6 @@ void ModsLayer::tryCustomSetup(float) {
     );
     menu->addChild(RyzenLayerBtn, 999, 5819);
     menu->updateLayout();
-    //gd gravity reference 
-    auto test = CCSprite::create("waifu.plist");
-    menu->addChild(test, 1111, 5252);
-    log::debug("TEST SPRITE: {}", test);
 }
 void PackSelectLayer::tryCustomSetup(float) {
     if (!this) return;
@@ -3151,16 +2900,16 @@ void PackSelectLayer::tryCustomSetup(float) {
     RyzenLayerBtn->setPositionY(110.f);
     menu->addChild(RyzenLayerBtn);
     //extensions
-    auto bottomLeft = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    auto bottomLeft = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
     auto cornerSize = bottomLeft->getTextureRect().size;
     bottomLeft->setPosition({ cornerSize.width / 2, cornerSize.height / 2 });
-    auto bottomRight = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    auto bottomRight = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
     bottomRight->setFlipX(true);
     bottomRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, cornerSize.height / 2 });
-    auto topLeft = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    auto topLeft = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
     topLeft->setFlipY(true);
     topLeft->setPosition({ cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
-    auto topRight = CCSprite::createWithSpriteFrameName("GJ_sideArt_001.png");
+    auto topRight = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
     topRight->setFlipX(true);
     topRight->setFlipY(true);
     topRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
@@ -3171,7 +2920,7 @@ void PackSelectLayer::tryCustomSetup(float) {
     //folderBtn
     if (auto folderBtn = dynamic_cast<CCMenuItemSpriteExtra*>(getChildBySpriteFrameName(menu, "gj_folderBtn_001.png"))) {
         //folderSprite
-        auto folderSprite = CCSprite::createWithSpriteFrameName("GJ_duplicateBtn_001.png");
+        auto folderSprite = CCSpriteExt::createWithSpriteFrameName("GJ_duplicateBtn_001.png");
         folderSprite->setID("folderSprite");
         //set folderSprite
         folderBtn->setNormalImage(folderSprite);
@@ -3190,13 +2939,6 @@ void PackSelectLayer::tryCustomSetup(float) {
         reloadBtn->setID("reloadBtn");
     }
 }
-class NotificationExt : public Notification {
-public:
-    void tryCustomSetup(float) {
-        if (not dynamic_cast<Notification*>(this)) return;
-        setRotation(12.f);
-    };
-};
 #include <Geode/modify/CCObject.hpp>
 class $modify(CCObjectExt, CCObject) {
     CCObject* autorelease() {
@@ -3208,9 +2950,6 @@ class $modify(CCObjectExt, CCObject) {
         //PackSelectLayer
         PackSelectLayer* pPackSelectLayer = typeinfo_cast<PackSelectLayer*>(this);
         if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
-        //PackSelectLayer
-        Notification* pNotification = typeinfo_cast<Notification*>(this);
-        if (pNotification) pNotification->scheduleOnce(schedule_selector(NotificationExt::tryCustomSetup), 0.001f);
         return rtn;
     };
 };

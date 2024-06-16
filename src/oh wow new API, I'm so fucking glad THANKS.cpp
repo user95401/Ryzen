@@ -8,6 +8,8 @@ class bim_bim_bam_bam {
     EventListener<web::WebTask> m_webTaskListener;
     void suka_blyat() {
 
+        //auto req = reqForGhAPI();
+        //auto m_webTaskListener = new EventListener<web::WebTask>;
         auto req = web::WebRequest();
         auto& listener = m_webTaskListener;
         listener.bind(
