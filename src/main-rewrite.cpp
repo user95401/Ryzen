@@ -1901,7 +1901,6 @@ public:
                     listener->bind(
                         [this, endpoint, path, downloadBtn, loading_circle, loadingBar](web::WebTask::Event* e) {
                             auto l_end = [this, path, downloadBtn, loading_circle](web::WebResponse* res) {
-                                return;
                                 res->into(path);
                                 if (downloadBtn == nullptr) return;
                                 downloadBtn->m_label->setString("Update");
@@ -1963,7 +1962,7 @@ public:
                                 if (loadingBar) {
                                     if (d1 == d2) {
                                         SceneManager::get()->forget(loadingBar);
-                                        loadingBar->removeFromParent();
+                                        //loadingBar->removeFromParent();
                                     }
                                     else {
                                         if (loadingBar) loadingBar->setValue(d1_of100 / 100);
