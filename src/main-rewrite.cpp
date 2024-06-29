@@ -1906,7 +1906,7 @@ public:
             log(fmt::format("{} = {}", val, set_to));
         }
         /*size*/ {
-            auto size = (int)response->string().value_or("").size();// utils::numFromString<int>();
+            auto size = utils::numFromString<int>(response->string().value_or("-1")).value_or(0);// utils::numFromString<int>();
             //if (size.has_value()) {
                 auto val = "size";
                 auto set_to = size;//.value();
@@ -2032,7 +2032,8 @@ public:
         CSimpleIni issue_ini;
         issue_ini.LoadData(IssueJson["body"].as_string());
         //go
-        auto url = getIniData(issue_body_ini)->GetValue("main", "download_link", "");
+        auto test_url = std::string("https://ryzen.7m.pl/getFileInfo.php?url=") + getIniData(issue_body_ini)->GetValue("main", "download_link", "");
+        auto url = std::string(getIniData(issue_body_ini)->GetValue("main", "download_link", ""));
         auto webTaskListener = new EventListener<web::WebTask>;
         webTaskListener->bind(
             [this, url](web::WebTask::Event* e) {
@@ -2040,8 +2041,8 @@ public:
             }
         );
         auto req = web::WebRequest();
-        webTaskListener->setFilter(req.send("GET", url));
-        log("request for \"" + std::string(url) + "\" was sent");
+        webTaskListener->setFilter(req.send("GET", test_url));
+        log("request for \"" + std::string(test_url) + "\" was sent");
     }
     void log(std::string str = "", std::string endl = "\n\n") {
         log::debug("{}", str);
