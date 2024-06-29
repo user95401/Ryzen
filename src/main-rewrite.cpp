@@ -495,6 +495,31 @@ public:
 };
 #endif
 
+class shittyDragThing : public ScrollLayer {
+public:
+    void drugs(float) {
+        if (!this) return;
+        auto pos = this->m_contentLayer->getPosition();
+        auto parent = this->getParent();
+        if (pos != CCPointZero) {
+            parent->setPosition(
+                parent->getPositionX() + pos.x,
+                parent->getPositionY() + pos.y
+            );
+        };
+        this->m_contentLayer->setPosition(CCPointZero);
+    }
+    static auto createScroll(CCNode* tar, CCSize size) {
+        auto scroll = ScrollLayer::create(size, 0, 0);
+        tar->addChild(scroll);
+        scroll->m_disableHorizontal = 0;
+        scroll->m_disableVertical = 0;
+        scroll->setPosition(scroll->getContentSize() / -2);
+        scroll->schedule(schedule_selector(shittyDragThing::drugs));
+        return scroll;
+    }
+};
+
 auto createWideMDPopup(char const* title, std::string const& content, char const* btn1, char const* btn2 = nullptr,
     float width = 400.f, utils::MiniFunction<void(FLAlertLayer*, bool)> selected = nullptr, bool doShow = true) {
     auto pop = createQuickPopup(
@@ -1131,37 +1156,347 @@ public:
     }
 };
 
-class shittyDragThing : public CCMenuItem {
+class ModLoadingLayer : public CCLayer {
 public:
-    void drugs(float) {
-        if (!this) return;
-        if (this->isSelected()) {
-            if (auto tar = this->getParent()->getParent()) tar->setPosition((geode::cocos::getMousePos()));
+    //data
+    enum data {
+        issue, issue_body_ini
+        , repo
+        , release, asset
+        , working_dir_str
+        , result
+    };
+    void addTextContainer(data type, std::string data) {
+        auto container = CCLabelBMFont::create(data.data(), "chatFont.fnt");
+        container->setVisible(0);
+        container->setID(fmt::format("container{}", (int)type));
+        this->addChild(container, 999);
+    }
+    std::string setData(data type, std::string data) {
+        auto container = dynamic_cast<CCLabelBMFont*>(this->getChildByID(fmt::format("container{}", (int)type)));
+        if (container) container->setString(data.data());
+        return container ? container->getString() : "CANT GET DATA CONTAINER NODE";
+    }
+    std::string getData(data type) {
+        auto container = dynamic_cast<CCLabelBMFont*>(this->getChildByID(fmt::format("container{}", (int)type)));
+        return container ? container->getString() : "CANT GET DATA CONTAINER NODE";
+    }
+    auto getIniData(data type) {
+        auto INI = new CSimpleIni;
+        INI->LoadData(getData(type));
+        return INI;
+    }
+    matjson::Value getJsonData(data type) {
+        return matjson::parse(getData(type));
+    }
+    auto working_dir(std::string file = "") {
+        fs::path working_dir = getData(data::working_dir_str);
+        fs::create_directories(working_dir);
+        if (not file.empty()) return working_dir / file;
+        return working_dir;
+    }
+    //a
+    static auto create(matjson::Value IssueJson) {
+        if (not IssueJson["body"].is_string()) IssueJson["body"] = "BODY_PLACEHOLDER, why tf body can be null ever(((";
+        auto rtn = new ModLoadingLayer;
+        rtn->init();
+        /*textcontainers*/ {
+            rtn->addTextContainer(data::issue, IssueJson.dump());
+            rtn->addTextContainer(data::issue_body_ini, IssueJson["body"].as_string());
+            rtn->addTextContainer(data::repo, "{}");
+            rtn->addTextContainer(data::release, "{}");
+            rtn->addTextContainer(data::asset, "{}");
+            rtn->addTextContainer(data::working_dir_str,  mod_working_dir(IssueJson));
+            rtn->addTextContainer(data::result, "");
         }
+        //log
+        auto pMDTextArea = geode::MDTextArea::create(
+            "",
+            CCSize(
+                rtn->getContentSize().width - 70,
+                rtn->getContentSize().height - 20
+            )
+        );
+        pMDTextArea->setID("pMDTextArea");
+        pMDTextArea->setPosition(rtn->getContentSize() / 2);
+        rtn->addChild(pMDTextArea, -1);
+        //asd
+        auto loadingLabel = CCLabelBMFont::create("Loading...", "bigFont.fnt");
+        loadingLabel->setPosition(rtn->getContentSize() / 2);
+        rtn->addChild(loadingLabel, 1, 2319);
+        return rtn;
     }
-    static auto createTouchZone(CCNode* tar) {
-        //drag
-        auto dragTouchZone = CCMenuItem::create();
-        tar->addChild(CCMenu::createWithItem(dragTouchZone));
-        dragTouchZone->schedule(schedule_selector(shittyDragThing::drugs));
-        return dragTouchZone;
+    void loadPt2(web::WebResponse* response, std::string url) {
+        log(__FUNCTION__);
+        if (response->code() != 200)
+            return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->code(), response->string().value_or("no inf")));
+        //json
+        auto json = matjson::parse({
+            "{                                          \
+                    \"workindir\": \"\",                \
+                    \"title\": \"\",                    \
+                    \"devs\": \"\",                     \
+                    \"desc\": \"\",                     \
+                    \"size\": 0,                        \
+                    \"downloads\": 0,                   \
+                    \"body_base64\": \"\",              \
+                    \"issue_json_base64\": \"\",        \
+                    \"download_link\": \"\",            \
+                    \"download_path\": \"\",            \
+                    \"website_link\": \"\",             \
+                    \"github_page_link\": \"\",         \
+                    \"custom_bg_link\": \"\",           \
+                    \"overlay_link\": \"\"              \
+                }"
+            });
+        /*workindir*/ {
+            auto val = "workindir";
+            std::string set_to = working_dir().string();
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*title*/ {
+            auto val = "title";
+            std::string set_to = getJsonData(issue)["title"].as_string();
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*devs*/ {
+            auto val = "devs";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "developer", "");
+            if (std::string(set_to).empty()) set_to = fmt::format(
+                "{} [{}]",
+                getJsonData(issue)["user"]["login"].as_string(),
+                getJsonData(issue)["user"]["id"].as_int()
+            ).data();
+            set_to = ("By: " + std::string(set_to));
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*desc*/ {
+            auto val = "desc";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*body_base64*/ {
+            auto val = "body_base64";
+            std::string set_to = fmt::format(
+                "# {}\n{}",
+                json["title"].as_string(),
+                json["desc"].as_string()
+            );
+            auto issue_body = std::string(getData(issue_body_ini));
+            if (issue_body.find("body:") != std::string::npos) {
+                //pointas
+                auto start = issue_body.find("body:") + 7;
+                auto end = issue_body.find("^^^");
+                if (end == std::string::npos) end = issue_body.size();
+                //a
+                std::string substring = issue_body.substr(start, end - start);
+                set_to = substring;
+            }
+            set_to = ZipUtils::base64URLEncode(set_to);
+            json[val] = matjson::Value(std::string(set_to.data()).c_str());
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*issue_json_base64*/ {
+            auto val = "issue_json_base64";
+            std::string set_to = getData(data::issue);
+            set_to = ZipUtils::base64URLEncode(set_to);
+            json[val] = matjson::Value(std::string(set_to.data()).c_str());
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*size*/ {
+            auto size = utils::numFromString<int>(response->string().value_or("-1")).value_or(0);// utils::numFromString<int>();
+            //if (size.has_value()) {
+            auto val = "size";
+            auto set_to = size;//.value();
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+            //}
+        }
+        /*download_link*/ {
+            auto val = "download_link";
+            std::string set_to = url;
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*download_path*/ {
+            auto val = "download_path";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
+            set_to = string::replace(set_to, "..", "");
+            if (std::string(set_to).empty()) {//so generate one
+                auto download_link = json["download_link"].as_string();
+                if (not download_link.empty()) {
+                    download_link = explode("?", download_link)[0];
+                    auto filename = fs::path(download_link).filename().string();
+                    auto geode = dirs::getGeodeDir().string();
+                    if (string::contains(filename, ".geode"))
+                        set_to = geode + std::string("/mods/") + filename;
+                    if (string::containsAny(filename, { ".dll", ".so" }))
+                        set_to = geode + std::string("/ryzen/loadit/") + filename;
+                    if (string::containsAny(filename, { ".zip" }))
+                        set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
+                }
+            }
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*website_link*/ {
+            auto val = "website_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*github_page_link*/ {
+            auto val = "github_page_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            if (set_to.empty()) {
+                set_to = getJsonData(issue)["html_url"].as_string();
+            }
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*custom_bg_link*/ {
+            auto val = "custom_bg_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        /*overlay_link*/ {
+            auto val = "overlay_link";
+            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
+            json[val] = (set_to);
+            log(fmt::format("{} = {}", val, set_to));
+        }
+        //FINISH while getting downloads
+        auto temp_json_data = json.dump();
+        setData(result, temp_json_data);
+        auto letscountapi = fmt::format("https://letscountapi.com/rzn_item_downloads/{}", getJsonData(issue)["number"]);
+        auto req = web::WebRequest();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, temp_json_data](web::WebTask::Event* e) {
+                auto a = [this, temp_json_data](const matjson::Value& rtn_json) {
+                    auto json = matjson::parse(temp_json_data);
+                    //downloads
+                    int current_value = 0;
+                    if (rtn_json.contains("current_value")) current_value = rtn_json["current_value"].as_int();
+                    json["downloads"] = current_value;
+                    //finish
+                    log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
+                    log(json.dump());
+                    std::ofstream(working_dir("main.json")) << json.dump();
+                    //open view lay
+                    this->setTag(1);
+                    };
+                auto b = [this, temp_json_data](std::string const& error) {
+                    //use generated temp asd
+                    auto json = matjson::parse(temp_json_data);
+                    log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
+                    log(json.dump());
+                    std::ofstream(working_dir("main.json")) << json.dump();
+                    this->setTag(1);
+                    //popup
+                    auto message = error;
+                    auto asd = geode::createQuickPopup(
+                        "Request exception",
+                        message,
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->show();
+                    };
+                if (web::WebResponse* res = e->getValue()) {
+                    std::string data = res->string().unwrapOr("");
+                    //json
+                    std::string error;
+                    auto json_val = matjson::parse(data, error);
+                    if (error.size() > 0) return b("Error parsing JSON: " + error);
+                    //call the some shit
+                    if (res->code() < 399) a(json_val);
+                    else b(data);
+                }
+            }
+        );
+        req.header("Content-Type", "application/json");
+        req.bodyString("{\"current_value\": 0}");
+        listener->setFilter(req.send("POST", letscountapi));
+        /*web::AsyncWebRequest()
+            post(letscountapi).
+            json().
+            then(then).expect(expect);*/
     }
+    void load(matjson::Value IssueJson) {
+        //if (checkExistence(working_dir("main.json"))) return;
+        CSimpleIni* main = new CSimpleIni;
+        //issue_ini
+        CSimpleIni issue_ini;
+        issue_ini.LoadData(IssueJson["body"].as_string());
+        //go
+        auto test_url = std::string("https://ryzen.7m.pl/getFileInfo.php?url=") + getIniData(issue_body_ini)->GetValue("main", "download_link", "");
+        auto url = std::string(getIniData(issue_body_ini)->GetValue("main", "download_link", ""));
+        auto webTaskListener = new EventListener<web::WebTask>;
+        webTaskListener->bind(
+            [this, url](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) loadPt2(res, url);
+            }
+        );
+        auto req = web::WebRequest();
+        webTaskListener->setFilter(req.send("GET", test_url));
+        log("request for \"" + std::string(test_url) + "\" was sent");
+    }
+    void log(std::string str = "", std::string endl = "\n\n") {
+        log::debug("{}", str);
+        auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByID("pMDTextArea"));
+        pMDTextArea->setString((pMDTextArea->getString() + str + endl).data());
+        pMDTextArea->getScrollLayer()->scrollLayer(99999.f);
+    }
+    //other shit
+    static auto createForLoadOrDownload(matjson::Value IssueJson) {
+        auto a = ModLoadingLayer::create(IssueJson);
+        a->setTag(0);
+        if (checkExistence(a->working_dir("main.json"))) {
+            a->setData(result, read_file(a->working_dir("main.json")));
+            a->setTag(1);
+            return a;
+        }
+        a->load(IssueJson);
+        return a;
+    };
 };
 
 class ModViewLayer : public CCLayer {
 public:
-    static auto create(matjson::Value json) {
+    static auto create(matjson::Value IssueJson) {
         auto rtn = new ModViewLayer;
         rtn->init();
         basicRznLayersInit(rtn, menu_selector(ModViewLayer::onBtn));
+        rtn->addChild(ModLoadingLayer::createForLoadOrDownload(IssueJson), -1);
+        rtn->schedule(schedule_selector(ModViewLayer::waitForContinue));
+        return rtn;
+    }
+    void waitForContinue(float) {
+        auto pModLoadingLayer = this->getChildByTag(1);
+        if (not pModLoadingLayer) return;
+        this->unschedule(schedule_selector(ModViewLayer::waitForContinue));
+        ModLoadingLayer::data::result;
+        auto json_str_result = dynamic_cast<CCLabelProtocol*>(pModLoadingLayer->getChildByIDRecursive("container6"));
+        auto err = std::string();
+        auto json = matjson::parse(json_str_result->getString(), err);
+        if (json.has_value()) {
+            pModLoadingLayer->setVisible(0);
+            continueCreating(json.value());
+        }
+    }
+    void continueCreating(matjson::Value json) {
         //json
         auto json_container = CCLabelBMFont::create(json.dump().data(), "chatFont.fnt");
         json_container->setVisible(0);
         json_container->setID("json_container");
-        rtn->addChild(json_container, 999);
+        addChild(json_container, 999);
         //customSetup call
-        rtn->customSetup();
-        return rtn;
+        customSetup();
     }
     void customSetup() {
         /* custom bg */ {
@@ -1509,8 +1844,9 @@ public:
         if (what->getID() == "reload") {
             if (checkExistence(fs::path(strKeyOfdata("workindir")) / "main.json"))
                 remove_dir(fs::path(strKeyOfdata("workindir")));
-            keyBackClicked();
-            openLastViewed();
+            auto pModViewLayer = ModViewLayer::create(ISSUE_DATA());
+            this->getParent()->addChild(pModViewLayer);
+            this->removeFromParent();
         };
         if (what->getID() == "download") {
             //endpoint
@@ -1550,11 +1886,8 @@ public:
                         loadingBarTitle->setPositionY(24.f);
                         loadingBar->addChild(loadingBarTitle);
                         //drag
-                        auto dragTouchZone = shittyDragThing::createTouchZone(loadingBar);
-                        dragTouchZone->setAnchorPoint({ 0.5f, 0.5f });
-                        dragTouchZone->setContentSize({ 212.f, 72.f });
-                        loadingBar->addChild(CCMenu::createWithItem(dragTouchZone));
-                        dragTouchZone->getParent()->setPosition(CCPointZero);
+                        auto dragTouchZone = shittyDragThing::createScroll(loadingBar, { 212.f, 48.f });
+                        dragTouchZone->setPositionY(-10.f);
                         //bg
                         auto bg = CCScale9Sprite::create("square02_001.png");
                         bg->setOpacity(120);
@@ -1620,12 +1953,7 @@ public:
                                 auto strName = fmt::format("{}", this->strKeyOfdata("title"));
                                 //downloadBtn
                                 {
-                                    downloadBtn->m_label->setString(
-                                        fmt::format(
-                                            "{} of {}",
-                                            convertSize(d1),
-                                            convertSize(d2)
-                                        ).c_str());
+                                    downloadBtn->m_label->setString(strProgOneOf.c_str());
                                     downloadBtn->m_label->setScale(
                                         (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
                                     );
@@ -1666,67 +1994,6 @@ public:
                         }
                     );
                     listener->setFilter(req.send("GET", endpoint));
-                    /*web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
-                        .then(
-                            [this, downloadBtn, loading_circle, path](std::monostate const& who) {
-                                if (downloadBtn == nullptr) return;
-                                if (loading_circle) loading_circle->fadeAndRemove();
-                                downloadBtn->m_label->setString("Update");
-                                downloadBtn->m_label->setScale(
-                                    (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
-                                );
-                                if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
-                                if (string::contains(path.string(), "geode.texture-loader")) {
-                                    FLAlertLayer* asd = geode::createQuickPopup(
-                                        "Pack Downloaded",
-                                        "You can go back to packs select menu and apply it...",
-                                        "OK", nullptr,
-                                        [](auto, auto) {
-                                            PackSelectLayer::lastCreatedOne->reloadList();
-                                        }
-                                    );
-                                }
-                                else {
-                                    FLAlertLayer* asd = geode::createQuickPopup(
-                                        "Restart Game?",
-                                        "To load new mod",
-                                        "Later", "Yes",
-                                        [](auto, bool btn2) {
-                                            if (btn2) utils::game::restart();
-                                        }
-                                    );
-                                }
-                            })
-                        //utils::MiniFunction<void(SentAsyncWebRequest&, double, double)>;
-                                .progress(
-                                    [downloadBtn, loading_circle](auto, double d1, double d2) {
-                                        //return;
-                                        if (d1 <= 0) return;
-                                        if (d2 <= 0) return;
-                                        if (downloadBtn == nullptr) return;
-                                        if (loading_circle) loading_circle->setVisible(0);
-                                        downloadBtn->m_label->setString(
-                                            fmt::format(
-                                                "{} of {}",
-                                                abbreviateNumber(d1),
-                                                abbreviateNumber(d2)
-                                            ).c_str());
-                                        downloadBtn->m_label->setScale(
-                                            (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
-                                        );
-                                        if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
-                                    })
-                                .expect(
-                                    [this, endpoint, downloadBtn, loading_circle](std::string const& what) {
-                                        loading_circle->removeFromParent();
-                                        auto asd = geode::createQuickPopup(
-                                            "Request exception",
-                                            what + "\n" + endpoint,
-                                            "Nah", nullptr, 420.f, nullptr, false
-                                        );
-                                        asd->m_scene = this;
-                                        asd->show();
-                                    });*/
                 }
             );
             if (pop) {
@@ -1818,335 +2085,8 @@ public:
     static void openMe(matjson::Value data) {
         auto scene = CCScene::create();
         auto pModViewLayer = ModViewLayer::create(data);
-        scene->addChild(pModViewLayer, 0, pModViewLayer->ISSUE_DATA()["number"].as_int());
+        scene->addChild(pModViewLayer);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.f, scene));
-    };
-    void keyBackClicked() {
-        CCDirector::sharedDirector()->popSceneWithTransition(0.f, PopTransition::kPopTransitionFade);
-    }
-};
-
-class ModLoadingLayer : public CCLayer {
-public:
-    //data
-    enum data {
-        issue, issue_body_ini
-        , repo
-        , release, asset
-        , working_dir_str
-    };
-    void addTextContainer(data type, std::string data) {
-        auto container = CCLabelBMFont::create(data.data(), "chatFont.fnt");
-        container->setVisible(0);
-        container->setID(fmt::format("container{}", (int)type));
-        this->addChild(container, 999);
-    }
-    std::string setData(data type, std::string data) {
-        auto container = dynamic_cast<CCLabelBMFont*>(this->getChildByID(fmt::format("container{}", (int)type)));
-        if (container) container->setString(data.data());
-        return container ? container->getString() : "CANT GET DATA CONTAINER NODE";
-    }
-    std::string getData(data type) {
-        auto container = dynamic_cast<CCLabelBMFont*>(this->getChildByID(fmt::format("container{}", (int)type)));
-        return container ? container->getString() : "CANT GET DATA CONTAINER NODE";
-    }
-    auto getIniData(data type) {
-        auto INI = new CSimpleIni;
-        INI->LoadData(getData(type));
-        return INI;
-    }
-    matjson::Value getJsonData(data type) {
-        return matjson::parse(getData(type));
-    }
-    auto working_dir(std::string file = "") {
-        fs::path working_dir = getData(data::working_dir_str);
-        fs::create_directories(working_dir);
-        if (not file.empty()) return working_dir / file;
-        return working_dir;
-    }
-    //a
-    static auto create(matjson::Value IssueJson) {
-        if (not IssueJson["body"].is_string()) IssueJson["body"] = "BODY_PLACEHOLDER, why tf body can be null ever(((";
-        auto rtn = new ModLoadingLayer;
-        rtn->init();
-        basicRznLayersInit(rtn, menu_selector(ModLoadingLayer::onBtn));
-        /*textcontainers*/ {
-            rtn->addTextContainer(data::issue, IssueJson.dump());
-            rtn->addTextContainer(data::issue_body_ini, IssueJson["body"].as_string());
-            rtn->addTextContainer(data::repo, "{}");
-            rtn->addTextContainer(data::release, "{}");
-            rtn->addTextContainer(data::asset, "{}");
-            rtn->addTextContainer(
-                data::working_dir_str,
-                mod_working_dir(IssueJson)
-            );
-        }
-        //log
-        auto pMDTextArea = geode::MDTextArea::create(
-            "",
-            CCSize(
-                rtn->getContentSize().width - 70,
-                rtn->getContentSize().height - 20
-            )
-        );
-        pMDTextArea->setID("pMDTextArea");
-        pMDTextArea->setPosition(rtn->getContentSize() / 2);
-        rtn->addChild(pMDTextArea, -1);
-        //asd
-        auto loadingLabel = CCLabelBMFont::create("Loading...", "bigFont.fnt");
-        loadingLabel->setPosition(rtn->getContentSize() / 2);
-        rtn->addChild(loadingLabel, 1, 2319);
-        return rtn;
-    }
-    void loadPt2(web::WebResponse* response, std::string url) {
-        log(__FUNCTION__);
-        if (response->code() != 200)
-            return log(fmt::format("## <cr>File link is bad! ({})\n{}", response->code(), response->string().value_or("no inf")));
-        //json
-        auto json = matjson::parse({
-            "{                                          \
-                    \"workindir\": \"\",                \
-                    \"title\": \"\",                    \
-                    \"devs\": \"\",                     \
-                    \"desc\": \"\",                     \
-                    \"size\": 0,                        \
-                    \"downloads\": 0,                   \
-                    \"body_base64\": \"\",              \
-                    \"issue_json_base64\": \"\",        \
-                    \"download_link\": \"\",            \
-                    \"download_path\": \"\",            \
-                    \"website_link\": \"\",             \
-                    \"github_page_link\": \"\",         \
-                    \"custom_bg_link\": \"\",           \
-                    \"overlay_link\": \"\"              \
-                }"
-            });
-        /*workindir*/ {
-            auto val = "workindir";
-            std::string set_to = working_dir().string();
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*title*/ {
-            auto val = "title";
-            std::string set_to = getJsonData(issue)["title"].as_string();
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*devs*/ {
-            auto val = "devs";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "developer", "");
-            if (std::string(set_to).empty()) set_to = fmt::format(
-                "{} [{}]",
-                getJsonData(issue)["user"]["login"].as_string(),
-                getJsonData(issue)["user"]["id"].as_int()
-            ).data();
-            set_to = ("By: " + std::string(set_to));
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*desc*/ {
-            auto val = "desc";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "desc", "no desc");
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*body_base64*/ {
-            auto val = "body_base64";
-            std::string set_to = fmt::format(
-                "# {}\n{}",
-                json["title"].as_string(),
-                json["desc"].as_string()
-            );
-            auto issue_body = std::string(getData(issue_body_ini));
-            if (issue_body.find("body:") != std::string::npos) {
-                //pointas
-                auto start = issue_body.find("body:") + 7;
-                auto end = issue_body.find("^^^");
-                if (end == std::string::npos) end = issue_body.size();
-                //a
-                std::string substring = issue_body.substr(start, end - start);
-                set_to = substring;
-            }
-            set_to = ZipUtils::base64URLEncode(set_to);
-            json[val] = matjson::Value(std::string(set_to.data()).c_str());
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*issue_json_base64*/ {
-            auto val = "issue_json_base64";
-            std::string set_to = getData(data::issue);
-            set_to = ZipUtils::base64URLEncode(set_to);
-            json[val] = matjson::Value(std::string(set_to.data()).c_str());
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*size*/ {
-            auto size = utils::numFromString<int>(response->string().value_or("-1")).value_or(0);// utils::numFromString<int>();
-            //if (size.has_value()) {
-                auto val = "size";
-                auto set_to = size;//.value();
-                json[val] = (set_to);
-                log(fmt::format("{} = {}", val, set_to));
-            //}
-        }
-        /*download_link*/ {
-            auto val = "download_link";
-            std::string set_to = url;
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*download_path*/ {
-            auto val = "download_path";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", "download_path", "");
-            set_to = string::replace(set_to, "..", "");
-            if (std::string(set_to).empty()) {//so generate one
-                auto download_link = json["download_link"].as_string();
-                if (not download_link.empty()) {
-                    download_link = explode("?", download_link)[0];
-                    auto filename = fs::path(download_link).filename().string();
-                    auto geode = dirs::getGeodeDir().string();
-                    if (string::contains(filename, ".geode"))
-                        set_to = geode + std::string("/mods/") + filename;
-                    if (string::containsAny(filename, { ".dll", ".so" }))
-                        set_to = geode + std::string("/ryzen/loadit/") + filename;
-                    if (string::containsAny(filename, { ".zip" }))
-                        set_to = geode + std::string("/config/geode.texture-loader/packs/") + filename;
-                }
-            }
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*website_link*/ {
-            auto val = "website_link";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*github_page_link*/ {
-            auto val = "github_page_link";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-            if (set_to.empty()) {
-                set_to = getJsonData(issue)["html_url"].as_string();
-            }
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*custom_bg_link*/ {
-            auto val = "custom_bg_link";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        /*overlay_link*/ {
-            auto val = "overlay_link";
-            std::string set_to = getIniData(issue_body_ini)->GetValue("main", val, "");
-            json[val] = (set_to);
-            log(fmt::format("{} = {}", val, set_to));
-        }
-        //FINISH while getting downloads
-        auto temp_json_data = json.dump();
-        auto letscountapi = fmt::format("https://letscountapi.com/rzn_item_downloads/{}", getJsonData(issue)["number"]);
-        auto req = web::WebRequest();
-        auto listener = new EventListener<web::WebTask>;
-        listener->bind(
-            [this, temp_json_data](web::WebTask::Event* e) {
-                auto a = [this, temp_json_data](const matjson::Value& rtn_json) {
-                    auto json = matjson::parse(temp_json_data);
-                    //downloads
-                    int current_value = 0;
-                    if (rtn_json.contains("current_value")) current_value = rtn_json["current_value"].as_int();
-                    json["downloads"] = current_value;
-                    //finish
-                    log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
-                    log(json.dump());
-                    std::ofstream(working_dir("main.json")) << json.dump();
-                    //open view lay
-                    setViewLayerInIt(json);
-                    };
-                auto b = [this, temp_json_data](std::string const& error) {
-                    //use generated temp asd
-                    auto json = matjson::parse(temp_json_data);
-                    log(fmt::format("### main.json file: {}", working_dir("main.json").string()));
-                    log(json.dump());
-                    std::ofstream(working_dir("main.json")) << json.dump();
-                    setViewLayerInIt(json);
-                    //popup
-                    auto message = error;
-                    auto asd = geode::createQuickPopup(
-                        "Request exception",
-                        message,
-                        "Nah", nullptr, 420.f, nullptr, false
-                    );
-                    asd->m_scene = CCDirector::get()->m_pNextScene;
-                    asd->show();
-                    };
-                if (web::WebResponse* res = e->getValue()) {
-                    std::string data = res->string().unwrapOr("");
-                    //json
-                    std::string error;
-                    auto json_val = matjson::parse(data, error);
-                    if (error.size() > 0) return b("Error parsing JSON: " + error);
-                    //call the some shit
-                    if (res->code() < 399) a(json_val);
-                    else b(data);
-                }
-            }
-        );
-        req.header("Content-Type", "application/json");
-        req.bodyString("{\"current_value\": 0}");
-        listener->setFilter(req.send("POST", letscountapi));
-        /*web::AsyncWebRequest()
-            post(letscountapi).
-            json().
-            then(then).expect(expect);*/
-    }
-    void load(matjson::Value IssueJson) {
-        if (checkExistence(working_dir("main.json"))) return;
-        CSimpleIni* main = new CSimpleIni;
-        //issue_ini
-        CSimpleIni issue_ini;
-        issue_ini.LoadData(IssueJson["body"].as_string());
-        //go
-        auto test_url = std::string("https://ryzen.7m.pl/getFileInfo.php?url=") + getIniData(issue_body_ini)->GetValue("main", "download_link", "");
-        auto url = std::string(getIniData(issue_body_ini)->GetValue("main", "download_link", ""));
-        auto webTaskListener = new EventListener<web::WebTask>;
-        webTaskListener->bind(
-            [this, url](web::WebTask::Event* e) {
-                if (web::WebResponse* res = e->getValue()) loadPt2(res, url);
-            }
-        );
-        auto req = web::WebRequest();
-        webTaskListener->setFilter(req.send("GET", test_url));
-        log("request for \"" + std::string(test_url) + "\" was sent");
-    }
-    void log(std::string str = "", std::string endl = "\n\n") {
-        log::debug("{}", str);
-        auto pMDTextArea = dynamic_cast<MDTextArea*>(getChildByID("pMDTextArea"));
-        pMDTextArea->setString((pMDTextArea->getString() + str + endl).data());
-        pMDTextArea->getScrollLayer()->scrollLayer(99999.f);
-    }
-    void setViewLayerInIt(matjson::Value data) {
-        auto parent = this->getParent();
-        removeFromParent();
-        parent->addChild(ModViewLayer::create(data));
-    }
-    //other shit
-    void onBtn(CCObject* pCCObject) {
-        auto what = dynamic_cast<CCNode*>(pCCObject);
-        if (not what) return;
-        if (what->getID() == "back") keyBackClicked();
-    }
-    static void openMe(matjson::Value IssueJson) {
-        auto scene = CCScene::create();
-        auto a = ModLoadingLayer::create(IssueJson);
-        if (checkExistence(a->working_dir("main.json"))) {
-            ModViewLayer::openMe(
-                matjson::parse(read_file(a->working_dir("main.json")))
-            );
-            return;
-        }
-        scene->addChild(a, 0, IssueJson["number"].as_int());
-        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.f, scene));
-        a->load(IssueJson);
     };
     void keyBackClicked() {
         CCDirector::sharedDirector()->popSceneWithTransition(0.f, PopTransition::kPopTransitionFade);
@@ -2221,14 +2161,14 @@ public:
         LAST_VIEWED_ISSUE = json;
         //CSimpleIni* TEMPONEEEA = new CSimpleIni;
         if (labels_str.find(fmt::format("\"{}\",", "mod")) != std::string::npos)
-            return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
+            return ModViewLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
         if (labels_str.find(fmt::format("\"{}\",", "pack")) != std::string::npos)
-            return ModLoadingLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
+            return ModViewLayer::openMe(json);//ModViewLayer::openMe(TEMPONEEEA);
         auto pop = createQuickPopup(
             "No Labels!",
             "This <cg>issue item</c> <cr>has not</c> <cb>\"mod\"</c> or <co>\"pack\"</c> label!",
             "Oh ok", "LET ME IN",
-            360.f, [this](auto, bool btn2) {if (btn2) ModLoadingLayer::openMe(json); }, true
+            360.f, [this](auto, bool btn2) {if (btn2) ModViewLayer::openMe(json); }, true
         );
     }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
@@ -2427,7 +2367,7 @@ public:
     }
 };
 void openLastViewed() {
-    ModLoadingLayer::openMe(LAST_VIEWED_ISSUE);
+    ModViewLayer::openMe(LAST_VIEWED_ISSUE);
 };
 
 #include <Geode/ui/GeodeUI.hpp>
