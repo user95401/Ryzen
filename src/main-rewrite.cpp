@@ -1131,6 +1131,23 @@ public:
     }
 };
 
+class shittyDragThing : public CCMenuItem {
+public:
+    void drugs(float) {
+        if (!this) return;
+        if (this->isSelected()) {
+            if (auto tar = this->getParent()->getParent()) tar->setPosition((geode::cocos::getMousePos()));
+        }
+    }
+    static auto createTouchZone(CCNode* tar) {
+        //drag
+        auto dragTouchZone = CCMenuItem::create();
+        tar->addChild(CCMenu::createWithItem(dragTouchZone));
+        dragTouchZone->schedule(schedule_selector(shittyDragThing::drugs));
+        return dragTouchZone;
+    }
+};
+
 class ModViewLayer : public CCLayer {
 public:
     static auto create(matjson::Value json) {
@@ -1516,11 +1533,40 @@ public:
                     loading_circle->setParentLayer(this);
                     loading_circle->setFade(true);
                     loading_circle->show();
+                    //loadingBar
+                    Slider* loadingBar = nullptr;
+                    {
+                        loadingBar = Slider::create(this, nullptr);
+                        loadingBar->getThumb()->setVisible(0);
+                        loadingBar->setID("loadingBar");
+                        loadingBar->setPositionY(30.f);
+                        loadingBar->setPositionX(this->getContentWidth() / 2);
+                        SceneManager::get()->keepAcrossScenes(loadingBar); //this->addChild(loadingBar);
+                        //labels
+                        auto loadingBarTitle = CCLabelBMFont::create("", "goldFont.fnt");
+                        loadingBarTitle->setAlignment(kCCTextAlignmentCenter);
+                        loadingBarTitle->limitLabelWidth(200.f, 0.5f, 0.3f);
+                        loadingBarTitle->setID("loadingBarTitle");
+                        loadingBarTitle->setPositionY(24.f);
+                        loadingBar->addChild(loadingBarTitle);
+                        //drag
+                        auto dragTouchZone = shittyDragThing::createTouchZone(loadingBar);
+                        dragTouchZone->setAnchorPoint({ 0.5f, 0.5f });
+                        dragTouchZone->setContentSize({ 212.f, 72.f });
+                        loadingBar->addChild(CCMenu::createWithItem(dragTouchZone));
+                        dragTouchZone->getParent()->setPosition(CCPointZero);
+                        //bg
+                        auto bg = CCScale9Sprite::create("square02_001.png");
+                        bg->setOpacity(120);
+                        bg->setAnchorPoint({ 0.5f, 0.2f });
+                        bg->setContentSize({ 226.f, 48.f });
+                        loadingBar->addChild(bg, -1);
+                    }
                     //req
                     auto req = web::WebRequest();
                     auto listener = new EventListener<web::WebTask>;
                     listener->bind(
-                        [this, endpoint, path, downloadBtn, loading_circle](web::WebTask::Event* e) {
+                        [this, endpoint, path, downloadBtn, loading_circle, loadingBar](web::WebTask::Event* e) {
                             auto l_end = [this, path, downloadBtn, loading_circle](web::WebResponse* res) {
                                 res->into(path);
                                 if (downloadBtn == nullptr) return;
@@ -1536,7 +1582,7 @@ public:
                                         "You can go back to packs select menu and apply it...",
                                         "OK", nullptr,
                                         [](auto, auto) {
-                                            PackSelectLayer::lastCreatedOne->reloadList();
+                                            if (PackSelectLayer::lastCreatedOne) PackSelectLayer::lastCreatedOne->reloadList();
                                         }
                                     );
                                 }
@@ -1551,24 +1597,52 @@ public:
                                     );
                                 }
                             };
-                            auto l_prog = [this, downloadBtn, loading_circle](web::WebProgress* prog) {
-                                double d1 = prog->downloadTotal() * prog->downloadProgress().value_or(0.0) / 100;
+                            auto l_prog = [this, downloadBtn, loading_circle, loadingBar](web::WebProgress* prog) {
+                                double d1_of100 = prog->downloadProgress().value_or(0.0);
+                                double d1 = prog->downloaded();
                                 double d2 = prog->downloadTotal();
+                                /*log::debug(
+                                    "\n"
+                                    "d1_of100:{}\n"
+                                    "      d1:{}\n"
+                                    "      d2:{}",
+                                    d1_of100, d1, d2
+                                );*/
                                 //return;
                                 if (d1 <= 0) return;
                                 if (d2 <= 0) return;
+                                if (this == nullptr) return;
                                 if (downloadBtn == nullptr) return;
+                                //hide a loading_circle
                                 if (loading_circle) loading_circle->setVisible(0);
-                                downloadBtn->m_label->setString(
-                                    fmt::format(
-                                        "{} of {}",
-                                        abbreviateNumber(d1),
-                                        abbreviateNumber(d2)
-                                    ).c_str());
-                                downloadBtn->m_label->setScale(
-                                    (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
-                                );
-                                if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
+                                //vars
+                                auto strProgOneOf = fmt::format("{} of {}", convertSize(d1), convertSize(d2));
+                                auto strName = fmt::format("{}", this->strKeyOfdata("title"));
+                                //downloadBtn
+                                {
+                                    downloadBtn->m_label->setString(
+                                        fmt::format(
+                                            "{} of {}",
+                                            convertSize(d1),
+                                            convertSize(d2)
+                                        ).c_str());
+                                    downloadBtn->m_label->setScale(
+                                        (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                                    );
+                                    if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
+                                };
+                                //loadingBar
+                                if (loadingBar) {
+                                    if (d1 == d2) {
+                                        SceneManager::get()->forget(loadingBar);
+                                        loadingBar->removeFromParent();
+                                    }
+                                    else {
+                                        if (loadingBar) loadingBar->setValue(d1_of100 / 100);
+                                        if (auto loadingBarTitle = dynamic_cast<CCLabelBMFont*>(loadingBar->getChildByIDRecursive("loadingBarTitle")))
+                                            loadingBarTitle->setString((strName + "\n" + strProgOneOf).data());
+                                    };
+                                }
                             };
                             auto l_error = [this, loading_circle, endpoint](std::string const& error) {
                                 loading_circle->removeFromParent();
