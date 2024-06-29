@@ -1962,7 +1962,7 @@ public:
                                 if (loadingBar) {
                                     if (d1 == d2) {
                                         SceneManager::get()->forget(loadingBar);
-                                        //loadingBar->removeFromParent();
+                                        loadingBar->removeFromParentAndCleanup(0);
                                     }
                                     else {
                                         if (loadingBar) loadingBar->setValue(d1_of100 / 100);
