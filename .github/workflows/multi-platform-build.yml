@@ -8,7 +8,7 @@ on:
       - "**"
 jobs:
   build:
-    continue-on-error: true
+    continue-on-error: true #hi macOS
     strategy:
       fail-fast: false
       matrix:
@@ -17,12 +17,9 @@ jobs:
           os: windows-latest
         - name: macOS
           os: macos-latest
-        - name: Android32
+        - name: Android
           os: ubuntu-latest
-          target: Android32
-        - name: Android64
-          os: ubuntu-latest
-          target: Android64
+          target: Android
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
     steps:
