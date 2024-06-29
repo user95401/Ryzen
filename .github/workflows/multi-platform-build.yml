@@ -47,7 +47,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Build Output
-          path: ${{ jobs.package.steps.build.outputs.build-output }} 
+          path: ${{ steps.build.outputs.build-output }} 
 
   release:
     name: Release build
@@ -65,5 +65,5 @@ jobs:
         name: "Release"
         with:
           tag_name: "${{steps.json_properties.outputs.version}}"
-          files: "${{jobs.package.steps.build.outputs.build-output}}/*"
+          files: "${{steps.build.outputs.build-output}}/*"
           
