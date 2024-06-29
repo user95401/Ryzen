@@ -88,41 +88,6 @@ std::vector<std::string> explode(std::string separator, std::string input) {
     log::debug("{}(separator \"{}\", input \"{}\").rtn({})", __FUNCTION__, separator, input, log.str());*/
     return vec;
 }
-namespace geode::utils::web {
-    void asd(std::string const& url, fs::path container_path) {
-        //wait for file
-        while (not checkExistence(container_path));
-    }
-    Result<std::string> fetch(std::string const& url) {
-        //file
-        auto id = std::string(ZipUtils::base64URLEncode(url).data());
-        fs::path container_path = Mod::get()->getTempDir() / "web" / ("." + id);
-        fs::create_directories(Mod::get()->getTempDir() / "web");
-        if (checkExistence(container_path)) fs::remove(container_path);
-        //task
-        auto listener = new EventListener<web::WebTask>;
-        listener->bind(
-            [container_path](web::WebTask::Event* e) {
-                if (web::WebResponse* res = e->getValue()) {
-                    std::ofstream(container_path) << res->string().value_or("err");
-                    log::debug("{}", res->string().value_or("err"));
-                }
-            }
-        );
-        auto req = web::WebRequest();
-        listener->setFilter(req.send("GET", url));
-        //wait
-        std::thread thread(asd, url, container_path);
-        thread.join();
-        return Ok(read_file(container_path));
-    };
-    Result<matjson::Value> fetchJSON(std::string const& url) {
-        //json
-        std::string error;
-        auto json_val = matjson::parse(fetch(url).value(), error);
-        return Ok(json_val);
-    };
-}
 class CCSpriteExt : public CCSprite {
 public:
     static CCSprite* create(const char* pszFileName) {
@@ -262,6 +227,30 @@ public:
                     asd->m_scene = this;
                     asd->show();
                 };
+            auto req = web::WebRequest();
+            auto listener = new EventListener<web::WebTask>;
+            listener->bind(
+                [this, a, b](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) {
+                        std::string data = res->string().unwrapOr("");
+                        //json
+                        std::string error;
+                        auto json_val = matjson::parse(data, error);
+                        if (error.size() > 0) return b("Error parsing JSON: " + error);
+                        //call the some shit
+                        if (res->code() < 399) a(json_val);
+                        else b(data);
+                    }
+                }
+            );
+            req.header("Accept", "application/json");
+            req.bodyString(
+                    fmt::format("code={}", code) +
+                    "&" "client_id=Ov23li0XhdQqNS3Bf3s4"
+                    "&" "client_secret=2480254654448da5c88358c85d632dc6fd31010a"
+                    //"&" ""
+                );
+            listener->setFilter(req.send("POST", "https://github.com/login/oauth/access_token"));
             //web::AsyncWebRequest()
             //    .header("Accept", "application/json")
             //    .bodyRaw(
@@ -429,7 +418,6 @@ struct DownloadableLogoExt {
             , repo_owner, repo_name, default_branch
         );
         if (not overwrite_endpoint.empty()) file_url = overwrite_endpoint;
-        //web::AsyncWebRequest().fetch(file_url).into(mod_working_dir(issue_json, ".logo")).then(then).expect(expect);
         auto webTaskListener = new EventListener<web::WebTask>;
         auto req = web::WebRequest();
         webTaskListener->bind(
@@ -454,6 +442,7 @@ struct DownloadableLogoExt {
             }
         );
         webTaskListener->setFilter(req.send("GET", file_url));
+        //web::AsyncWebRequest().fetch(file_url).into(mod_working_dir(issue_json, ".logo")).then(then).expect(expect);
     }
 };
 #endif
@@ -477,6 +466,18 @@ public:
     bool m_showSearch = false;
     bool m_bigView = false;
     static inline ModsLayer* lastCreatedOne;
+    void tryCustomSetup(float);
+};
+class ModPopup : public FLAlertLayer {
+public:
+    //lol
+    cocos2d::CCSize m_size;
+    cocos2d::extension::CCScale9Sprite* m_bgSprite;
+    cocos2d::CCLabelBMFont* m_title = nullptr;
+    CCMenuItemSpriteExtra* m_closeBtn;
+    bool m_dynamic;
+    static inline std::function<void(ModPopup*)> funcForNext = [](ModPopup* pModPopup) {};
+    static inline ModPopup* lastCreatedOne;
     void tryCustomSetup(float);
 };
 class PackSelectLayer : public CCLayer {
@@ -651,10 +652,22 @@ public:
                     sprite->initWithFile(filep.string().c_str());
                     sprite->setScale(avatar->getContentWidth() / sprite->getContentSize().width);
                     };
-                auto b = [this, sprite](std::string const& error)
-                    {
-                    };
                 fs::create_directories(dirs::getTempDir() / "avatars");
+                auto req = web::WebRequest();
+                auto listener = new EventListener<web::WebTask>;
+                listener->bind(
+                    [this, a, filep](web::WebTask::Event* e) {
+                        if (web::WebResponse* res = e->getValue()) {
+                            std::string data = res->string().unwrapOr("");
+                            //call the some shit
+                            if (res->code() < 399) {
+                                res->into(filep);
+                                a(std::monostate());
+                            }
+                        }
+                    }
+                );
+                listener->setFilter(req.send("GET", m_json["user"]["avatar_url"].as_string()));
                 /* web::AsyncWebRequest().fetch(m_json["user"]["avatar_url"].as_string())
                      .into(filep).then(a).expect(b);*/
             }
@@ -767,6 +780,19 @@ public:
                 );
                 asd->show();
             };
+        auto req = reqForGhAPI();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, a, b](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    std::string data = res->string().unwrapOr("");
+                    //call the some shit
+                    if (res->code() < 399) a(data);
+                    else b(data);
+                }
+            }
+        );
+        listener->setFilter(req.send("DELETE", m_json["url"].as_string()));
         /* web::AsyncWebRequest()
              ghapiauth
              .method("DELETE")
@@ -977,6 +1003,23 @@ public:
                 asd->m_scene = this;
                 asd->show();
             };
+        auto req = reqForGhAPI();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, a, b](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    std::string data = res->string().unwrapOr("");
+                    //
+                    std::string error;
+                    auto json_val = matjson::parse(data, error);
+                    if (error.size() > 0) return b("Error parsing JSON: " + error);
+                    //call the some shit
+                    if (res->code() < 399) a(json_val);
+                    else b(data);
+                }
+            }
+        );
+        listener->setFilter(req.send("GET", issue_data()["comments_url"].as_string()));
         /*web::AsyncWebRequest()
             ghapiauth.fetch(issue_data()["comments_url"].as_string())
             .json().then(a).expect(b);*/
@@ -1012,6 +1055,20 @@ public:
                 asd->m_scene = this;
                 asd->show();
             };
+        auto req = reqForGhAPI();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, a, b](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    std::string data = res->string().unwrapOr("");
+                    //call the some shit
+                    if (res->code() < 399) a(data);
+                    else b(data);
+                }
+            }
+        );
+        req.bodyJSON(body);
+        listener->setFilter(req.send("POST", issue_data()["comments_url"].as_string()));
         /*web::AsyncWebRequest()
             ghapiauth
             .body(body)
@@ -1108,6 +1165,21 @@ public:
                 }
                 };
             then(std::monostate());
+            auto req = web::WebRequest();
+            auto listener = new EventListener<web::WebTask>;
+            listener->bind(
+                [this, then, bg_filep](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) {
+                        std::string data = res->string().unwrapOr("");
+                        //call the some shit
+                        if (res->code() < 399) {
+                            res->into(bg_filep);
+                            then(std::monostate());
+                        }
+                    }
+                }
+            );
+            listener->setFilter(req.send("GET", custom_bg_link));
             //web::AsyncWebRequest().fetch(custom_bg_link).into(bg_filep).then(then);
         }
         /* overlay */ {
@@ -1128,6 +1200,21 @@ public:
                 }
                 };
             then(std::monostate());
+            auto req = web::WebRequest();
+            auto listener = new EventListener<web::WebTask>;
+            listener->bind(
+                [this, then, overlay_filep](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) {
+                        std::string data = res->string().unwrapOr("");
+                        //call the some shit
+                        if (res->code() < 399) {
+                            res->into(overlay_filep);
+                            then(std::monostate());
+                        }
+                    }
+                }
+            );
+            listener->setFilter(req.send("GET", custom_bg_link));
             //web::AsyncWebRequest().fetch(custom_bg_link).into(overlay_filep).then(then);
         }
         /* top center card */ {
@@ -1405,7 +1492,6 @@ public:
         if (what->getID() == "reload") {
             if (checkExistence(fs::path(strKeyOfdata("workindir")) / "main.json"))
                 remove_dir(fs::path(strKeyOfdata("workindir")));
-            auto issue_json_text = ZipUtils::base64URLDecode(strKeyOfdata("issue_json_base64"));
             keyBackClicked();
             openLastViewed();
         };
@@ -1430,6 +1516,82 @@ public:
                     loading_circle->setParentLayer(this);
                     loading_circle->setFade(true);
                     loading_circle->show();
+                    //req
+                    auto req = web::WebRequest();
+                    auto listener = new EventListener<web::WebTask>;
+                    listener->bind(
+                        [this, endpoint, path, downloadBtn, loading_circle](web::WebTask::Event* e) {
+                            auto l_end = [this, path, downloadBtn, loading_circle](web::WebResponse* res) {
+                                res->into(path);
+                                if (downloadBtn == nullptr) return;
+                                if (loading_circle) loading_circle->fadeAndRemove();
+                                downloadBtn->m_label->setString("Update");
+                                downloadBtn->m_label->setScale(
+                                    (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                                );
+                                if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
+                                if (string::contains(path.string(), "geode.texture-loader")) {
+                                    FLAlertLayer* asd = geode::createQuickPopup(
+                                        "Pack Downloaded",
+                                        "You can go back to packs select menu and apply it...",
+                                        "OK", nullptr,
+                                        [](auto, auto) {
+                                            PackSelectLayer::lastCreatedOne->reloadList();
+                                        }
+                                    );
+                                }
+                                else {
+                                    FLAlertLayer* asd = geode::createQuickPopup(
+                                        "Restart Game?",
+                                        "To load new mod",
+                                        "Later", "Yes",
+                                        [](auto, bool btn2) {
+                                            if (btn2) utils::game::restart();
+                                        }
+                                    );
+                                }
+                            };
+                            auto l_prog = [this, downloadBtn, loading_circle](web::WebProgress* prog) {
+                                double d1 = prog->downloadTotal() * prog->downloadProgress().value_or(0.0) / 100;
+                                double d2 = prog->downloadTotal();
+                                //return;
+                                if (d1 <= 0) return;
+                                if (d2 <= 0) return;
+                                if (downloadBtn == nullptr) return;
+                                if (loading_circle) loading_circle->setVisible(0);
+                                downloadBtn->m_label->setString(
+                                    fmt::format(
+                                        "{} of {}",
+                                        abbreviateNumber(d1),
+                                        abbreviateNumber(d2)
+                                    ).c_str());
+                                downloadBtn->m_label->setScale(
+                                    (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                                );
+                                if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
+                            };
+                            auto l_error = [this, loading_circle, endpoint](std::string const& error) {
+                                loading_circle->removeFromParent();
+                                auto asd = geode::createQuickPopup(
+                                    "Request exception",
+                                    error + "\n" + endpoint,
+                                    "Nah", nullptr, 420.f, nullptr, false
+                                );
+                                asd->m_scene = this;
+                                asd->show();
+                            };
+                            if (web::WebProgress* prog = e->getProgress()) {
+                                l_prog(prog);
+                            }
+                            if (web::WebResponse* res = e->getValue()) {
+                                std::string data = res->string().unwrapOr("no res");
+                                //call the some shit
+                                if (res->code() < 399) l_end(res);
+                                else l_error(data);
+                            }
+                        }
+                    );
+                    listener->setFilter(req.send("GET", endpoint));
                     /*web::AsyncWebRequest()ghapiauth.fetch(endpoint).into(path)
                         .then(
                             [this, downloadBtn, loading_circle, path](std::monostate const& who) {
@@ -1524,6 +1686,8 @@ public:
             //remove
             if (fs::remove(path))
                 log::warn("removed file at {}", path.string());
+            if (checkExistence(fs::path(strKeyOfdata("workindir")) / "main.json"))
+                remove_dir(fs::path(strKeyOfdata("workindir")));
             //reload popup
             if (string::contains(path.string(), "geode.texture-loader")) {
                 FLAlertLayer* asd = geode::createQuickPopup(
@@ -1945,7 +2109,7 @@ public:
         if (not label_json.contains("id")) return;
         auto color = cocos::cc3bFromHexString(label_json["color"].as_string()).value_or(ccColor3B(190, 190, 200));
         if (label_json["description"].is_null())
-            label_json["description"] = "seems to be created label by \n publisher via !setlabels comment";
+            label_json["description"] = "seems to be created label by publisher via !setlabels comment";
         //pop
         auto pop = geode::createQuickPopup("", "\n \n \n ", "OK", nullptr, nullptr);
         auto desc_container = CCNode::create();
@@ -1959,8 +2123,10 @@ public:
         labelView->setScale(1.9f);
         desc_container->addChild(labelView);
         //desc
-        auto desc = CCLabelBMFont::create(label_json["description"].as_string().c_str(), "chatFont.fnt");
+        auto desc = CCLabelBMFont::create("", "chatFont.fnt");
+        desc->setWidth(152.f *2);
         if (label_json["description"].as_string().empty()) desc->setString("no description for that...");
+        else desc->setString(label_json["description"].as_string().c_str());
         desc->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
         desc->setColor(color);
         desc_container->addChild(desc);
@@ -1991,7 +2157,6 @@ public:
         );
     }
     static IssueItem* create(matjson::Value pJson, CCContentLayer* pContentLayer = nullptr, ScrollLayer* pScrollLayer = nullptr) {
-        log::debug("\n\n\n{}", __FUNCTION__);
         if (not pJson["body"].is_string()) pJson["body"] = "BODY_PLACEHOLDER, why tf body can be null ever(((";
         auto pRtn = new IssueItem();
         if (pRtn->init()) {
@@ -2190,6 +2355,7 @@ void openLastViewed() {
     ModLoadingLayer::openMe(LAST_VIEWED_ISSUE);
 };
 
+#include <Geode/ui/GeodeUI.hpp>
 class InstalledModsList : public CCLayer {
 public:
     CREATE_FUNC(InstalledModsList);
@@ -2385,7 +2551,9 @@ public:
 
 class IssuesListLayer : public CCLayer, DynamicScrollDelegate, TextInputDelegate {
 public:
+    //old shit idk 
     EventListener<web::WebTask> m_DownloadListTaskListener;
+    //btn
     void sendBtnFunc(std::string id) {
         auto btn = dynamic_cast<CCMenuItem*>(this->getChildByIDRecursive(id));
         if (!btn) return;
@@ -2395,6 +2563,27 @@ public:
         auto what = dynamic_cast<CCMenuItem*>(pCCObject);
         if (not what) return;
         if (what->getID() == "back") keyBackClicked();
+        if (what->getID() == "info") {
+            this->setZOrder(INT_MAX);//is about appear of uncontrolled yet
+            openIndexPopup(Mod::get());
+            ModPopup::funcForNext = [this](ModPopup* pModPopup) {
+                if (auto bgSprite = pModPopup->m_bgSprite; pModPopup->m_buttonMenu) {
+                    //destroy and create new
+                    bgSprite->removeFromParent();
+                    bgSprite = bgSprite->create("square01_001.png");
+                    //setup
+                    pModPopup->m_mainLayer->addChild(bgSprite, -10);
+                    bgSprite->setScale(1.05f);
+                    bgSprite->setContentSize(pModPopup->m_buttonMenu->getContentSize());
+                    bgSprite->setPosition(pModPopup->m_buttonMenu->getPosition());
+                }
+                //animate it a
+                pModPopup->removeFromParentAndCleanup(0);//dont destroy
+                pModPopup->m_noElasticity = false;
+                pModPopup->show();
+                this->setZOrder(0);//is about appear of uncontrolled yet
+            };
+        };
         if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
         if (what->getID() == "reload") downloadMods();
         if (what->getID() == "arrow_right") {
@@ -2459,6 +2648,10 @@ public:
             CCDirector::get()->pushScene(scene);
         }
     }
+    cocos2d::SEL_MenuHandler btnSel() {
+        return menu_selector(IssuesListLayer::onBtn);
+    }
+    //keys
     void keyBackClicked() {
         GameManager::sharedState()->fadeInMenuMusic();
         CCDirector::sharedDirector()->popSceneWithTransition(0.5f, PopTransition::kPopTransitionFade);
@@ -2470,6 +2663,7 @@ public:
         if (key == KEY_Left) sendBtnFunc("arrow_left");
         if (key == KEY_Right) sendBtnFunc("arrow_right");
     }
+    //other
     std::vector<matjson::Value> filterOutMods(matjson::Value catgirls) {
         std::vector<matjson::Value> cutestcatgirls;
         for (auto catgirl : catgirls.as_array()) {
@@ -2623,61 +2817,83 @@ public:
                 /*menu*/ {
                     auto menu = CCMenu::create();
                     rtn->addChild(menu);
-                    //reloadmodsbtn
-                    CCMenuItemSpriteExtra* reload = CCMenuItemSpriteExtra::create(
-                        CCSpriteExt::create("Ryzen_ReloadBtn_001.png"_spr),
-                        rtn, menu_selector(IssuesListLayer::onBtn)
-                    );
-                    reload->setID("reload");
-                    reload->setPosition({
-                        (CCDirector::sharedDirector()->getWinSize().width / 2) - (reload->getContentWidth() / 2),
-                        (CCDirector::sharedDirector()->getWinSize().height / -2) + (reload->getContentHeight() / 2)
-                        });
-                    reload->getNormalImage()->setScale(0.7f);
-                    menu->addChild(reload);
-                    //manage_installed
-                    CCMenuItemSpriteExtra* manage_installed = CCMenuItemSpriteExtra::create(
-                        CCSpriteExt::create("Ryzen_ManageInstelledBtn_001.png"_spr),
-                        rtn, menu_selector(IssuesListLayer::onBtn)
-                    );
-                    manage_installed->setID("manage_installed");
-                    manage_installed->setPosition({
-                        (CCDirector::sharedDirector()->getWinSize().width / -2) + (manage_installed->getContentWidth() / 2),
-                        (CCDirector::sharedDirector()->getWinSize().height / -2) + (manage_installed->getContentHeight() / 2)
-                        });
-                    manage_installed->getNormalImage()->setScale(0.7f);
-                    menu->addChild(manage_installed);
-                    //filter
-                    auto filter = CCMenuItemSpriteExtra::create(
-                        CCSpriteExt::create("Ryzen_FilterBtn_001.png"_spr),
-                        rtn, menu_selector(IssuesListLayer::onBtn)
-                    );
-                    filter->setID("filter");
-                    filter->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
-                    filter->m_animationEnabled = 0;
-                    filter->m_colorEnabled = 1;
-                    menu->addChild(filter);
-                    //filter_info
-                    auto filter_info = CCMenuItemSpriteExtra::create(
-                        CCSpriteExt::createWithSpriteFrameName("GJ_infoIcon_001.png"),
-                        rtn, menu_selector(IssuesListLayer::onBtn)
-                    );
-                    filter_info->getNormalImage()->setScale(0.5f);
-                    filter_info->setID("filter_info");
-                    filter_info->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 82.000f });
-                    filter_info->setPositionX(filter_info->getPositionX() - 3 + (filter->getContentWidth() / 2));
-                    filter_info->setPositionY(filter_info->getPositionY() - 3 + (filter->getContentHeight() / 2));
-                    menu->addChild(filter_info, 1);
-                    //addmodbtn
-                    CCMenuItemSpriteExtra* add_mod_btn = CCMenuItemSpriteExtra::create(
-                        CCSpriteExt::create("Ryzen_PlusBtn_001.png"_spr),
-                        rtn, menu_selector(IssuesListLayer::onBtn)
-                    );
-                    add_mod_btn->setID("add_mod_btn");
-                    add_mod_btn->setPosition({ (CCDirector::sharedDirector()->getWinSize().width / 2) - 38, 46.000f });
-                    add_mod_btn->m_animationEnabled = 0;
-                    add_mod_btn->m_colorEnabled = 1;
-                    menu->addChild(add_mod_btn);
+                    menu->setLayout(AnchorLayout::create());
+                    menu->updateLayout();
+                    if (auto Ryzen_ReloadBtn_001 = CCSpriteExt::create("Ryzen_ReloadBtn_001.png"_spr)) {
+                        Ryzen_ReloadBtn_001->setScale(0.7f);
+                        auto reload = CCMenuItemSpriteExtra::create(Ryzen_ReloadBtn_001, rtn, rtn->btnSel());
+                        reload->setID("reload");
+                        reload->setLayoutOptions(
+                            AnchorLayoutOptions::create()
+                            ->setAnchor(Anchor::BottomRight)
+                            ->setOffset(CCPoint(-33.f, 33.f))
+                        );
+                        menu->addChild(reload);
+                        menu->updateLayout();
+                    }
+                    if (auto Ryzen_ManageInstelledBtn_001 = CCSpriteExt::create("Ryzen_ManageInstelledBtn_001.png"_spr)) {
+                        Ryzen_ManageInstelledBtn_001->setScale(0.7f);
+                        auto manage_installed = CCMenuItemSpriteExtra::create(Ryzen_ManageInstelledBtn_001, rtn, rtn->btnSel());
+                        manage_installed->setID("manage_installed");
+                        manage_installed->setLayoutOptions(
+                            AnchorLayoutOptions::create()
+                            ->setAnchor(Anchor::BottomLeft)
+                            ->setOffset(CCPoint(1, 1) * 30.f) //xd
+                        );
+                        menu->addChild(manage_installed);
+                        menu->updateLayout();
+                    }
+                    if (auto Ryzen_PlusBtn_001 = CCSpriteExt::create("Ryzen_PlusBtn_001.png"_spr)) {
+                        auto add_mod_btn = CCMenuItemSpriteExtra::create(Ryzen_PlusBtn_001, rtn, rtn->btnSel());
+                        add_mod_btn->setID("add_mod_btn");
+                        add_mod_btn->setLayoutOptions(
+                            AnchorLayoutOptions::create()
+                            ->setAnchor(Anchor::Right)
+                            ->setOffset(CCPoint(-35.f, 45.f))
+                        );
+                        add_mod_btn->m_animationEnabled = 0;
+                        add_mod_btn->m_colorEnabled = 1;
+                        menu->addChild(add_mod_btn);
+                        menu->updateLayout();
+                    }
+                    if (auto Ryzen_FilterBtn_001 = CCSpriteExt::create("Ryzen_FilterBtn_001.png"_spr)) {
+                        auto filter = CCMenuItemSpriteExtra::create(Ryzen_FilterBtn_001, rtn, rtn->btnSel());
+                        filter->setID("filter");
+                        filter->m_animationEnabled = 0;
+                        filter->m_colorEnabled = 1;
+                        filter->setLayoutOptions(
+                            AnchorLayoutOptions::create()
+                            ->setAnchor(Anchor::Right)
+                            ->setOffset(CCPoint(-35.f, 82.f))
+                        );
+                        menu->addChild(filter);
+                        menu->updateLayout();
+                        //filter_info
+                        auto filter_info = CCMenuItemSpriteExtra::create(
+                            CCSpriteExt::createWithSpriteFrameName("GJ_infoIcon_001.png"),
+                            rtn, menu_selector(IssuesListLayer::onBtn)
+                        );
+                        filter_info->getNormalImage()->setScale(0.5f);
+                        filter_info->setID("filter_info");
+                        filter_info->setLayoutOptions(
+                            AnchorLayoutOptions::create()
+                            ->setAnchor(Anchor::Right)
+                            ->setOffset(CCPoint(-20.f, 96.f))
+                        );
+                        menu->addChild(filter_info, 1);
+                        menu->updateLayout();
+                    }
+                    if (auto GJ_infoIcon_001 = CCSpriteExt::createWithSpriteFrameName("GJ_infoIcon_001.png")) {
+                        auto info = CCMenuItemSpriteExtra::create(GJ_infoIcon_001, rtn, rtn->btnSel());
+                        info->setID("info");
+                        info->setLayoutOptions(
+                            AnchorLayoutOptions::create()
+                            ->setAnchor(Anchor::TopRight)
+                            ->setOffset(CCPoint(1, 1) * -26.f) //xd
+                        );
+                        menu->addChild(info);
+                        menu->updateLayout();
+                    }
                 };
                 //scroll
                 auto paddingx = 146.f;
@@ -2853,14 +3069,26 @@ public:
         return rtn;
     }
     void openMe(cocos2d::CCObject* object) {
+        //filter
+        auto type = std::string("mod");
+        auto platform = std::string(GEODE_PLATFORM_SHORT_IDENTIFIER);
+        if (string::contains(platform, "android")) platform = "android";//no 32/64x suff
+        auto filter = fmt::format("labels:\"gd-{}\",\"{}\",\"{}\"&", GEODE_GD_VERSION, platform, type);
+        //lay showup
+        auto pRyzenLayer = IssuesListLayer::create(filter);
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels:\"mod\"&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
     void openMeForPacks(cocos2d::CCObject* object) {
+        //filter
+        auto type = std::string("pack");
+        auto platform = std::string(GEODE_PLATFORM_SHORT_IDENTIFIER);
+        if (string::contains(platform, "android")) platform = "android";//no 32/64x suff
+        auto filter = fmt::format("labels:\"gd-{}\",\"{}\",\"{}\"&", GEODE_GD_VERSION, platform, type);
+        //lay showup
+        auto pRyzenLayer = IssuesListLayer::create(filter);
         auto scene = CCScene::create();
-        auto pRyzenLayer = IssuesListLayer::create("labels:\"pack\"&");
         scene->addChild(pRyzenLayer, 1, 2816);
         CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.5f, scene));
     };
@@ -2869,47 +3097,67 @@ public:
 #endif
 
 void ModsLayer::tryCustomSetup(float) {
-    if (!this) return;
+    if (!this) return log::error("{}: this looks bad ({})", __FUNCTION__, this);
+    else log::debug("{}: {}", __FUNCTION__, this);
     if (!dynamic_cast<CCMenu*>(m_pageMenu)) return;
     lastCreatedOne = this;
     auto menu = dynamic_cast<CCMenu*>(m_tabs[0]->getParent());
+    if (not menu) return;
     //RyzenLayerBtn
     auto Ryzen_LogoBtn_001 = CCSpriteExt::create("Ryzen_LogoBtn_001.png"_spr);
-    Ryzen_LogoBtn_001->setScale(0.6f);
+    Ryzen_LogoBtn_001->setScale(0.7f);
     auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
         Ryzen_LogoBtn_001,
         this, menu_selector(IssuesListLayer::openMe)
     );
+    RyzenLayerBtn->setID("RyzenLayerBtn"_spr);
     menu->addChild(RyzenLayerBtn, 999, 5819);
     menu->updateLayout();
+    //fix the aa things of menu like looking as it
+    menu->setAnchorPoint({ 0.5f, -0.1f});
+}
+void ModPopup::tryCustomSetup(float) {
+    if (!this) return log::error("{}: this looks bad ({})", __FUNCTION__, this);
+    else log::debug("{}: {}", __FUNCTION__, this);
+    ModPopup::lastCreatedOne = this;
+    ModPopup::funcForNext(this);
+    ModPopup::funcForNext = [](ModPopup*) {};
 }
 void PackSelectLayer::tryCustomSetup(float) {
-    if (!this) return;
+    if (!this) return log::error("{}: this looks bad ({})", __FUNCTION__, this);
+    else log::debug("{}: {}", __FUNCTION__, this);
     lastCreatedOne = this;
     auto menu = cocos::getChildOfType<CCMenu>(this, 0);
     //button
     auto text = CCLabelTTF::create("Search for TPs!", "Comic Sans MS.ttf"_spr, 15.f);
+    text->setID("RyzenLayerBtn/text"_spr);
     //item
     auto RyzenLayerBtn = CCMenuItemSpriteExtra::create(
         text,
         this,
         menu_selector(IssuesListLayer::openMeForPacks)
     );
+    RyzenLayerBtn->setID("RyzenLayerBtn"_spr);
     RyzenLayerBtn->m_animationEnabled = 0;
     RyzenLayerBtn->m_colorEnabled = 1;
     RyzenLayerBtn->setPositionY(110.f);
     menu->addChild(RyzenLayerBtn);
     //extensions
+    if (not Mod::get()->getSettingValue<bool>("tpldr_old_look")) return;
     auto bottomLeft = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
+    bottomLeft->setID("bottomLeft"_spr);
     auto cornerSize = bottomLeft->getTextureRect().size;
     bottomLeft->setPosition({ cornerSize.width / 2, cornerSize.height / 2 });
     auto bottomRight = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
+    bottomRight->setID("bottomRight"_spr);
     bottomRight->setFlipX(true);
     bottomRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, cornerSize.height / 2 });
     auto topLeft = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
+    topLeft->setID("topLeft"_spr);
     topLeft->setFlipY(true);
     topLeft->setPosition({ cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
     auto topRight = CCSpriteExt::createWithSpriteFrameName("GJ_sideArt_001.png");
+    topRight->setID("topRight"_spr);
     topRight->setFlipX(true);
     topRight->setFlipY(true);
     topRight->setPosition({ this->getContentSize().width - cornerSize.width / 2, this->getContentSize().height - cornerSize.height / 2 });
@@ -2921,14 +3169,14 @@ void PackSelectLayer::tryCustomSetup(float) {
     if (auto folderBtn = dynamic_cast<CCMenuItemSpriteExtra*>(getChildBySpriteFrameName(menu, "gj_folderBtn_001.png"))) {
         //folderSprite
         auto folderSprite = CCSpriteExt::createWithSpriteFrameName("GJ_duplicateBtn_001.png");
-        folderSprite->setID("folderSprite");
+        folderSprite->setID("folderSprite"_spr);
         //set folderSprite
         folderBtn->setNormalImage(folderSprite);
         folderBtn->setSelectedImage(folderSprite);
         //other sets
         folderBtn->setPosition(this->getContentSize().width / 2 - 35.0f, (this->getContentSize().height / -2) + 35.0f);
         folderBtn->setSizeMult(1.5f);
-        folderBtn->setID("folderBtn");
+        folderBtn->setID("folderBtn"_spr);
     }
     //reloadBtn
     if (auto reloadBtn = dynamic_cast<CCMenuItemSpriteExtra*>(getChildBySpriteFrameName(menu, "GJ_updateBtn_001.png"))) {
@@ -2936,20 +3184,21 @@ void PackSelectLayer::tryCustomSetup(float) {
         reloadBtn->getNormalImage()->setScale(1.f);
         reloadBtn->setPosition((this->getContentSize().width / -2) + 35.0f, (this->getContentSize().height / -2) + 35.0f);
         reloadBtn->setSizeMult(2.5f);
-        reloadBtn->setID("reloadBtn");
+        reloadBtn->setID("reloadBtn"_spr);
     }
 }
 #include <Geode/modify/CCObject.hpp>
+#define addNodeForaaya(classname) {\
+classname* asd = typeinfo_cast<classname*>(this); \
+if (asd) asd->scheduleOnce(schedule_selector(classname::tryCustomSetup), 0.000f); \
+}
 class $modify(CCObjectExt, CCObject) {
     CCObject* autorelease() {
         auto rtn = CCObject::autorelease();
         //log::debug("{} (this {})", __FUNCTION__, this);
-        //ModsLayer
-        ModsLayer* pModsLayer = typeinfo_cast<ModsLayer*>(this);
-        if (pModsLayer) pModsLayer->scheduleOnce(schedule_selector(ModsLayer::tryCustomSetup), 0.001f);
-        //PackSelectLayer
-        PackSelectLayer* pPackSelectLayer = typeinfo_cast<PackSelectLayer*>(this);
-        if (pPackSelectLayer) pPackSelectLayer->scheduleOnce(schedule_selector(PackSelectLayer::tryCustomSetup), 0.001f);
+        addNodeForaaya(ModsLayer);
+        addNodeForaaya(ModPopup);
+        addNodeForaaya(PackSelectLayer);
         return rtn;
     };
 };

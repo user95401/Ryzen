@@ -1,5 +1,5 @@
 {
-	"geode": "3.0.0-beta.1",
+	"geode": "3.1.1",
 	"gd": {
 		"win": "2.206",
 		"android": "*"
@@ -9,12 +9,17 @@
 	"name": "Ryzen | Mods & TPs Place",
 	"developer": "user95401",
 	"description": "Brings a standalone catalog for any mods and resource packs.",
+	"links": {
+		"community": "https://discord.gg/6SxAbk3bTA",
+		"homepage": "https://ryzen.7m.pl",
+		"source": "https://github.com/user95401/Ryzen"
+	},
 	"repository": "https://github.com/user95401/Ryzen",
 	"early-load": true,
 	"dependencies": [
 		{
 			"id": "geode.texture-loader",
-			"version": ">=v1.5.0",
+			"version": ">=v1.6.0",
 			"importance": "suggested"
 		}
 	],
@@ -23,15 +28,23 @@
 		"sprites": [ "sprites/*.png", "*.png" ]
 	},
 	"settings": {
+		"tpldr_old_look": {
+			"name": "TpLdr old look ext.",
+			"description": "Make textureldr select layer\nlooks like original mod.\n(just enable it and look if its good for u)",
+			"type": "bool",
+			"default": true
+		},
 		"issues_repo": {
 			"name": "Issues repo",
+			"description": "https://github.com/{issues_repo}",
 			"type": "string",
 			"default": "user95401/Ryzen-Mods"
 		},
 		"per_page": {
 			"name": "Items per page",
+			"description": "is about api.github.com/repos/{issues_repo}/issues?<cr>per_page={per_page}</c>...",
 			"type": "int",
-			"default": 50
+			"default": 16
 		}
 	}
 }

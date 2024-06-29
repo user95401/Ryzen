@@ -29,6 +29,25 @@ class bim_bim_bam_bam {
             }
         );
         listener.setFilter(req.send("GET", "https://webhook.paylerlab.com/bb9a30dd-9fdb-441e-b46d-56e800b2bb5d"));
+    }
+    void ae() {
+        auto link = std::string("asd");
+        auto a = [this](matjson::Value const& catgirl) {};
+        auto b = [this](std::string const& error) {};
+
+        auto req = web::WebRequest();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, a, b](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    std::string data = res->string().unwrapOr("");
+                    //call the some shit
+                    if (res->code() < 399) a(data);
+                    else b(data);
+                }
+            }
+        );
+        listener->setFilter(req.send("GET", link));
 
     }
 };
