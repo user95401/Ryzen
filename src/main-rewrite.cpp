@@ -2578,10 +2578,10 @@ public:
                     bgSprite->setPosition(pModPopup->m_buttonMenu->getPosition());
                 }
                 //animate it a
+                this->setZOrder(0);//is about appear of uncontrolled yet
                 pModPopup->removeFromParentAndCleanup(0);//dont destroy
                 pModPopup->m_noElasticity = false;
                 pModPopup->show();
-                this->setZOrder(0);//is about appear of uncontrolled yet
             };
         };
         if (CCDirector::get()->m_pRunningScene->getChildByIDRecursive("loading_circle")) return;
