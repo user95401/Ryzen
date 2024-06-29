@@ -1901,9 +1901,9 @@ public:
                     listener->bind(
                         [this, endpoint, path, downloadBtn, loading_circle, loadingBar](web::WebTask::Event* e) {
                             auto l_end = [this, path, downloadBtn, loading_circle](web::WebResponse* res) {
+                                return;
                                 res->into(path);
                                 if (downloadBtn == nullptr) return;
-                                if (loading_circle) loading_circle->fadeAndRemove();
                                 downloadBtn->m_label->setString("Update");
                                 downloadBtn->m_label->setScale(
                                     (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
