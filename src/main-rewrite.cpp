@@ -1124,10 +1124,10 @@ public:
         auto scene = CCScene::create();
         auto pIssueCommentsLayer = IssueCommentsLayer::create(issue_json);
         scene->addChild(pIssueCommentsLayer, 0, pIssueCommentsLayer->issue_data()["number"].as_int());
-        CCDirector::sharedDirector()->pushScene(scene);
+        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.f, scene));
     };
     void keyBackClicked() {
-        CCDirector::sharedDirector()->popScene();
+        CCDirector::sharedDirector()->popSceneWithTransition(0.f, PopTransition::kPopTransitionFade);
     }
 };
 
@@ -1745,10 +1745,10 @@ public:
         auto scene = CCScene::create();
         auto pModViewLayer = ModViewLayer::create(data);
         scene->addChild(pModViewLayer, 0, pModViewLayer->ISSUE_DATA()["number"].as_int());
-        CCDirector::sharedDirector()->pushScene(scene);
+        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.f, scene));
     };
     void keyBackClicked() {
-        CCDirector::sharedDirector()->popScene();
+        CCDirector::sharedDirector()->popSceneWithTransition(0.f, PopTransition::kPopTransitionFade);
     }
 };
 
@@ -2071,11 +2071,11 @@ public:
             return;
         }
         scene->addChild(a, 0, IssueJson["number"].as_int());
-        CCDirector::sharedDirector()->pushScene(scene);
+        CCDirector::sharedDirector()->pushScene(CCTransitionFade::create(0.f, scene));
         a->load(IssueJson);
     };
     void keyBackClicked() {
-        CCDirector::sharedDirector()->popScene();
+        CCDirector::sharedDirector()->popSceneWithTransition(0.f, PopTransition::kPopTransitionFade);
     }
 };
 
@@ -2543,7 +2543,7 @@ public:
     }
     //keys
     void keyBackClicked() {
-        CCDirector::sharedDirector()->popScene();
+        CCDirector::sharedDirector()->popSceneWithTransition(0.f, PopTransition::kPopTransitionFade);
     }
     void keyDown(cocos2d::enumKeyCodes key) {
         this->CCLayer::keyDown(key);
@@ -2646,7 +2646,7 @@ public:
             auto layer = InstalledModsList::create();
             auto scene = CCScene::create();
             scene->addChild(layer);
-            CCDirector::get()->pushScene(scene);
+            CCDirector::get()->pushScene(CCTransitionFade::create(0.f, scene));
         }
     }
     cocos2d::SEL_MenuHandler btnSel() {
