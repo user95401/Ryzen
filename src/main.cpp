@@ -15,7 +15,7 @@ public:
         temp->setID("temp");
         __this->addChild(temp);
         
-        auto filep = dirs::getTempDir() / ("." + ZipUtils::base64URLEncode(url));
+        auto filep = dirs::getTempDir() / ("." + std::string(ZipUtils::base64URLEncode(url).c_str()));
         auto a = [__this, loaded, temp, filep, size](std::monostate const& asd) {
             };
         auto req = web::WebRequest();
