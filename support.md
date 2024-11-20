@@ -1,0 +1,5 @@
+- distribute mod
+- [add mods](https://github.com/user95401/Ryzen-Mods/issues/new/choose)
+- report bugs
+- suggest ideas
+- contribute to [source code](https://github.com/user95401/Ryzen)
