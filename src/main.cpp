@@ -1,11 +1,52 @@
 #include <_main.hpp>
 #include <Geode/utils/web.hpp>
 
+class WebImageNode : public CCNode {
+public:
+    static auto create(std::string url = "", CCSize size = { 30.f, 30.f }, std::function<void(CCSprite*)> loaded = [](auto) {}) {
+        auto __this = new WebImageNode();
+        __this->init();
+        __this->setContentSize(size);
+
+        //temp sprite
+        auto temp = CCScale9Sprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
+        temp->setAnchorPoint(CCPointZero);
+        temp->setContentSize(size);
+        temp->setID("temp");
+        __this->addChild(temp);
+        
+        auto filep = dirs::getTempDir() / ("." + ZipUtils::base64URLEncode(url));
+        auto a = [__this, loaded, temp, filep, size](std::monostate const& asd) {
+            };
+        auto req = web::WebRequest();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [__this, loaded, temp, filep, size](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    if (res->code() < 399) {
+                        res->into(filep);
+                        if (temp) temp->setVisible(0);
+                        auto sprite = CCSprite::create(filep.string().c_str());
+                        sprite->setScale(size.width / sprite->getContentSize().width);
+                        sprite->setAnchorPoint(CCPointZero);
+                        __this->addChild(sprite);
+                        fs::remove(filep, *(new std::error_code()));
+                        loaded(sprite);
+                    }
+                }
+            }
+        );
+        listener->setFilter(req.send("GET", url));
+
+        return __this;
+    }
+};
+
 namespace github {
 
     inline web::WebRequest web_request();
 
-    class User {
+    class user {
     public:
 
         std::string m_login = "no login";
@@ -35,7 +76,7 @@ namespace github {
 
         matjson::Value m_json;
 
-        User(matjson::Value json = matjson::Value()) {
+        user(matjson::Value json = matjson::Value()) {
             m_json = json;
 
             m_login = json["login"].asString().unwrapOr(m_login);
@@ -63,13 +104,13 @@ namespace github {
             m_email = json["email"].asString().unwrapOr(m_email);
             m_bio = json["bio"].asString().unwrapOr(m_bio);
         };
-        ~User() {}
+        ~user() {}
 
     };
 
     namespace account {
 
-        inline auto user = User();
+        inline auto user = github::user();
 
         inline void try_load_user() {
             if (user.m_id > 0) return;
@@ -264,12 +305,160 @@ inline auto RznAuthLayer() {
 
     geode::utils::web::openLinkInBrowser("https://user95401.github.io/Ryzen/auth.html");
 
+    auto input_menu = CCMenu::create();
+    __this->addChild(input_menu);
+
+    //input
+    auto input = TextInput::create(280.f, "the code");
+    input->setID("input");
+    input_menu->addChild(input);
+    //paste
+    auto paste = CCMenuItemExt::createSpriteExtra(
+        CCLabelBMFont::create(
+            "paste from clipboard", "chatFont.fnt"
+        ), [](CCNode* btn) {
+            auto menu = btn->getParent();
+            auto input = menu ? typeinfo_cast<TextInput*>(menu->getChildByIDRecursive("input")) : nullptr;
+            if (input) input->setString(utils::clipboard::read());
+        }
+    );
+    paste->setPosition(CCPointMake(-140.f, -16.f));
+    paste->setAnchorPoint(CCPointMake(0.f, 1.f));
+    input_menu->addChild(paste);
+    //FINISH
+    auto FINISH = CCMenuItemExt::createSpriteExtra(
+        CCLabelBMFont::create(
+            "| FINISH |", "chatFont.fnt"
+        ), [__this, input](CCObject* btnObj) {
+            //code
+            auto code = std::string("");
+            if (input) code = input->getString();
+            //req
+            auto a = [__this](matjson::Value const& catgirl) {
+                if (not catgirl.contains("access_token")) {
+                    auto asd = geode::createQuickPopup(
+                        "Failed getting token",
+                        catgirl.dump(),
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->show();
+                    return;
+                }
+                github::account::set_token(catgirl["access_token"].asString().unwrapOrDefault());
+                
+                auto asd = geode::createQuickPopup(
+                    "Access token saved!",
+                    "Now u have no limits and able to create comments...",
+                    "OK", nullptr,
+                    [__this](auto, auto) {
+                        if (__this) __this->keyBackClicked();
+                    }
+                );
+                };
+            auto b = [](std::string const& error)
+                {// something went wrong with our web request Q~Q
+                    auto message = error;
+                    auto asd = geode::createQuickPopup(
+                        "Request exception",
+                        message,
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->show();
+                };
+            auto req = web::WebRequest();
+            auto listener = new EventListener<web::WebTask>;
+            listener->bind(
+                [a, b](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) {
+                        std::string data = res->string().unwrapOr("");
+                        //json
+                        auto json = matjson::parse(data);
+                        auto json_val = json.unwrapOrDefault();
+                        if (json.isErr()) return b("Error parsing JSON: " + json.unwrapErr().message);
+                        //call the some stuff
+                        if (res->code() < 399) a(json_val);
+                        else b(data);
+                    }
+                }
+            );
+            req.header("Accept", "application/json");
+            req.bodyString(
+                fmt::format("code={}", code) +
+                "&" "client_id=Ov23li0XhdQqNS3Bf3s4"
+                "&" "client_secret=298dfebac04369ae19286d7b458a1143a7d51e72"
+                //"&" ""
+            );
+            listener->setFilter(req.send("POST", "https://github.com/login/oauth/access_token"));
+        }
+    );
+    FINISH->setPosition(CCPointMake(140.f, -16.f));
+    FINISH->setAnchorPoint(CCPointMake(1.f, 1.f));
+    FINISH->setColor(ccYELLOW);
+    input_menu->addChild(FINISH);
+
+    return __this;
+}
+
+inline auto RznUserLayer(github::user user) {
+    auto __this = RznLayer::create(
+        []() {
+            CCDirector::get()->popSceneWithTransition(0.5f, kPopTransitionFade);
+        }
+    );
+
+    auto its_me = user.m_id == github::account::user.m_id;
+
     auto menu = CCMenu::create();
     __this->addChild(menu);
 
-    
+    auto right_menu = CCMenu::create();
+    right_menu->setAnchorPoint(CCPointMake(0.f, 0.5f));
+    right_menu->setContentSize(CCSizeMake(170.f, 0.f));
+    menu->addChild(right_menu);
 
-    menu->setLayout(AnchorLayout::create());
+    auto avatar = WebImageNode::create(user.m_avatar_url, { 130.f, 130.f });
+    avatar->setID("avatar");
+    right_menu->addChild(avatar);
+
+    auto text1 = std::stringstream();
+    text1 << "## " << user.m_name << std::endl;
+    text1 << "#### <c-999999>" << user.m_login << ", id: " << user.m_id << "</c>" << std::endl;
+    if (user.m_bio.size() > 1) text1 << user.m_bio << std::endl << std::endl;
+    if (user.m_location.size() > 1) text1 << "Location: " << user.m_location << std::endl << std::endl;
+    if (user.m_blog.size() > 1) text1 << user.m_blog << std::endl << std::endl;
+    if (user.m_email.size() > 1) text1 << "" << user.m_email << std::endl << std::endl;
+
+    auto mdtext1 = MDTextArea::create(text1.str(), { right_menu->getContentWidth() + 12.f, 110.f});
+    auto mdtext1_content = public_cast(mdtext1, m_content);
+    mdtext1_content->setID("mdtext1_content");
+    mdtext1_content->setZOrder(0);
+    right_menu->addChild(mdtext1_content);
+
+    auto logout = CCMenuItemExt::createSpriteExtra(
+        CCLabelBMFont::create(
+            "| LOGOUT |", "chatFont.fnt"
+        ), [__this](CCNode* btn) {
+            github::account::user = github::user();
+            github::account::set_token("logged_out");
+            if (__this) __this->keyBackClicked();
+        }
+    );
+    logout->setColor(ccRED);
+    logout->setAnchorPoint(CCPointMake(0.f, 0.f));
+    if (its_me) right_menu->addChild(logout);
+
+    right_menu->setLayout(RowLayout::create()
+        ->setGrowCrossAxis(1)
+        ->setCrossAxisAlignment(AxisAlignment::End)
+        ->setAxisAlignment(AxisAlignment::Start)
+    );
+
+    auto debug = MDTextArea::create(
+        fmt::format("```\n{}\n```", github::account::user.m_json.dump()), { 280, 260 }
+    );
+    menu->addChild(debug);
+
+    menu->setLayout(RowLayout::create());
 
     return __this;
 }
@@ -289,13 +478,9 @@ inline auto RznListLayer() {
         Ryzen_profileButton_001->setScale(0.9f);
         auto profileButton = CCMenuItemExt::createSpriteExtra(Ryzen_profileButton_001, 
             [](auto) {
-                log::debug("{}", github::account::user.m_json.dump());
-                if (github::account::user.m_id > 0) void();
-                else {
-                    auto scene = CCScene::create();
-                    scene->addChild(RznAuthLayer());
-                    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
-                }
+                auto scene = CCScene::create();
+                scene->addChild(github::account::user.m_id > 0 ? RznUserLayer(github::account::user) : RznAuthLayer());
+                CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
             }
         );
         profileButton->setID("profileButton");
