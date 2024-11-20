@@ -262,10 +262,12 @@ inline auto RznAuthLayer() {
         }
     );
 
+    geode::utils::web::openLinkInBrowser("https://user95401.github.io/Ryzen/auth.html");
+
     auto menu = CCMenu::create();
     __this->addChild(menu);
 
-
+    
 
     menu->setLayout(AnchorLayout::create());
 
