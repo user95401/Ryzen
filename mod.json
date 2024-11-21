@@ -48,7 +48,7 @@
 			"description": "https://github.com/{issues_repo}",
 			"type": "string",
 			"filter": "=+_-/0123456789QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm",
-			"default": "user95401/Ryzen"
+			"default": "user95401/Ryzen-Pubs"
 		},
 		"per_page": {
 			"name": "Items per page",

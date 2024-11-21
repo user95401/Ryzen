@@ -9,15 +9,13 @@ public:
         __this->setContentSize(size);
 
         //temp sprite
-        auto temp = CCScale9Sprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
+        auto temp = CCSprite::createWithSpriteFrameName("edit_eDamageSquare_001.png");
         temp->setAnchorPoint(CCPointZero);
-        temp->setContentSize(size);
+        limitNodeSize(temp, size, 1337.f, 0.1f);
         temp->setID("temp");
         __this->addChild(temp);
         
         auto filep = dirs::getTempDir() / ("." + std::string(ZipUtils::base64URLEncode(url).c_str()));
-        auto a = [__this, loaded, temp, filep, size](std::monostate const& asd) {
-            };
         auto req = web::WebRequest();
         auto listener = new EventListener<web::WebTask>;
         listener->bind(
@@ -28,6 +26,7 @@ public:
                         if (temp) temp->setVisible(0);
                         auto sprite = CCSprite::create(filep.string().c_str());
                         sprite->setScale(size.width / sprite->getContentSize().width);
+                        limitNodeSize(sprite, size, 1337.f, 0.1f);
                         sprite->setAnchorPoint(CCPointZero);
                         __this->addChild(sprite);
                         fs::remove(filep, *(new std::error_code()));
@@ -46,7 +45,7 @@ namespace github {
 
     inline web::WebRequest web_request();
 
-    class user {
+    class user : public CCNode {
     public:
 
         std::string m_login = "no login";
@@ -76,44 +75,72 @@ namespace github {
 
         matjson::Value m_json;
 
-        user(matjson::Value json = matjson::Value()) {
-            m_json = json;
+        static auto create(matjson::Value json = {}) {
+            auto rtn = new user();
+            rtn->init();
+            rtn->update(json);
+            return rtn;
+        }
 
-            m_login = json["login"].asString().unwrapOr(m_login);
-            m_id = json["id"].asInt().unwrapOr(m_id);
-            m_node_id = json["node_id"].asString().unwrapOr(m_node_id);
-            m_avatar_url = json["avatar_url"].asString().unwrapOr(m_avatar_url);
-            m_gravatar_id = json["gravatar_id"].asInt().unwrapOr(m_gravatar_id);
-            m_url = json["url"].asString().unwrapOr(m_url);
-            m_html_url = json["html_url"].asString().unwrapOr(m_html_url);
-            m_followers_url = json["followers_url"].asString().unwrapOr(m_followers_url);
-            m_following_url = json["following_url"].asString().unwrapOr(m_following_url);
-            m_gists_url = json["gists_url"].asString().unwrapOr(m_gists_url);
-            m_starred_url = json["starred_url"].asString().unwrapOr(m_starred_url);
-            m_subscriptions_url = json["subscriptions_url"].asString().unwrapOr(m_subscriptions_url);
-            m_organizations_url = json["organizations_url"].asString().unwrapOr(m_organizations_url);
-            m_repos_url = json["repos_url"].asString().unwrapOr(m_repos_url);
-            m_events_url = json["events_url"].asString().unwrapOr(m_events_url);
-            m_received_events_url = json["received_events_url"].asString().unwrapOr(m_received_events_url);
-            m_type = json["type"].asString().unwrapOr(m_type);
-            m_user_view_type = json["user_view_type"].asString().unwrapOr(m_user_view_type);
-            m_name = json["name"].asString().unwrapOr(m_name);
-            m_company = json["company"].asString().unwrapOr(m_company);
-            m_blog = json["blog"].asString().unwrapOr(m_blog);
-            m_location = json["location"].asString().unwrapOr(m_location);
-            m_email = json["email"].asString().unwrapOr(m_email);
-            m_bio = json["bio"].asString().unwrapOr(m_bio);
-        };
-        ~user() {}
+        void update(matjson::Value json) {
+            m_json = json;
+            m_login = m_json["login"].asString().unwrapOr(user().m_login);
+            m_id = m_json["id"].asInt().unwrapOr(user().m_id);
+            m_node_id = m_json["node_id"].asString().unwrapOr(user().m_node_id);
+            m_avatar_url = m_json["avatar_url"].asString().unwrapOr(user().m_avatar_url);
+            m_gravatar_id = m_json["gravatar_id"].asInt().unwrapOr(user().m_gravatar_id);
+            m_url = m_json["url"].asString().unwrapOr(user().m_url);
+            m_html_url = m_json["html_url"].asString().unwrapOr(user().m_html_url);
+            m_followers_url = m_json["followers_url"].asString().unwrapOr(user().m_followers_url);
+            m_following_url = m_json["following_url"].asString().unwrapOr(user().m_following_url);
+            m_gists_url = m_json["gists_url"].asString().unwrapOr(user().m_gists_url);
+            m_starred_url = m_json["starred_url"].asString().unwrapOr(user().m_starred_url);
+            m_subscriptions_url = m_json["subscriptions_url"].asString().unwrapOr(user().m_subscriptions_url);
+            m_organizations_url = m_json["organizations_url"].asString().unwrapOr(user().m_organizations_url);
+            m_repos_url = m_json["repos_url"].asString().unwrapOr(user().m_repos_url);
+            m_events_url = m_json["events_url"].asString().unwrapOr(user().m_events_url);
+            m_received_events_url = m_json["received_events_url"].asString().unwrapOr(user().m_received_events_url);
+            m_type = m_json["type"].asString().unwrapOr(user().m_type);
+            m_user_view_type = m_json["user_view_type"].asString().unwrapOr(user().m_user_view_type);
+            m_name = m_json["name"].asString().unwrapOr(user().m_name);
+            m_company = m_json["company"].asString().unwrapOr(user().m_company);
+            m_blog = m_json["blog"].asString().unwrapOr(user().m_blog);
+            m_location = m_json["location"].asString().unwrapOr(user().m_location);
+            m_email = m_json["email"].asString().unwrapOr(user().m_email);
+            m_bio = m_json["bio"].asString().unwrapOr(user().m_bio);
+        }
+
+        void reload(std::function<void()> onFinish = [] {}, std::function<void()> onFault = [] {}) {
+            auto req = github::web_request();
+            auto listener = new EventListener<web::WebTask>;
+            listener->bind(
+                [this, onFinish, onFault](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) {
+                        auto json = res->json();
+                        auto string = res->string();
+                        if (json.unwrapOrDefault().contains("id")) {
+                            this->update(json.unwrapOrDefault());
+                            onFinish();
+                        }
+                        else {
+                            onFault();
+                        }
+                    }
+                }
+            );
+            listener->setFilter(req.send(
+                "GET", "https://api.github.com/user"
+            ));
+        }
 
     };
 
     namespace account {
 
-        inline auto user = github::user();
+        inline auto user = github::user::create();
 
         inline void try_load_user() {
-            if (user.m_id > 0) return;
+            if (user->m_id > 0) return;
             auto req = github::web_request();
             auto listener = new EventListener<web::WebTask>;
             listener->bind(
@@ -121,7 +148,7 @@ namespace github {
                     if (web::WebResponse* res = e->getValue()) {
                         auto json = res->json();
                         auto string = res->string();
-                        if (json.unwrapOrDefault().contains("id")) user = json.unwrapOrDefault();
+                        if (json.unwrapOrDefault().contains("id")) user->update(json.unwrapOrDefault());
                         else if (SETTING(bool, "Auth Warn")) {
                             //Account Authorization Warn?
                         }
@@ -141,7 +168,7 @@ namespace github {
         inline void set_token(std::string token) {
             Mod::get()->setSavedValue("gh_access_token", token);
             Mod::get()->saveData();
-            user = matjson::Value();
+            user->update({});
             try_load_user();
         }
 
@@ -399,66 +426,110 @@ inline auto RznAuthLayer() {
     return __this;
 }
 
-inline auto RznUserLayer(github::user user) {
+inline RznLayer* RznUserLayer(github::user* user) {
     auto __this = RznLayer::create(
         []() {
             CCDirector::get()->popSceneWithTransition(0.5f, kPopTransitionFade);
         }
     );
 
-    auto its_me = user.m_id == github::account::user.m_id;
+    auto its_me = user->m_id == github::account::user->m_id;
 
-    auto menu = CCMenu::create();
-    __this->addChild(menu);
+    if (auto center_menu = CCMenu::create()) {
 
-    auto right_menu = CCMenu::create();
-    right_menu->setAnchorPoint(CCPointMake(0.f, 0.5f));
-    right_menu->setContentSize(CCSizeMake(170.f, 0.f));
-    menu->addChild(right_menu);
+        __this->addChild(center_menu);
 
-    auto avatar = WebImageNode::create(user.m_avatar_url, { 130.f, 130.f });
-    avatar->setID("avatar");
-    right_menu->addChild(avatar);
+        auto right_menu = CCMenu::create();
+        right_menu->setAnchorPoint(CCPointMake(0.f, 0.5f));
+        right_menu->setContentSize(CCSizeMake(170.f, 0.f));
+        center_menu->addChild(right_menu);
 
-    auto text1 = std::stringstream();
-    text1 << "## " << user.m_name << std::endl;
-    text1 << "#### <c-999999>" << user.m_login << ", id: " << user.m_id << "</c>" << std::endl;
-    if (user.m_bio.size() > 1) text1 << user.m_bio << std::endl << std::endl;
-    if (user.m_location.size() > 1) text1 << "Location: " << user.m_location << std::endl << std::endl;
-    if (user.m_blog.size() > 1) text1 << user.m_blog << std::endl << std::endl;
-    if (user.m_email.size() > 1) text1 << "" << user.m_email << std::endl << std::endl;
+        auto avatar = WebImageNode::create(user->m_avatar_url, { 120.f, 120.f });
+        avatar->setID("avatar");
+        right_menu->addChild(avatar);
 
-    auto mdtext1 = MDTextArea::create(text1.str(), { right_menu->getContentWidth() + 12.f, 110.f});
-    auto mdtext1_content = public_cast(mdtext1, m_content);
-    mdtext1_content->setID("mdtext1_content");
-    mdtext1_content->setZOrder(0);
-    right_menu->addChild(mdtext1_content);
+        auto text1 = std::stringstream();
+        auto dot = "<c-DDDDDD>\\- </c>";
+        text1 << "## [" << user->m_name << "]("<< user->m_html_url << ")" << std::endl;
+        text1 << "<c-999999>" << user->m_login << ", id: " << user->m_id << "</c>" << std::endl << std::endl;
+        if (user->m_bio.size() > 1) text1 << "`" << user->m_bio << "`" << std::endl << std::endl;
+        if (user->m_json["followers"].isNumber()) text1 << dot << "<c-AAAAAA>Followers: </c>" << user->m_json["public_repos"].asInt().unwrapOrDefault();
+        if (user->m_json["following"].isNumber()) text1 << ", <c-AAAAAA>Following: </c>" << user->m_json["public_gists"].asInt().unwrapOrDefault() << std::endl << std::endl;
+        if (user->m_location.size() > 1) text1 << dot << "<c-AAAAAA>Location: </c>" << user->m_location << std::endl << std::endl;
+        if (user->m_company.size() > 1) text1 << dot << "<c-AAAAAA>Company: </c>" << user->m_company << std::endl << std::endl;
+        if (user->m_email.size() > 1) text1 << user->m_email << std::endl << std::endl;
+        if (user->m_blog.size() > 1) text1 << user->m_blog << std::endl << std::endl;
 
-    auto logout = CCMenuItemExt::createSpriteExtra(
-        CCLabelBMFont::create(
-            "| LOGOUT |", "chatFont.fnt"
-        ), [__this](CCNode* btn) {
-            github::account::user = github::user();
-            github::account::set_token("logged_out");
-            if (__this) __this->keyBackClicked();
+        auto mdtext1 = MDTextArea::create(text1.str(), { right_menu->getContentWidth() + 12.f, 144.f });
+        mdtext1->setID("mdtext1");
+        mdtext1->setZOrder(0);
+        public_cast(mdtext1, m_bgSprite)->removeAllChildrenWithCleanup(0);
+        if (mdtext1->getScrollLayer()->m_contentLayer->getContentHeight() > mdtext1->getContentHeight()) {
+            auto scrlbar = Scrollbar::create(mdtext1->getScrollLayer());
+            scrlbar->setPosition(CCPointMake(-10.f, mdtext1->getContentHeight()/2));
+            mdtext1->addChild(scrlbar);
         }
-    );
-    logout->setColor(ccRED);
-    logout->setAnchorPoint(CCPointMake(0.f, 0.f));
-    if (its_me) right_menu->addChild(logout);
+        else {
+            mdtext1->getScrollLayer()->m_peekLimitTop = (0);
+            mdtext1->getScrollLayer()->m_peekLimitBottom = (0);
+        }
+        right_menu->addChild(mdtext1);
 
-    right_menu->setLayout(RowLayout::create()
-        ->setGrowCrossAxis(1)
-        ->setCrossAxisAlignment(AxisAlignment::End)
-        ->setAxisAlignment(AxisAlignment::Start)
-    );
+        auto logout = CCMenuItemExt::createSpriteExtra(
+            CCLabelBMFont::create(
+                "| LOGOUT |", "chatFont.fnt"
+            ), [__this](CCNode* btn) {
+                github::account::set_token("logged_out");
+                if (__this) __this->keyBackClicked();
+            }
+        );
+        logout->setColor(ccRED);
+        logout->setAnchorPoint(CCPointMake(0.f, 0.f));
+        if (its_me) right_menu->addChild(logout);
 
-    auto debug = MDTextArea::create(
-        fmt::format("```\n{}\n```", github::account::user.m_json.dump()), { 280, 260 }
-    );
-    menu->addChild(debug);
+        right_menu->setLayout(RowLayout::create()
+            ->setGrowCrossAxis(1)
+            ->setCrossAxisAlignment(AxisAlignment::End)
+            ->setAxisAlignment(AxisAlignment::Start)
+        );
 
-    menu->setLayout(RowLayout::create());
+        auto debug = MDTextArea::create(
+            fmt::format("```\n{}\n```", github::account::user->m_json.dump()), { 280, 260 }
+        );
+        center_menu->addChild(debug);
+
+        center_menu->setLayout(RowLayout::create());
+
+    };
+
+    if (auto menu = CCMenu::create()) {
+
+        __this->addChild(menu);
+
+        if (auto Ryzen_ReloadBtn_001 = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+            Ryzen_ReloadBtn_001->setScale(0.9f);
+            auto ReloadBtn = CCMenuItemExt::createSpriteExtra(Ryzen_ReloadBtn_001,
+                [__this, user](auto) {
+                    user->reload(
+                        [__this, user] {
+                            if (__this) if (auto scene = __this->getParent()) scene->addChild(RznUserLayer(user));
+                            if (__this) __this->removeFromParent();
+                        }
+                    );
+                }
+            );
+            ReloadBtn->setID("ReloadBtn");
+            ReloadBtn->setLayoutOptions(
+                AnchorLayoutOptions::create()
+                ->setAnchor(Anchor::BottomRight)
+                ->setOffset({ -33.f, 33.f })
+            );
+            menu->addChild(ReloadBtn);
+        }
+
+        menu->setLayout(AnchorLayout::create());
+
+    };
 
     return __this;
 }
@@ -471,6 +542,203 @@ inline auto RznListLayer() {
         }
     );
 
+    auto paddingx = 146.f;
+    auto paddingt = 36.f;
+    auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt);
+
+    //pages stuff
+    {
+        //input label 
+        auto label = CCLabelTTF::create("Page:", "arial", 16.f);
+        label->CCNode::setPosition(36.f, 120.f);
+        __this->addChild(label);
+        //InputNode
+        auto page_sv = Mod::get()->getSavedValue<std::string>("page");
+        page_sv = page_sv.empty() ? "1" : page_sv;
+        Mod::get()->setSavedValue<std::string>("page", page_sv);
+        auto page = TextInput::create(
+            38,
+            "int",
+            "chatFont.fnt"
+        );
+        page->setString(page_sv.c_str());
+        page->getInputNode()->m_allowedChars = "0123456789";
+        page->getInputNode()->setAllowedChars(page->getInputNode()->m_allowedChars);
+        page->setID("page");
+        page->setPosition(36.f, 90.f);
+        __this->addChild(page);
+        //arrows
+        CCMenu* arrows = CCMenu::create();
+        arrows->setID("arrows");
+        __this->addChild(arrows);
+        auto size = 1.5f;
+        auto sizeMult = 3.f;
+        CCMenuItemSpriteExtra* arrow_left = CCMenuItemExt::createSpriteExtra(
+            CCSprite::createWithSpriteFrameName("edit_leftBtn_001.png"),
+            [](auto) {
+
+            }
+        );
+        arrow_left->setID("arrow_left");
+        arrow_left->setSizeMult(sizeMult);
+        arrow_left->getNormalImage()->setScale(size);
+        arrows->addChild(arrow_left);
+        CCMenuItemSpriteExtra* arrow_right = CCMenuItemExt::createSpriteExtra(
+            CCSprite::createWithSpriteFrameName("edit_rightBtn_001.png"),
+            [](auto) {
+
+            }
+        );
+        arrow_right->setID("arrow_right");
+        arrow_right->setSizeMult(sizeMult);
+        arrow_right->getNormalImage()->setScale(size);
+        arrows->addChild(arrow_right);
+        arrows->alignItemsHorizontallyWithPadding(__this->getContentWidth() - 90.f);
+    }
+    //sort stuff
+    {
+        auto menu = CCMenu::create();
+        __this->addChild(menu);
+        menu->CCNode::setPosition(__this->getContentWidth() - 36, 90.f);
+        //label 
+        auto label = CCLabelTTF::create("Sort:", "arial", 16.f);
+        label->CCNode::setPosition(0.f, 30.f);
+        menu->addChild(label);
+        //btn
+        auto sort_sv = Mod::get()->getSavedValue<std::string>("sort");
+        sort_sv = sort_sv.empty() ? "created" : sort_sv;
+        Mod::get()->setSavedValue<std::string>("sort", sort_sv);
+        auto sort = CCLabelTTF::create(
+            sort_sv.c_str(),
+            "arial", 10.f
+        );
+        sort->setID("sort");
+        auto item = CCMenuItemExt::createSpriteExtra(
+            sort,
+            [](auto) {
+
+            }
+        );
+        item->setID("switch_sort");
+        item->m_colorEnabled = 1;
+        item->m_animationEnabled = 0;
+        item->setSizeMult(3.f);
+        menu->addChild(item);
+        //bg
+        auto bg = CCScale9Sprite::create("square02_small.png");
+        bg->setOpacity(75);
+        bg->setContentSize(sort->getContentSize() + CCSize(16.f, 16.f));
+        menu->addChild(bg, -2);
+    }
+    //filter
+    {
+        auto input = TextInput::create(
+            scroll_size.width,
+            "Filters...",
+            "chatFont.fnt"
+        );
+        input->setString("");
+        input->getInputNode()->m_filterSwearWords = false;
+        input->getInputNode()->m_allowedChars = " !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        input->setFilter(input->getInputNode()->m_allowedChars);
+        input->setID("input");
+        input->getInputNode()->m_placeholderColor = ccColor3B(160, 160, 160);
+        input->getInputNode()->m_placeholderLabel->setColor(input->getInputNode()->m_placeholderColor);
+        input->setPositionX(CCDirector::get()->getScreenRight() / 2);
+        input->setPositionY(CCDirector::get()->getScreenTop());
+        input->setPositionY(input->getPositionY() - (input->getContentSize().height / 2));
+        __this->addChild(input);
+    }
+
+    ScrollLayer* scroll;
+
+    auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value catgirls)
+        {
+            log::debug("catgirls: {}", catgirls.dump());
+            auto scroll = dynamic_cast<ScrollLayer*>(__this->getChildByID("scroll"));
+            if (not scroll) return;
+            scroll->m_contentLayer->removeAllChildren();
+            for (auto catgirl : catgirls) {
+                scroll->m_contentLayer->addChild(TextInput::create(scroll_size.width, catgirl["title"].dump()));
+            }
+            scroll->m_contentLayer->setLayout(RowLayout::create()
+                ->setGrowCrossAxis(1)
+                ->setCrossAxisAlignment(AxisAlignment::End)
+                ->setAxisAlignment(AxisAlignment::Start)
+            );
+        };
+
+    auto setupListStep3 = [__this, setupListStep4](web::WebResponse* res)
+        {
+            //resp
+            std::string data = res->string().unwrapOr("");
+            //json
+            auto parse = matjson::parse(data);
+            auto json_val = parse.unwrapOrDefault();
+            if (parse.isErr()) data = ("Error parsing JSON: " + parse.unwrapErr().message + " in :" + data);
+            //a
+            if (res->code() > 399) {
+                auto message = data;
+                auto parse = matjson::parse(message);
+                auto json = parse.unwrapOrDefault();
+                if (json.contains("message")) {
+                    message = json["message"].asString().unwrapOrDefault();
+                }
+                auto asd = geode::createQuickPopup(
+                    "Request exception",
+                    message,
+                    "Nah", nullptr, 420.f, nullptr, false
+                );
+                asd->m_scene = __this;
+                asd->show();
+            }
+            else {
+                // do something with the catgirls :3
+                setupListStep4(json_val);
+                auto local_issues_save = getMod()->getSaveDir() / "issues.json";
+                fs::create_directories(local_issues_save.parent_path(), fs::last_err_code);
+                std::ofstream(local_issues_save.string().c_str()) << json_val.dump();
+            }
+        };
+
+    auto setupListStep2 = [__this, scroll, setupListStep3]()
+        {
+            auto per_page = Mod::get()->getSettingValue<int64_t>("per_page");
+            auto issues_repo = Mod::get()->getSettingValue<std::string>("issues_repo");
+            auto page = dynamic_cast<TextInput*>(__this->getChildByIDRecursive("page"));
+            auto sort = dynamic_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
+            auto urlapi = fmt::format(
+                "https://api.github.com/repos/{}/issues?per_page={}&page={}&sort={}&",
+                issues_repo, per_page, page->getString().data(), sort->getString()
+            );
+            auto downloadListTaskListener = new EventListener<web::WebTask>;
+            auto req = github::web_request();
+            downloadListTaskListener->bind(
+                [setupListStep3](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) setupListStep3(res);
+                }
+            );
+            downloadListTaskListener->setFilter(req.send("GET", urlapi));
+        };
+
+    auto setupList = [__this, scroll_size, paddingx, &scroll, setupListStep2]()
+        {
+            scroll = ScrollLayer::create(scroll_size);
+            scroll->setID("scroll");
+            scroll->m_contentLayer->setLayout(
+                ColumnLayout::create()
+                ->setGap(0.f)
+                ->setAutoScale(false)
+                ->setAxisReverse(true)
+                ->setAxisAlignment(AxisAlignment::End)
+            );
+            scroll->setPositionX(paddingx / 2 + 2);
+            __this->addChild(scroll);
+            setupListStep2();
+        };
+
+    setupList();
+
     auto menu = CCMenu::create();
     __this->addChild(menu);
 
@@ -479,7 +747,7 @@ inline auto RznListLayer() {
         auto profileButton = CCMenuItemExt::createSpriteExtra(Ryzen_profileButton_001, 
             [](auto) {
                 auto scene = CCScene::create();
-                scene->addChild(github::account::user.m_id > 0 ? RznUserLayer(github::account::user) : RznAuthLayer());
+                scene->addChild(github::account::user->m_id > 0 ? RznUserLayer(github::account::user) : RznAuthLayer());
                 CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
             }
         );
@@ -492,14 +760,28 @@ inline auto RznListLayer() {
         menu->addChild(profileButton);
     }
 
+    if (auto Ryzen_ReloadBtn_001 = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+        Ryzen_ReloadBtn_001->setScale(0.9f);
+        auto ReloadBtn = CCMenuItemExt::createSpriteExtra(Ryzen_ReloadBtn_001,
+            [__this](auto) {
+            }
+        );
+        ReloadBtn->setID("ReloadBtn");
+        ReloadBtn->setLayoutOptions(
+            AnchorLayoutOptions::create()
+            ->setAnchor(Anchor::BottomRight)
+            ->setOffset({ -33.f, 33.f })
+        );
+        menu->addChild(ReloadBtn);
+    }
+
     menu->setLayout(AnchorLayout::create());
 
     return __this;
 }
 
-class ModsLayer : public CCNode {};
-
 #include <Geode/modify/CCLayer.hpp>
+class ModsLayer : public CCNode {};
 class $modify(ModsLayerExt, CCLayer) {
 	void customSetup() {
 		if (auto actions_menu = typeinfo_cast<CCMenu*>(getChildByIDRecursive("actions-menu"))) {
