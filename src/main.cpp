@@ -1,11 +1,13 @@
 #include <_main.hpp>
 #include <Geode/utils/web.hpp>
 
-class WebImageNode : public CCNode {
+class WebImageNode : public CCNodeRGBA {
 public:
     static auto create(std::string url = "", CCSize size = { 30.f, 30.f }, std::function<void(CCSprite*)> loaded = [](auto) {}) {
         auto __this = new WebImageNode();
         __this->init();
+        __this->setCascadeColorEnabled(1);
+        __this->setCascadeOpacityEnabled(1);
         __this->setContentSize(size);
 
         //temp sprite
@@ -129,7 +131,7 @@ namespace github {
                 }
             );
             listener->setFilter(req.send(
-                "GET", "https://api.github.com/user"
+                "GET", m_url
             ));
         }
 
@@ -323,7 +325,7 @@ public:
     };
 };
 
-inline auto RznAuthLayer() {
+inline RznLayer* RznAuthLayer() {
     auto __this = RznLayer::create(
         []() {
             CCDirector::get()->popSceneWithTransition(0.5f, kPopTransitionFade);
@@ -494,7 +496,7 @@ inline RznLayer* RznUserLayer(github::user* user) {
         );
 
         auto debug = MDTextArea::create(
-            fmt::format("```\n{}\n```", github::account::user->m_json.dump()), { 280, 260 }
+            fmt::format("```\n{}\n```", user->m_json.dump()), { 280, 260 }
         );
         center_menu->addChild(debug);
 
@@ -534,7 +536,25 @@ inline RznLayer* RznUserLayer(github::user* user) {
     return __this;
 }
 
-inline auto RznListLayer() {
+inline void OpenRznUserLayer(matjson::Value user_in_json) {
+
+    auto user = github::user::create(user_in_json);
+    auto layer = RznUserLayer(user);
+
+    auto scene = CCScene::create();
+    scene->addChild(layer);
+    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
+
+    user->reload(
+        [layer, user] {
+            if (layer) if (auto scene = layer->getParent()) scene->addChild(RznUserLayer(user));
+            if (layer) layer->removeFromParent();
+        }
+    );
+
+}
+
+inline RznLayer* RznListLayer() {
     auto __this = RznLayer::create(
         []() {
             CCDirector::get()->popSceneWithTransition(0.5f, kPopTransitionFade);
@@ -542,133 +562,174 @@ inline auto RznListLayer() {
         }
     );
 
-    auto paddingx = 146.f;
+    auto paddingx = 160.f;
     auto paddingt = 36.f;
-    auto scroll_size = CCSize(CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt);
-
-    //pages stuff
-    {
-        //input label 
-        auto label = CCLabelTTF::create("Page:", "arial", 16.f);
-        label->CCNode::setPosition(36.f, 120.f);
-        __this->addChild(label);
-        //InputNode
-        auto page_sv = Mod::get()->getSavedValue<std::string>("page");
-        page_sv = page_sv.empty() ? "1" : page_sv;
-        Mod::get()->setSavedValue<std::string>("page", page_sv);
-        auto page = TextInput::create(
-            38,
-            "int",
-            "chatFont.fnt"
-        );
-        page->setString(page_sv.c_str());
-        page->getInputNode()->m_allowedChars = "0123456789";
-        page->getInputNode()->setAllowedChars(page->getInputNode()->m_allowedChars);
-        page->setID("page");
-        page->setPosition(36.f, 90.f);
-        __this->addChild(page);
-        //arrows
-        CCMenu* arrows = CCMenu::create();
-        arrows->setID("arrows");
-        __this->addChild(arrows);
-        auto size = 1.5f;
-        auto sizeMult = 3.f;
-        CCMenuItemSpriteExtra* arrow_left = CCMenuItemExt::createSpriteExtra(
-            CCSprite::createWithSpriteFrameName("edit_leftBtn_001.png"),
-            [](auto) {
-
-            }
-        );
-        arrow_left->setID("arrow_left");
-        arrow_left->setSizeMult(sizeMult);
-        arrow_left->getNormalImage()->setScale(size);
-        arrows->addChild(arrow_left);
-        CCMenuItemSpriteExtra* arrow_right = CCMenuItemExt::createSpriteExtra(
-            CCSprite::createWithSpriteFrameName("edit_rightBtn_001.png"),
-            [](auto) {
-
-            }
-        );
-        arrow_right->setID("arrow_right");
-        arrow_right->setSizeMult(sizeMult);
-        arrow_right->getNormalImage()->setScale(size);
-        arrows->addChild(arrow_right);
-        arrows->alignItemsHorizontallyWithPadding(__this->getContentWidth() - 90.f);
-    }
-    //sort stuff
-    {
-        auto menu = CCMenu::create();
-        __this->addChild(menu);
-        menu->CCNode::setPosition(__this->getContentWidth() - 36, 90.f);
-        //label 
-        auto label = CCLabelTTF::create("Sort:", "arial", 16.f);
-        label->CCNode::setPosition(0.f, 30.f);
-        menu->addChild(label);
-        //btn
-        auto sort_sv = Mod::get()->getSavedValue<std::string>("sort");
-        sort_sv = sort_sv.empty() ? "created" : sort_sv;
-        Mod::get()->setSavedValue<std::string>("sort", sort_sv);
-        auto sort = CCLabelTTF::create(
-            sort_sv.c_str(),
-            "arial", 10.f
-        );
-        sort->setID("sort");
-        auto item = CCMenuItemExt::createSpriteExtra(
-            sort,
-            [](auto) {
-
-            }
-        );
-        item->setID("switch_sort");
-        item->m_colorEnabled = 1;
-        item->m_animationEnabled = 0;
-        item->setSizeMult(3.f);
-        menu->addChild(item);
-        //bg
-        auto bg = CCScale9Sprite::create("square02_small.png");
-        bg->setOpacity(75);
-        bg->setContentSize(sort->getContentSize() + CCSize(16.f, 16.f));
-        menu->addChild(bg, -2);
-    }
-    //filter
-    {
-        auto input = TextInput::create(
-            scroll_size.width,
-            "Filters...",
-            "chatFont.fnt"
-        );
-        input->setString("");
-        input->getInputNode()->m_filterSwearWords = false;
-        input->getInputNode()->m_allowedChars = " !\"#$ % &'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-        input->setFilter(input->getInputNode()->m_allowedChars);
-        input->setID("input");
-        input->getInputNode()->m_placeholderColor = ccColor3B(160, 160, 160);
-        input->getInputNode()->m_placeholderLabel->setColor(input->getInputNode()->m_placeholderColor);
-        input->setPositionX(CCDirector::get()->getScreenRight() / 2);
-        input->setPositionY(CCDirector::get()->getScreenTop());
-        input->setPositionY(input->getPositionY() - (input->getContentSize().height / 2));
-        __this->addChild(input);
-    }
+    CCSize scroll_size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt };
 
     ScrollLayer* scroll;
 
-    auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value catgirls)
+    auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value posts)
         {
-            log::debug("catgirls: {}", catgirls.dump());
+            log::debug("posts: {}", posts.dump());
             auto scroll = dynamic_cast<ScrollLayer*>(__this->getChildByID("scroll"));
             if (not scroll) return;
-            scroll->m_contentLayer->removeAllChildren();
-            for (auto catgirl : catgirls) {
-                scroll->m_contentLayer->addChild(TextInput::create(scroll_size.width, catgirl["title"].dump()));
+
+            scroll->m_contentLayer->removeAllChildrenWithCleanup(0);
+
+            for (auto post : posts) {
+                auto item = CCNode::create();
+                item->setID("item");
+                item->setContentWidth(scroll->getContentWidth());
+
+                auto container = CCNode::create();
+                container->setID("container");
+                container->setContentWidth(item->getContentWidth());
+
+                if (auto main_row = CCNode::create()) {
+                    main_row->setID("main_row");
+
+                    container->addChild(main_row);
+                    main_row->setContentWidth(container->getContentWidth());
+
+                    main_row->setLayout(RowLayout::create()
+                        ->setAxisAlignment(AxisAlignment::Start)
+                        ->setCrossAxisLineAlignment(AxisAlignment::End)
+                    );
+
+
+                    auto image = WebImageNode::create(post["user"]["avatar_url"].asString().unwrapOrDefault(), {52, 52});
+                    image->setID("image");
+
+                    auto image_item = CCMenuItemExt::createSpriteExtra(
+                        image, [post](auto) {
+                            OpenRznUserLayer(post["user"]);
+                        }
+                    );
+                    image_item->m_animationEnabled = 0;
+                    image_item->m_colorEnabled = 1;
+                    image_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+                    image_item->setID("image_item");
+
+                    main_row->addChild(CCMenu::createWithItem(image_item));
+
+                    image_item->getParent()->setID("image_item_menu");
+                    image_item->getParent()->setContentSize(image_item->getContentSize());
+                    image_item->getParent()->setPosition(image_item->getPosition());
+                    image_item->getParent()->setAnchorPoint(CCPointMake(0.f, 1.0f));
+
+                    main_row->updateLayout();
+
+                    if (auto line1 = CCNode::create()) {
+                        line1->setAnchorPoint(CCPointMake(0.f, 0.9f));
+                        line1->setContentWidth(
+                            main_row->getContentWidth() - image_item->getPosition().getDistance(image_item->getPosition())
+                        );
+                        line1->setID("line1");
+
+                        auto title = CCLabelBMFont::create(
+                            post["title"].asString().unwrapOrDefault().c_str(),
+                            "geode.loader/mdFontB.fnt"
+                        );
+                        title->setID("title");
+                        limitNodeHeight(title, 19.f, 0.9f, 0.1f);
+
+                        auto title2 = CCLabelBMFont::create(title->getString(), title->getFntFile());
+                        title2->setID("title2");
+                        title2->setOpacity(190);
+                        limitNodeHeight(title2, 19.f, 0.9f, 0.1f);
+
+                        auto title_item = CCMenuItemExt::createSprite(
+                            title, title2, [post](auto) {
+                                OpenRznUserLayer(post);
+                            }
+                        );
+                        title_item->setID("title_item");
+                        title_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+                        title_item->setContentSize(title->getScaledContentSize());
+
+                        line1->addChild(CCMenu::createWithItem(title_item));
+
+                        title_item->getParent()->setID("title_item_menu");
+                        title_item->getParent()->setContentSize(title_item->getContentSize());
+                        title_item->getParent()->setPosition(title_item->getPosition());
+                        title_item->getParent()->setAnchorPoint(CCPointMake(0.f, 0.0f));
+
+                        auto user = CCLabelBMFont::create(
+                            ("by " + post["user"]["login"].asString().unwrapOrDefault()).c_str(),
+                            "chatFont.fnt"
+                        );
+                        user->setID("user");
+                        user->setOpacity(180);
+
+                        auto user2 = CCLabelBMFont::create(user->getString(), user->getFntFile());
+                        user2->setID("user2");
+                        user2->setOpacity(90);
+
+                        auto user_item = CCMenuItemExt::createSprite(
+                            user, user2, [post](auto) {
+                                OpenRznUserLayer(post["user"]);
+                            }
+                        );
+                        user_item->setID("user_item");
+                        user_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+
+                        line1->addChild(CCMenu::createWithItem(user_item));
+
+                        user_item->getParent()->setID("user_item_menu");
+                        user_item->getParent()->setContentSize(user_item->getContentSize());
+                        user_item->getParent()->setPosition(user_item->getPosition());
+                        user_item->getParent()->setAnchorPoint(CCPointMake(1.f, 0.5f));
+
+                        line1->setLayout(RowLayout::create()
+                            ->setAxisAlignment(AxisAlignment::Start)
+                            ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                        );
+
+                        main_row->addChild(line1);
+                    }
+
+                    main_row->updateLayout();
+                };
+
+                item->addChild(container);
+
+                container->setLayout(RowLayout::create());
+                item->setContentSize(container->getContentSize() + (CCSize(1,1) * 12));
+
+                container->setAnchorPoint({0.5f,0.5f});
+                container->setPosition(item->getContentSize() / 2);
+
+                auto bg = CCScale9Sprite::create("square02_001.png");
+                bg->setID("bg");
+                bg->setContentSize(item->getContentSize());
+                bg->setPosition(item->getContentSize() / 2);
+                bg->setOpacity(120);
+                item->addChild(bg, -1);
+
+                scroll->m_contentLayer->addChild(item);
+
             }
+
             scroll->m_contentLayer->setLayout(RowLayout::create()
                 ->setGrowCrossAxis(1)
                 ->setCrossAxisAlignment(AxisAlignment::End)
                 ->setAxisAlignment(AxisAlignment::Start)
             );
+
+            //fix
+            if (scroll->m_contentLayer->getContentHeight() > scroll->getContentHeight()) {
+                auto scrlbar = Scrollbar::create(scroll);
+                scrlbar->setPosition(scroll->getPosition());
+                scrlbar->setAnchorPoint({ 1.25f, 0.f});
+                scroll->getParent()->addChild(scrlbar);
+            }
+            else {
+                scroll->m_disableMovement = 1;
+            }
+
         };
 
-    auto setupListStep3 = [__this, setupListStep4](web::WebResponse* res)
+    auto setupListLoadFinish = [__this, setupListStep4](web::WebResponse* res)
         {
             //resp
             std::string data = res->string().unwrapOr("");
@@ -701,27 +762,27 @@ inline auto RznListLayer() {
             }
         };
 
-    auto setupListStep2 = [__this, scroll, setupListStep3]()
+    auto setupListLoad = [__this, scroll, setupListLoadFinish]()
         {
             auto per_page = Mod::get()->getSettingValue<int64_t>("per_page");
             auto issues_repo = Mod::get()->getSettingValue<std::string>("issues_repo");
-            auto page = dynamic_cast<TextInput*>(__this->getChildByIDRecursive("page"));
-            auto sort = dynamic_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
+            //auto page = dynamic_cast<TextInput*>(__this->getChildByIDRecursive("page"));
+            //auto sort = dynamic_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
             auto urlapi = fmt::format(
                 "https://api.github.com/repos/{}/issues?per_page={}&page={}&sort={}&",
-                issues_repo, per_page, page->getString().data(), sort->getString()
+                issues_repo, per_page, "1", "created"//page->getString().data(), sort->getString()
             );
             auto downloadListTaskListener = new EventListener<web::WebTask>;
             auto req = github::web_request();
             downloadListTaskListener->bind(
-                [setupListStep3](web::WebTask::Event* e) {
-                    if (web::WebResponse* res = e->getValue()) setupListStep3(res);
+                [setupListLoadFinish](web::WebTask::Event* e) {
+                    if (web::WebResponse* res = e->getValue()) setupListLoadFinish(res);
                 }
             );
             downloadListTaskListener->setFilter(req.send("GET", urlapi));
         };
 
-    auto setupList = [__this, scroll_size, paddingx, &scroll, setupListStep2]()
+    auto setupList = [__this, scroll_size, paddingx, &scroll, setupListLoad]()
         {
             scroll = ScrollLayer::create(scroll_size);
             scroll->setID("scroll");
@@ -734,7 +795,7 @@ inline auto RznListLayer() {
             );
             scroll->setPositionX(paddingx / 2 + 2);
             __this->addChild(scroll);
-            setupListStep2();
+            setupListLoad();
         };
 
     setupList();
@@ -763,7 +824,8 @@ inline auto RznListLayer() {
     if (auto Ryzen_ReloadBtn_001 = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
         Ryzen_ReloadBtn_001->setScale(0.9f);
         auto ReloadBtn = CCMenuItemExt::createSpriteExtra(Ryzen_ReloadBtn_001,
-            [__this](auto) {
+            [setupListLoad, &scroll](auto) {
+                setupListLoad();
             }
         );
         ReloadBtn->setID("ReloadBtn");
