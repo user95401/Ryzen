@@ -1035,10 +1035,11 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                         color.b < lighter_color_dark_amount ? color.b + lighter_color_boost : color.b
                     );
                     //label
-                    CCLabelTTF* tag = CCLabelTTF::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "arial", 10.f);
+                    auto tag = CCLabelBMFont::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "geode.loader/mdFontB.fnt");
                     tag->setHorizontalAlignment(kCCTextAlignmentLeft);
                     tag->setAnchorPoint(CCPointZero);
                     tag->setColor(lighter_color);
+                    tag->setScale(0.5f);
                     tag->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
                     //item
                     auto item = CCMenuItemSpriteExtra::create(tag, nullptr, nullptr);
