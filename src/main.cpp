@@ -1036,7 +1036,6 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                     );
                     //label
                     auto tag = CCLabelBMFont::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "geode.loader/mdFontB.fnt");
-                    tag->setHorizontalAlignment(kCCTextAlignmentLeft);
                     tag->setAnchorPoint(CCPointZero);
                     tag->setColor(lighter_color);
                     tag->setScale(0.5f);
