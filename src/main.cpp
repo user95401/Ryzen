@@ -1035,7 +1035,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                         color.b < lighter_color_dark_amount ? color.b + lighter_color_boost : color.b
                     );
                     //label
-                    CCLabelTTF* tag = CCLabelTTF::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "arial", 8.f);
+                    CCLabelTTF* tag = CCLabelTTF::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "arial", 10.f);
                     tag->setHorizontalAlignment(kCCTextAlignmentLeft);
                     tag->setAnchorPoint(CCPointZero);
                     tag->setColor(lighter_color);
@@ -1044,16 +1044,6 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                     auto item = CCMenuItemSpriteExtra::create(tag, nullptr, nullptr);
                     item->setID(catgirl["id"].dump());
                     line3->addChild(item);
-                    //bg
-                    auto grad = CCLayerGradient::create(
-                        ccColor4B(lighter_color.r, lighter_color.g, lighter_color.b, 60),
-                        ccColor4B(lighter_color.r - 20, lighter_color.g - 20, lighter_color.b - 20, 10)
-                    );
-                    auto padding = 3.f;
-                    grad->setContentSize(tag->getContentSize() + CCPoint(padding, padding));
-                    grad->setPosition(CCPoint(-padding, -padding) / 2);
-                    grad->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
-                    tag->addChild(grad, -1, 57290);
                 }
 
                 line3->setLayout(RowLayout::create()
