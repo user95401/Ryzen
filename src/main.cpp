@@ -1061,7 +1061,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                     ->setCrossAxisLineAlignment(AxisAlignment::Start)
                 );
 
-                left_row->addChild(line2);
+                left_row->addChild(line3);
             }
 
             left_row->setAnchorPoint(CCPointMake(0.f, 1.f));
