@@ -1,4 +1,5 @@
 #include <_main.hpp>
+#include <SimpleIni/SimpleIni.h>
 #include <Geode/utils/web.hpp>
 
 class WebImageNode : public CCNodeRGBA {
@@ -325,6 +326,58 @@ public:
     };
 };
 
+class RznPost : public CCNode {
+public:
+    std::string m_name = "unnamed post";
+    std::string m_desc = "no description";
+    std::string m_download = "";
+    github::user* m_user;
+    matjson::Value m_issue;
+    CSimpleIni* m_ini;
+
+    static auto create(matjson::Value issue = {}) {
+        auto rtn = new RznPost();
+        rtn->init();
+        rtn->update(issue);
+        return rtn;
+    }
+
+    void update(matjson::Value issue) {
+        m_issue = issue;
+        m_user = github::user::create(issue["user"]);
+        m_name = m_issue["title"].asString().unwrapOr(RznPost().m_name);
+
+        m_ini = new CSimpleIni;
+        m_ini->LoadData(m_issue["body"].asString().unwrap());
+
+        m_desc = m_ini->GetValue("main", "desc", m_desc.c_str());
+    }
+
+    void reload(std::function<void()> onFinish = [] {}, std::function<void()> onFault = [] {}) {
+        auto req = github::web_request();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, onFinish, onFault](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    auto json = res->json();
+                    auto string = res->string();
+                    if (json.unwrapOrDefault().contains("id")) {
+                        this->update(json.unwrapOrDefault());
+                        onFinish();
+                    }
+                    else {
+                        onFault();
+                    }
+                }
+            }
+        );
+        listener->setFilter(req.send(
+            "GET", m_issue["url"].asString().unwrapOrDefault()
+        ));
+    }
+
+};
+
 inline RznLayer* RznAuthLayer() {
     auto __this = RznLayer::create(
         []() {
@@ -536,9 +589,8 @@ inline RznLayer* RznUserLayer(github::user* user) {
     return __this;
 }
 
-inline void OpenRznUserLayer(matjson::Value user_in_json) {
+inline void OpenRznUserLayer(github::user* user) {
 
-    auto user = github::user::create(user_in_json);
     auto layer = RznUserLayer(user);
 
     auto scene = CCScene::create();
@@ -548,6 +600,99 @@ inline void OpenRznUserLayer(matjson::Value user_in_json) {
     user->reload(
         [layer, user] {
             if (layer) if (auto scene = layer->getParent()) scene->addChild(RznUserLayer(user));
+            if (layer) layer->removeFromParent();
+        }
+    );
+
+}
+
+inline RznLayer* RznPostLayer(RznPost* post) {
+    auto __this = RznLayer::create(
+        []() {
+            CCDirector::get()->popSceneWithTransition(0.5f, kPopTransitionFade);
+        }
+    );
+
+    auto its_me = post->m_user->m_id == github::account::user->m_id;
+
+    if (auto center_menu = CCMenu::create()) {
+
+        auto paddingx = 160.f;
+        CCSize size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - 22 };
+
+        __this->addChild(center_menu);
+
+        if (auto top_line = CCMenu::create()) {
+            top_line->setAnchorPoint(CCPointMake(0.5f, 1.0f));
+            top_line->setContentSize(CCSizeMake(size.width, 0.f));
+            center_menu->addChild(top_line);
+
+            auto avatar = WebImageNode::create(post->m_user->m_avatar_url, { 90.f, 90.f });
+            avatar->setID("avatar");
+            top_line->addChild(avatar);
+
+            top_line->setLayout(RowLayout::create()
+                ->setGrowCrossAxis(1)
+                ->setCrossAxisAlignment(AxisAlignment::End)
+                ->setAxisAlignment(AxisAlignment::Start)
+            );
+        };
+
+        auto debug = MDTextArea::create(
+            fmt::format("\n## issue\n```\n{}\n```\n## user\n```\n{}\n```\n", post->m_issue.dump(), post->m_user->m_json.dump()), { size.width, 260 }
+        );
+        center_menu->addChild(debug);
+
+        center_menu->setContentSize(size);
+        center_menu->setLayout(ColumnLayout::create()
+            ->setAxisReverse(1)
+        );
+
+    };
+
+    if (auto menu = CCMenu::create()) {
+
+        __this->addChild(menu);
+
+        if (auto Ryzen_ReloadBtn_001 = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+            Ryzen_ReloadBtn_001->setScale(0.9f);
+            auto ReloadBtn = CCMenuItemExt::createSpriteExtra(Ryzen_ReloadBtn_001,
+                [__this, post](auto) {
+                    post->reload(
+                        [__this, post] {
+                            if (__this) if (auto scene = __this->getParent()) scene->addChild(RznPostLayer(post));
+                            if (__this) __this->removeFromParent();
+                        }
+                    );
+                }
+            );
+            ReloadBtn->setID("ReloadBtn");
+            ReloadBtn->setLayoutOptions(
+                AnchorLayoutOptions::create()
+                ->setAnchor(Anchor::BottomRight)
+                ->setOffset({ -33.f, 33.f })
+            );
+            menu->addChild(ReloadBtn);
+        }
+
+        menu->setLayout(AnchorLayout::create());
+
+    };
+
+    return __this;
+}
+
+inline void OpenRznPostLayer(RznPost* post) {
+
+    auto layer = RznPostLayer(post);
+
+    auto scene = CCScene::create();
+    scene->addChild(layer);
+    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
+
+    post->reload(
+        [layer, post] {
+            if (layer) if (auto scene = layer->getParent()) scene->addChild(RznPostLayer(post));
             if (layer) layer->removeFromParent();
         }
     );
@@ -568,15 +713,18 @@ inline RznLayer* RznListLayer() {
 
     ScrollLayer* scroll;
 
-    auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value posts)
+    auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value issues)
         {
-            log::debug("posts: {}", posts.dump());
+            log::debug("posts: {}", issues.dump());
             auto scroll = dynamic_cast<ScrollLayer*>(__this->getChildByID("scroll"));
             if (not scroll) return;
 
             scroll->m_contentLayer->removeAllChildrenWithCleanup(0);
 
-            for (auto post : posts) {
+            for (auto issue : issues) {
+
+                auto post = RznPost::create(issue);
+
                 auto item = CCNode::create();
                 item->setID("item");
                 item->setContentWidth(scroll->getContentWidth());
@@ -597,12 +745,12 @@ inline RznLayer* RznListLayer() {
                     );
 
 
-                    auto image = WebImageNode::create(post["user"]["avatar_url"].asString().unwrapOrDefault(), {52, 52});
+                    auto image = WebImageNode::create(post->m_user->m_avatar_url, { 64, 64 });
                     image->setID("image");
 
                     auto image_item = CCMenuItemExt::createSpriteExtra(
                         image, [post](auto) {
-                            OpenRznUserLayer(post["user"]);
+                            OpenRznPostLayer(post);
                         }
                     );
                     image_item->m_animationEnabled = 0;
@@ -619,73 +767,111 @@ inline RznLayer* RznListLayer() {
 
                     main_row->updateLayout();
 
-                    if (auto line1 = CCNode::create()) {
-                        line1->setAnchorPoint(CCPointMake(0.f, 0.9f));
-                        line1->setContentWidth(
-                            main_row->getContentWidth() - image_item->getPosition().getDistance(image_item->getPosition())
+                    if (auto left_row = CCNode::create()) {
+                        left_row->setID("left_row");
+
+                        main_row->addChild(left_row);
+                        left_row->setContentWidth(
+                            main_row->getContentWidth()
+                            - 
+                            main_row->getChildByType(-1)->getPosition().getDistance(main_row->getChildByType(-1)->getPosition())
                         );
-                        line1->setID("line1");
 
-                        auto title = CCLabelBMFont::create(
-                            post["title"].asString().unwrapOrDefault().c_str(),
-                            "geode.loader/mdFontB.fnt"
-                        );
-                        title->setID("title");
-                        limitNodeHeight(title, 19.f, 0.9f, 0.1f);
+                        if (auto line1 = CCNode::create()) {
+                            line1->setAnchorPoint(CCPointMake(0.f, 0.9f));
+                            line1->setContentWidth(left_row->getContentWidth());
+                            line1->setID("line1");
 
-                        auto title2 = CCLabelBMFont::create(title->getString(), title->getFntFile());
-                        title2->setID("title2");
-                        title2->setOpacity(190);
-                        limitNodeHeight(title2, 19.f, 0.9f, 0.1f);
+                            auto name = CCLabelBMFont::create(
+                                post->m_name.c_str(),
+                                "geode.loader/mdFontB.fnt"
+                            );
+                            name->setID("name");
+                            limitNodeHeight(name, 19.f, 0.9f, 0.1f);
 
-                        auto title_item = CCMenuItemExt::createSprite(
-                            title, title2, [post](auto) {
-                                OpenRznUserLayer(post);
-                            }
-                        );
-                        title_item->setID("title_item");
-                        title_item->setAnchorPoint(CCPointMake(0.f, 0.f));
-                        title_item->setContentSize(title->getScaledContentSize());
+                            auto name2 = CCLabelBMFont::create(name->getString(), name->getFntFile());
+                            name2->setID("name2");
+                            name2->setOpacity(190);
+                            limitNodeHeight(name2, 19.f, 0.9f, 0.1f);
 
-                        line1->addChild(CCMenu::createWithItem(title_item));
+                            auto name_item = CCMenuItemExt::createSprite(
+                                name, name2, [post](auto) {
+                                    OpenRznPostLayer(post);
+                                }
+                            );
+                            name_item->setID("name_item");
+                            name_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+                            name_item->setContentSize(name->getScaledContentSize());
 
-                        title_item->getParent()->setID("title_item_menu");
-                        title_item->getParent()->setContentSize(title_item->getContentSize());
-                        title_item->getParent()->setPosition(title_item->getPosition());
-                        title_item->getParent()->setAnchorPoint(CCPointMake(0.f, 0.0f));
+                            line1->addChild(CCMenu::createWithItem(name_item));
 
-                        auto user = CCLabelBMFont::create(
-                            ("by " + post["user"]["login"].asString().unwrapOrDefault()).c_str(),
-                            "chatFont.fnt"
-                        );
-                        user->setID("user");
-                        user->setOpacity(180);
+                            name_item->getParent()->setID("name_item_menu");
+                            name_item->getParent()->setContentSize(name_item->getContentSize());
+                            name_item->getParent()->setPosition(name_item->getPosition());
+                            name_item->getParent()->setAnchorPoint(CCPointMake(0.f, 0.0f));
 
-                        auto user2 = CCLabelBMFont::create(user->getString(), user->getFntFile());
-                        user2->setID("user2");
-                        user2->setOpacity(90);
+                            auto user = CCLabelBMFont::create(
+                                ("by " + post->m_user->m_login).c_str(),
+                                "chatFont.fnt"
+                            );
+                            user->setID("user");
+                            user->setOpacity(180);
 
-                        auto user_item = CCMenuItemExt::createSprite(
-                            user, user2, [post](auto) {
-                                OpenRznUserLayer(post["user"]);
-                            }
-                        );
-                        user_item->setID("user_item");
-                        user_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+                            auto user2 = CCLabelBMFont::create(user->getString(), user->getFntFile());
+                            user2->setID("user2");
+                            user2->setOpacity(90);
 
-                        line1->addChild(CCMenu::createWithItem(user_item));
+                            auto user_item = CCMenuItemExt::createSprite(
+                                user, user2, [post](auto) {
+                                    OpenRznUserLayer(post->m_user);
+                                }
+                            );
+                            user_item->setID("user_item");
+                            user_item->setAnchorPoint(CCPointMake(0.f, 0.f));
 
-                        user_item->getParent()->setID("user_item_menu");
-                        user_item->getParent()->setContentSize(user_item->getContentSize());
-                        user_item->getParent()->setPosition(user_item->getPosition());
-                        user_item->getParent()->setAnchorPoint(CCPointMake(1.f, 0.5f));
+                            line1->addChild(CCMenu::createWithItem(user_item));
 
-                        line1->setLayout(RowLayout::create()
+                            user_item->getParent()->setID("user_item_menu");
+                            user_item->getParent()->setContentSize(user_item->getContentSize());
+                            user_item->getParent()->setPosition(user_item->getPosition());
+                            user_item->getParent()->setAnchorPoint(CCPointMake(1.f, 0.5f));
+
+                            line1->setLayout(RowLayout::create()
+                                ->setAxisAlignment(AxisAlignment::Start)
+                                ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                            );
+
+                            left_row->addChild(line1);
+                        }
+
+                        if (auto line2 = CCNode::create()) {
+                            line2->setAnchorPoint(CCPointMake(0.f, 0.9f));
+                            line2->setContentWidth(left_row->getContentWidth());
+                            line2->setID("line2");
+
+                            auto desc = CCLabelBMFont::create(
+                                post->m_desc.c_str(), "chatFont.fnt"
+                            );
+                            desc->setID("desc");
+                            limitNodeWidth(desc, line2->getContentWidth(), 0.9f, 0.1f);
+
+
+                            line2->addChild(desc);
+
+                            line2->setLayout(RowLayout::create()
+                                ->setAxisAlignment(AxisAlignment::Start)
+                                ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                            );
+
+                            left_row->addChild(line2);
+                        }
+
+                        left_row->setAnchorPoint(CCPointMake(0.f, 1.f));
+                        left_row->setLayout(RowLayout::create()
+                            ->setGrowCrossAxis(true)
                             ->setAxisAlignment(AxisAlignment::Start)
-                            ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                            ->setCrossAxisLineAlignment(AxisAlignment::End)
                         );
-
-                        main_row->addChild(line1);
                     }
 
                     main_row->updateLayout();
