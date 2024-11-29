@@ -506,8 +506,8 @@ inline RznLayer* RznUserLayer(github::user* user) {
         text1 << "## [" << user->m_name << "]("<< user->m_html_url << ")" << std::endl;
         text1 << "<c-999999>" << user->m_login << ", id: " << user->m_id << "</c>" << std::endl << std::endl;
         if (user->m_bio.size() > 1) text1 << "`" << user->m_bio << "`" << std::endl << std::endl;
-        if (user->m_json["followers"].isNumber()) text1 << dot << "<c-AAAAAA>Followers: </c>" << user->m_json["public_repos"].asInt().unwrapOrDefault();
-        if (user->m_json["following"].isNumber()) text1 << ", <c-AAAAAA>Following: </c>" << user->m_json["public_gists"].asInt().unwrapOrDefault() << std::endl << std::endl;
+        if (user->m_json["followers"].isNumber()) text1 << dot << "<c-AAAAAA>Followers: </c>" << user->m_json["followers"].asInt().unwrapOrDefault();
+        if (user->m_json["following"].isNumber()) text1 << ", <c-AAAAAA>Following: </c>" << user->m_json["following"].asInt().unwrapOrDefault() << std::endl << std::endl;
         if (user->m_location.size() > 1) text1 << dot << "<c-AAAAAA>Location: </c>" << user->m_location << std::endl << std::endl;
         if (user->m_company.size() > 1) text1 << dot << "<c-AAAAAA>Company: </c>" << user->m_company << std::endl << std::endl;
         if (user->m_email.size() > 1) text1 << user->m_email << std::endl << std::endl;
