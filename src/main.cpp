@@ -692,7 +692,7 @@ inline RznLayer* RznListLayer() {
     );
 
     auto paddingx = 160.f;
-    auto paddingt = 36.f;
+    auto paddingt = 0.f;
     CCSize scroll_size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt };
 
     ScrollLayer* scroll;
