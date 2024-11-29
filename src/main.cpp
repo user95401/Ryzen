@@ -211,11 +211,59 @@ namespace github {
 
 }
 
-inline void rznMenuMusic(CCLayer* rtn = nullptr) {
-    if (SETTING(bool, "rzn_menu_music")) GameManager::sharedState()->fadeInMusic(
-        "Fishbone.mp3" ""_spr
-    );
+class RznPost : public CCNode {
+public:
+    std::string m_name = "unnamed post";
+    std::string m_desc = "no description";
+    std::string m_download = "";
+    github::user* m_user;
+    matjson::Value m_issue;
+    CSimpleIni* m_ini;
+
+    static auto create(matjson::Value issue = {}) {
+        auto rtn = new RznPost();
+        rtn->init();
+        rtn->update(issue);
+        return rtn;
+    }
+
+    void update(matjson::Value issue) {
+        m_issue = issue;
+        m_user = github::user::create(issue["user"]);
+        m_name = m_issue["title"].asString().unwrapOr(RznPost().m_name);
+
+        m_ini = new CSimpleIni;
+        m_ini->LoadData(m_issue["body"].asString().unwrap());
+
+        m_desc = m_ini->GetValue("main", "desc", m_desc.c_str());
+    }
+
+    void reload(std::function<void()> onFinish = [] {}, std::function<void()> onFault = [] {}) {
+        auto req = github::web_request();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, onFinish, onFault](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    auto json = res->json();
+                    auto string = res->string();
+                    if (json.unwrapOrDefault().contains("id")) {
+                        this->update(json.unwrapOrDefault());
+                        onFinish();
+                    }
+                    else {
+                        onFault();
+                    }
+                }
+            }
+        );
+        listener->setFilter(req.send(
+            "GET", m_issue["url"].asString().unwrapOrDefault()
+        ));
+    }
+
 };
+
+inline CCNode* RznPostItem(RznPost* post, float width);
 
 class RznLayer : public CCLayer {
 public:
@@ -224,7 +272,9 @@ public:
         auto rtn = new RznLayer;
         rtn->init();
 
-        rznMenuMusic();
+        if (SETTING(bool, "rzn_menu_music")) GameManager::sharedState()->fadeInMusic(
+            "Fishbone.mp3" ""_spr
+        );
         {
             //setup
             rtn->setKeypadEnabled(true);
@@ -324,58 +374,6 @@ public:
         if (auto backBtn = typeinfo_cast<CCMenuItem*>(this->getChildByIDRecursive("back")))
             backBtn->activate();
     };
-};
-
-class RznPost : public CCNode {
-public:
-    std::string m_name = "unnamed post";
-    std::string m_desc = "no description";
-    std::string m_download = "";
-    github::user* m_user;
-    matjson::Value m_issue;
-    CSimpleIni* m_ini;
-
-    static auto create(matjson::Value issue = {}) {
-        auto rtn = new RznPost();
-        rtn->init();
-        rtn->update(issue);
-        return rtn;
-    }
-
-    void update(matjson::Value issue) {
-        m_issue = issue;
-        m_user = github::user::create(issue["user"]);
-        m_name = m_issue["title"].asString().unwrapOr(RznPost().m_name);
-
-        m_ini = new CSimpleIni;
-        m_ini->LoadData(m_issue["body"].asString().unwrap());
-
-        m_desc = m_ini->GetValue("main", "desc", m_desc.c_str());
-    }
-
-    void reload(std::function<void()> onFinish = [] {}, std::function<void()> onFault = [] {}) {
-        auto req = github::web_request();
-        auto listener = new EventListener<web::WebTask>;
-        listener->bind(
-            [this, onFinish, onFault](web::WebTask::Event* e) {
-                if (web::WebResponse* res = e->getValue()) {
-                    auto json = res->json();
-                    auto string = res->string();
-                    if (json.unwrapOrDefault().contains("id")) {
-                        this->update(json.unwrapOrDefault());
-                        onFinish();
-                    }
-                    else {
-                        onFault();
-                    }
-                }
-            }
-        );
-        listener->setFilter(req.send(
-            "GET", m_issue["url"].asString().unwrapOrDefault()
-        ));
-    }
-
 };
 
 inline RznLayer* RznAuthLayer() {
@@ -622,21 +620,7 @@ inline RznLayer* RznPostLayer(RznPost* post) {
 
         __this->addChild(center_menu);
 
-        if (auto top_line = CCMenu::create()) {
-            top_line->setAnchorPoint(CCPointMake(0.5f, 1.0f));
-            top_line->setContentSize(CCSizeMake(size.width, 0.f));
-            center_menu->addChild(top_line);
-
-            auto avatar = WebImageNode::create(post->m_user->m_avatar_url, { 90.f, 90.f });
-            avatar->setID("avatar");
-            top_line->addChild(avatar);
-
-            top_line->setLayout(RowLayout::create()
-                ->setGrowCrossAxis(1)
-                ->setCrossAxisAlignment(AxisAlignment::End)
-                ->setAxisAlignment(AxisAlignment::Start)
-            );
-        };
+        center_menu->addChild(RznPostItem(post, size.width));
 
         auto debug = MDTextArea::create(
             fmt::format("\n## issue\n```\n{}\n```\n## user\n```\n{}\n```\n", post->m_issue.dump(), post->m_user->m_json.dump()), { size.width, 260 }
@@ -722,178 +706,9 @@ inline RznLayer* RznListLayer() {
             scroll->m_contentLayer->removeAllChildrenWithCleanup(0);
 
             for (auto issue : issues) {
-
                 auto post = RznPost::create(issue);
-
-                auto item = CCNode::create();
-                item->setID("item");
-                item->setContentWidth(scroll->getContentWidth());
-
-                auto container = CCNode::create();
-                container->setID("container");
-                container->setContentWidth(item->getContentWidth());
-
-                if (auto main_row = CCNode::create()) {
-                    main_row->setID("main_row");
-
-                    container->addChild(main_row);
-                    main_row->setContentWidth(container->getContentWidth());
-
-                    main_row->setLayout(RowLayout::create()
-                        ->setAxisAlignment(AxisAlignment::Start)
-                        ->setCrossAxisLineAlignment(AxisAlignment::End)
-                    );
-
-
-                    auto image = WebImageNode::create(post->m_user->m_avatar_url, { 64, 64 });
-                    image->setID("image");
-
-                    auto image_item = CCMenuItemExt::createSpriteExtra(
-                        image, [post](auto) {
-                            OpenRznPostLayer(post);
-                        }
-                    );
-                    image_item->m_animationEnabled = 0;
-                    image_item->m_colorEnabled = 1;
-                    image_item->setAnchorPoint(CCPointMake(0.f, 0.f));
-                    image_item->setID("image_item");
-
-                    main_row->addChild(CCMenu::createWithItem(image_item));
-
-                    image_item->getParent()->setID("image_item_menu");
-                    image_item->getParent()->setContentSize(image_item->getContentSize());
-                    image_item->getParent()->setPosition(image_item->getPosition());
-                    image_item->getParent()->setAnchorPoint(CCPointMake(0.f, 1.0f));
-
-                    main_row->updateLayout();
-
-                    if (auto left_row = CCNode::create()) {
-                        left_row->setID("left_row");
-
-                        main_row->addChild(left_row);
-                        left_row->setContentWidth(
-                            main_row->getContentWidth()
-                            - 
-                            main_row->getChildByType(-1)->getPosition().getDistance(main_row->getChildByType(-1)->getPosition())
-                        );
-
-                        if (auto line1 = CCNode::create()) {
-                            line1->setAnchorPoint(CCPointMake(0.f, 0.9f));
-                            line1->setContentWidth(left_row->getContentWidth());
-                            line1->setID("line1");
-
-                            auto name = CCLabelBMFont::create(
-                                post->m_name.c_str(),
-                                "geode.loader/mdFontB.fnt"
-                            );
-                            name->setID("name");
-                            limitNodeHeight(name, 19.f, 0.9f, 0.1f);
-
-                            auto name2 = CCLabelBMFont::create(name->getString(), name->getFntFile());
-                            name2->setID("name2");
-                            name2->setOpacity(190);
-                            limitNodeHeight(name2, 19.f, 0.9f, 0.1f);
-
-                            auto name_item = CCMenuItemExt::createSprite(
-                                name, name2, [post](auto) {
-                                    OpenRznPostLayer(post);
-                                }
-                            );
-                            name_item->setID("name_item");
-                            name_item->setAnchorPoint(CCPointMake(0.f, 0.f));
-                            name_item->setContentSize(name->getScaledContentSize());
-
-                            line1->addChild(CCMenu::createWithItem(name_item));
-
-                            name_item->getParent()->setID("name_item_menu");
-                            name_item->getParent()->setContentSize(name_item->getContentSize());
-                            name_item->getParent()->setPosition(name_item->getPosition());
-                            name_item->getParent()->setAnchorPoint(CCPointMake(0.f, 0.0f));
-
-                            auto user = CCLabelBMFont::create(
-                                ("by " + post->m_user->m_login).c_str(),
-                                "chatFont.fnt"
-                            );
-                            user->setID("user");
-                            user->setOpacity(180);
-
-                            auto user2 = CCLabelBMFont::create(user->getString(), user->getFntFile());
-                            user2->setID("user2");
-                            user2->setOpacity(90);
-
-                            auto user_item = CCMenuItemExt::createSprite(
-                                user, user2, [post](auto) {
-                                    OpenRznUserLayer(post->m_user);
-                                }
-                            );
-                            user_item->setID("user_item");
-                            user_item->setAnchorPoint(CCPointMake(0.f, 0.f));
-
-                            line1->addChild(CCMenu::createWithItem(user_item));
-
-                            user_item->getParent()->setID("user_item_menu");
-                            user_item->getParent()->setContentSize(user_item->getContentSize());
-                            user_item->getParent()->setPosition(user_item->getPosition());
-                            user_item->getParent()->setAnchorPoint(CCPointMake(1.f, 0.5f));
-
-                            line1->setLayout(RowLayout::create()
-                                ->setAxisAlignment(AxisAlignment::Start)
-                                ->setCrossAxisLineAlignment(AxisAlignment::Start)
-                            );
-
-                            left_row->addChild(line1);
-                        }
-
-                        if (auto line2 = CCNode::create()) {
-                            line2->setAnchorPoint(CCPointMake(0.f, 0.9f));
-                            line2->setContentWidth(left_row->getContentWidth());
-                            line2->setID("line2");
-
-                            auto desc = CCLabelBMFont::create(
-                                post->m_desc.c_str(), "chatFont.fnt"
-                            );
-                            desc->setID("desc");
-                            limitNodeWidth(desc, line2->getContentWidth(), 0.9f, 0.1f);
-
-
-                            line2->addChild(desc);
-
-                            line2->setLayout(RowLayout::create()
-                                ->setAxisAlignment(AxisAlignment::Start)
-                                ->setCrossAxisLineAlignment(AxisAlignment::Start)
-                            );
-
-                            left_row->addChild(line2);
-                        }
-
-                        left_row->setAnchorPoint(CCPointMake(0.f, 1.f));
-                        left_row->setLayout(RowLayout::create()
-                            ->setGrowCrossAxis(true)
-                            ->setAxisAlignment(AxisAlignment::Start)
-                            ->setCrossAxisLineAlignment(AxisAlignment::End)
-                        );
-                    }
-
-                    main_row->updateLayout();
-                };
-
-                item->addChild(container);
-
-                container->setLayout(RowLayout::create());
-                item->setContentSize(container->getContentSize() + (CCSize(1,1) * 12));
-
-                container->setAnchorPoint({0.5f,0.5f});
-                container->setPosition(item->getContentSize() / 2);
-
-                auto bg = CCScale9Sprite::create("square02_001.png");
-                bg->setID("bg");
-                bg->setContentSize(item->getContentSize());
-                bg->setPosition(item->getContentSize() / 2);
-                bg->setOpacity(120);
-                item->addChild(bg, -1);
-
+                auto item = RznPostItem(post, scroll->m_contentLayer->getContentWidth());
                 scroll->m_contentLayer->addChild(item);
-
             }
 
             scroll->m_contentLayer->setLayout(RowLayout::create()
@@ -1060,3 +875,220 @@ class $modify(ModsLayerExt, CCLayer) {
 		return true;
 	}
 };
+
+inline CCNode* RznPostItem(RznPost* post, float width) {
+
+    auto item = CCNode::create();
+    item->setID("item");
+    item->setContentWidth(width);
+
+    auto container = CCNode::create();
+    container->setID("container");
+    container->setContentWidth(item->getContentWidth());
+
+    if (auto main_row = CCNode::create()) {
+        main_row->setID("main_row");
+
+        container->addChild(main_row);
+        main_row->setContentWidth(container->getContentWidth());
+
+        main_row->setLayout(RowLayout::create()
+            ->setAxisAlignment(AxisAlignment::Start)
+            ->setCrossAxisLineAlignment(AxisAlignment::End)
+        );
+
+
+        auto image = WebImageNode::create(post->m_user->m_avatar_url, { 64, 64 });
+        image->setID("image");
+
+        auto image_item = CCMenuItemExt::createSpriteExtra(
+            image, [post](auto) {
+                OpenRznPostLayer(post);
+            }
+        );
+        image_item->m_animationEnabled = 0;
+        image_item->m_colorEnabled = 1;
+        image_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+        image_item->setID("image_item");
+
+        main_row->addChild(CCMenu::createWithItem(image_item));
+
+        image_item->getParent()->setID("image_item_menu");
+        image_item->getParent()->setContentSize(image_item->getContentSize());
+        image_item->getParent()->setPosition(image_item->getPosition());
+        image_item->getParent()->setAnchorPoint(CCPointMake(0.f, 1.0f));
+
+        main_row->updateLayout();
+
+        if (auto left_row = CCNode::create()) {
+            left_row->setID("left_row");
+
+            main_row->addChild(left_row);
+            left_row->setContentWidth(
+                main_row->getContentWidth()
+                -
+                main_row->getChildByType(-1)->getPosition().getDistance(main_row->getChildByType(-1)->getPosition())
+            );
+
+            if (auto line1 = CCNode::create()) {
+                line1->setAnchorPoint(CCPointMake(0.f, 0.9f));
+                line1->setContentWidth(left_row->getContentWidth());
+                line1->setID("line1");
+
+                auto name = CCLabelBMFont::create(
+                    post->m_name.c_str(),
+                    "geode.loader/mdFontB.fnt"
+                );
+                name->setID("name");
+                limitNodeHeight(name, 19.f, 0.9f, 0.1f);
+
+                auto name2 = CCLabelBMFont::create(name->getString(), name->getFntFile());
+                name2->setID("name2");
+                name2->setOpacity(190);
+                limitNodeHeight(name2, 19.f, 0.9f, 0.1f);
+
+                auto name_item = CCMenuItemExt::createSprite(
+                    name, name2, [post](auto) {
+                        OpenRznPostLayer(post);
+                    }
+                );
+                name_item->setID("name_item");
+                name_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+                name_item->setContentSize(name->getScaledContentSize());
+
+                line1->addChild(CCMenu::createWithItem(name_item));
+
+                name_item->getParent()->setID("name_item_menu");
+                name_item->getParent()->setContentSize(name_item->getContentSize());
+                name_item->getParent()->setPosition(name_item->getPosition());
+                name_item->getParent()->setAnchorPoint(CCPointMake(0.f, 0.0f));
+
+                auto user = CCLabelBMFont::create(
+                    ("by " + post->m_user->m_login).c_str(),
+                    "chatFont.fnt"
+                );
+                user->setID("user");
+                user->setOpacity(180);
+
+                auto user2 = CCLabelBMFont::create(user->getString(), user->getFntFile());
+                user2->setID("user2");
+                user2->setOpacity(90);
+
+                auto user_item = CCMenuItemExt::createSprite(
+                    user, user2, [post](auto) {
+                        OpenRznUserLayer(post->m_user);
+                    }
+                );
+                user_item->setID("user_item");
+                user_item->setAnchorPoint(CCPointMake(0.f, 0.f));
+
+                line1->addChild(CCMenu::createWithItem(user_item));
+
+                user_item->getParent()->setID("user_item_menu");
+                user_item->getParent()->setContentSize(user_item->getContentSize());
+                user_item->getParent()->setPosition(user_item->getPosition());
+                user_item->getParent()->setAnchorPoint(CCPointMake(1.f, 0.5f));
+
+                line1->setLayout(RowLayout::create()
+                    ->setAxisAlignment(AxisAlignment::Start)
+                    ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                );
+
+                left_row->addChild(line1);
+            }
+
+            if (auto line2 = CCNode::create()) {
+                line2->setAnchorPoint(CCPointMake(0.f, 0.9f));
+                line2->setContentWidth(left_row->getContentWidth());
+                line2->setID("line2");
+
+                auto desc = CCLabelBMFont::create(
+                    post->m_desc.c_str(), "chatFont.fnt"
+                );
+                desc->setID("desc");
+                limitNodeWidth(desc, line2->getContentWidth(), 0.9f, 0.1f);
+
+
+                line2->addChild(desc);
+
+                line2->setLayout(RowLayout::create()
+                    ->setAxisAlignment(AxisAlignment::Start)
+                    ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                );
+
+                left_row->addChild(line2);
+            }
+
+            if (auto line3 = CCNode::create()) {
+                line3->setAnchorPoint(CCPointMake(0.f, 0.9f));
+                line3->setContentWidth(left_row->getContentWidth());
+                line3->setID("line3");
+
+                //tags
+                for (auto catgirl : post->m_issue["labels"]) {
+                    auto color = cocos::cc3bFromHexString(catgirl["color"].asString().unwrapOrDefault()).unwrapOr(ccColor3B(190, 190, 200));
+                    auto lighter_color_dark_amount = 70;
+                    auto lighter_color_boost = 60;
+                    auto lighter_color = /*color;*/ ccColor3B(
+                        color.r < lighter_color_dark_amount ? color.r + lighter_color_boost : color.r,
+                        color.g < lighter_color_dark_amount ? color.g + lighter_color_boost : color.g,
+                        color.b < lighter_color_dark_amount ? color.b + lighter_color_boost : color.b
+                    );
+                    //label
+                    CCLabelTTF* tag = CCLabelTTF::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "arial", 8.f);
+                    tag->setHorizontalAlignment(kCCTextAlignmentLeft);
+                    tag->setAnchorPoint(CCPointZero);
+                    tag->setColor(lighter_color);
+                    tag->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                    //item
+                    auto item = CCMenuItemSpriteExtra::create(tag, nullptr, nullptr);
+                    item->setID(catgirl["id"].dump());
+                    line3->addChild(item);
+                    //bg
+                    auto grad = CCLayerGradient::create(
+                        ccColor4B(lighter_color.r, lighter_color.g, lighter_color.b, 60),
+                        ccColor4B(lighter_color.r - 20, lighter_color.g - 20, lighter_color.b - 20, 10)
+                    );
+                    auto padding = 3.f;
+                    grad->setContentSize(tag->getContentSize() + CCPoint(padding, padding));
+                    grad->setPosition(CCPoint(-padding, -padding) / 2);
+                    grad->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                    tag->addChild(grad, -1, 57290);
+                }
+
+                line3->setLayout(RowLayout::create()
+                    ->setAxisAlignment(AxisAlignment::Start)
+                    ->setCrossAxisLineAlignment(AxisAlignment::Start)
+                );
+
+                left_row->addChild(line2);
+            }
+
+            left_row->setAnchorPoint(CCPointMake(0.f, 1.f));
+            left_row->setLayout(RowLayout::create()
+                ->setGrowCrossAxis(true)
+                ->setAxisAlignment(AxisAlignment::Start)
+                ->setCrossAxisLineAlignment(AxisAlignment::End)
+            );
+        }
+
+        main_row->updateLayout();
+    };
+
+    item->addChild(container);
+
+    container->setLayout(RowLayout::create());
+    item->setContentSize(container->getContentSize() + (CCSize(1, 1) * 12));
+
+    container->setAnchorPoint({ 0.5f,0.5f });
+    container->setPosition(item->getContentSize() / 2);
+
+    auto bg = CCScale9Sprite::create("square02_001.png");
+    bg->setID("bg");
+    bg->setContentSize(item->getContentSize());
+    bg->setPosition(item->getContentSize() / 2);
+    bg->setOpacity(120);
+    item->addChild(bg, -1);
+
+    return item;
+}
