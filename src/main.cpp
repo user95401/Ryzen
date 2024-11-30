@@ -176,7 +176,8 @@ namespace github {
         }
 
         inline bool has_token() {
-            return (get_token().size() > 3);
+            log::debug("{}.{} = {}", __FUNCTION__, "get_token()", get_token());
+            return (get_token().size() > 12);
         }
 
         inline web::WebRequest get_basic_web_request() {
@@ -717,12 +718,29 @@ inline RznLayer* RznListLayer() {
                 ->setAxisAlignment(AxisAlignment::Start)
             );
 
+            auto bg = CCLayerColor::create({0,0,0,90});
+            bg->setContentSize(scroll->getContentSize());
+            bg->setPosition(scroll->getPosition());
+            bg->setScale(1.05f);
+            scroll->getParent()->addChild(bg, -1);
+
+            auto scrlbar = Scrollbar::create(scroll);
+            scrlbar->setPosition(scroll->getPosition());
+            scrlbar->setPositionX(scroll->getPositionX() + scroll->getContentWidth());
+            scrlbar->setAnchorPoint({ -0.250f, 0.f });
+            scrlbar->getChildByType(0)->setScaleY(5.f);
+            scrlbar->getChildByType(1)->setScaleY(0.475f);
+            scroll->getParent()->addChild(scrlbar);
+
+            auto leftb = Scrollbar::create(scroll);
+            leftb->setPosition(scroll->getPosition());
+            leftb->setAnchorPoint({ 1.250f, 0.f });
+            leftb->getChildByType(0)->setScaleY(5.f);
+            leftb->getChildByType(1)->setVisible(0);
+            scroll->getParent()->addChild(leftb);
+
             //fix
             if (scroll->m_contentLayer->getContentHeight() > scroll->getContentHeight()) {
-                auto scrlbar = Scrollbar::create(scroll);
-                scrlbar->setPosition(scroll->getPosition());
-                scrlbar->setAnchorPoint({ 1.25f, 0.f});
-                scroll->getParent()->addChild(scrlbar);
             }
             else {
                 scroll->m_disableMovement = 1;
@@ -1019,7 +1037,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                 left_row->addChild(line2);
             }
 
-            if (auto line3 = CCNode::create()) {
+            if (auto line3 = CCMenu::create()) {
                 line3->setAnchorPoint(CCPointMake(0.f, 0.9f));
                 line3->setContentWidth(left_row->getContentWidth());
                 line3->setID("line3");
@@ -1035,13 +1053,31 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                         color.b < lighter_color_dark_amount ? color.b + lighter_color_boost : color.b
                     );
                     //label
-                    auto tag = CCLabelBMFont::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "geode.loader/mdFontB.fnt");
-                    tag->setAnchorPoint(CCPointZero);
-                    tag->setColor(lighter_color);
-                    tag->setScale(0.5f);
-                    tag->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                    auto label = CCLabelBMFont::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "geode.loader/mdFontB.fnt");
+                    label->setAnchorPoint(CCPointZero);
+                    label->setColor(lighter_color);
+                    label->setScale(0.5f);
+                    label->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
                     //item
-                    auto item = CCMenuItemSpriteExtra::create(tag, nullptr, nullptr);
+                    auto item = CCMenuItemExt::createSpriteExtra(
+                        label, [catgirl, label](CCMenuItem* item){
+                            //node
+                            if (!item) return;
+                            //pop
+                            auto pop = geode::MDPopup::create(
+                                catgirl["name"].asString().unwrapOrDefault().c_str(),
+                                "<c-" + catgirl["color"].asString().unwrapOrDefault()+ ">" + catgirl["description"].asString().unwrapOr("<co>no description...</c>\n<cy>seems to be created label by publisher via !setlabels comment"),
+                                "OK"
+                            );
+                            public_cast(pop, m_closeBtn)->setVisible(0);
+                            if (auto title = pop->m_mainLayer->getChildByType<CCLabelBMFont*>(-1)) {
+                                title->setFntFile(label->getFntFile());
+                                title->setColor(label->getColor());
+                                title->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                            };
+                            pop->show();
+                        }
+                    );
                     item->setID(catgirl["id"].dump());
                     line3->addChild(item);
                 }
