@@ -1,5 +1,6 @@
 #include <_main.hpp>
-#include <SimpleIni/SimpleIni.h>
+#include <_ini.hpp>
+#include <GeodeUI.hpp>
 #include <Geode/utils/web.hpp>
 
 class WebImageNode : public CCNodeRGBA {
@@ -69,7 +70,7 @@ namespace github {
         std::string m_received_events_url = "";
         std::string m_type = "";
         std::string m_user_view_type = "";
-        std::string m_name = "unnameed";
+        std::string m_name = "";
         std::string m_company = "";
         std::string m_blog = "";
         std::string m_location = "";
@@ -176,7 +177,6 @@ namespace github {
         }
 
         inline bool has_token() {
-            log::debug("{}.{} = {}", __FUNCTION__, "get_token()", get_token());
             return (get_token().size() > 12);
         }
 
@@ -265,6 +265,141 @@ public:
 };
 
 inline CCNode* RznPostItem(RznPost* post, float width);
+inline CCNode* RznCommentItem(matjson::Value json, float width) {
+    
+};
+inline CCNode* RznReactionsRow(matjson::Value json, float width) {
+    //react_row
+    if (json.contains("reactions")) {
+        auto react_row = CCMenu::create();
+        auto& reactions = json["reactions"];
+        auto onBtn = [reactions](CCMenuItemSpriteExtra* sender)
+            {
+                auto tab = typeinfo_cast<GeodeTabSprite*>(sender->getNormalImage());
+                auto should_delete = tab->m_selectedBG->isVisible();
+                sender->setEnabled(0);
+                auto req = github::web_request();
+                auto listener = new EventListener<web::WebTask>;
+                listener->bind([tab, sender, should_delete](web::WebTask::Event* e)
+                    {
+                        if (web::WebResponse* res = e->getValue()) {
+                            sender->setEnabled(1);
+                            auto string = res->string();
+                            auto json = res->json().unwrapOr(matjson::Value());
+                            if (res->code() < 399) {
+                                tab->select(!should_delete);
+                                sender->setTag(json["id"].asInt().unwrapOr(sender->getTag()));
+                                auto count = numFromString<int>(tab->m_label->getString()).unwrapOr(1);
+                                if (should_delete) --count; else ++count;
+                                tab->m_label->setString(fmt::format("{}", count).data());
+                            }
+                        }
+                        else if (e->isCancelled()) {
+                            sender->setEnabled(1);
+                        }
+                    }
+                );
+                auto url = reactions["url"].asString().unwrapOr("");
+                if (should_delete) {
+                    listener->setFilter(req.send(
+                        "DELETE", fmt::format("{}/{}", url, sender->getTag())
+                    ));
+                }
+                else {
+                    auto body = matjson::Value();
+                    body["content"] = sender->getID();
+                    req.bodyJSON(body);
+                    listener->setFilter(req.send(
+                        "POST", url
+                    ));
+                };
+            };
+        auto addBtn = [reactions, react_row, onBtn](std::string name, std::string frame, std::string text = "")
+            {
+                auto btnspr = GeodeTabSprite::create(
+                    frame.data(),
+                    (not text.empty() ?
+                        text : string::replace(
+                            reactions[name].dump(), "\"", "")
+                        ).data(),
+                    52.f, 1
+                );
+                btnspr->select(0);
+                btnspr->m_deselectedBG->setContentHeight(32.f);
+                btnspr->m_selectedBG->setContentHeight(32.f);
+                btnspr->m_label->setFntFile("gjFont17.fnt");
+                btnspr->m_label->setScale(0.2f + btnspr->m_label->getScale());
+                btnspr->setScale(0.6f);
+                auto btn = CCMenuItemExt::createSpriteExtra(btnspr, onBtn);
+                btn->setID(name.data());
+                react_row->addChild(btn);
+                return btn;
+            };
+        auto plus1 = addBtn("+1", "+1.png"_spr);
+        auto minus1 = addBtn("-1", "-1.png"_spr);
+        auto laugh = addBtn("laugh", "laugh.png"_spr);
+        auto confused = addBtn("confused", "confused.png"_spr);
+        auto heart = addBtn("heart", "heart.png"_spr);
+        auto hooray = addBtn("hooray", "hooray.png"_spr);
+        auto rocket = addBtn("rocket", "rocket.png"_spr);
+        auto eyes = addBtn("eyes", "eyes.png"_spr);
+        auto loading = LoadingSpinner::create(1.f);
+        react_row->addChild(loading, 0, 1);
+        react_row->setTouchEnabled(0);
+        react_row->setContentHeight(18.000f);//temp
+        react_row->setContentWidth(width);
+        react_row->setLayout(
+            RowLayout::create()
+            ->setAxisAlignment(AxisAlignment::Start)
+            ->setAutoScale(0)
+            ->setGrowCrossAxis(1)
+            ->setCrossAxisOverflow(0)
+        );
+        react_row->setContentHeight(20.000f);
+        //loadthereactionsfk
+        std::function<void()> load;
+        auto listener = new EventListener<web::WebTask>;
+        auto bindfn = [reactions, load, react_row, loading](web::WebTask::Event* e)
+            {
+                if (web::WebResponse* res = e->getValue()) {
+                    auto json = res->json();
+                    auto string = res->string();
+                    if (res->code() < 399) if (json.isOk()) {
+                        auto val = json.unwrapOrDefault();
+                        if (val.asArray().isOk()) for (auto reaction : val.asArray().unwrap()) {
+                            auto itsme = reaction["user"]["id"].asInt().unwrapOrDefault() == github::account::user->m_id;
+                            auto name = reaction["content"].asString().unwrapOrDefault();
+                            auto item = typeinfo_cast<CCMenuItemSpriteExtra*>(react_row->getChildByID(name));
+                            auto tab = typeinfo_cast<GeodeTabSprite*>(item->getNormalImage());
+                            if (itsme) tab->select(itsme);
+                            item->setTag(reaction["id"].asInt().unwrapOrDefault());//for delete
+                        };
+                        auto page = loading ? loading->getTag() : 1;
+                        loading->setTag(page + 1);
+                        if (json.unwrapOrDefault().asArray().unwrap().size() < 100) {
+                            //final
+                            loading->removeFromParent();
+                            react_row->setTouchEnabled(1);
+                        }
+                        else load();
+                    }
+                };
+            };
+        load = [listener, bindfn, reactions, loading]()
+            {
+                auto req = github::web_request();
+                if (loading) req.param("page", loading->getTag());
+                req.param("per_page", 100);
+                listener->bind(bindfn);
+                listener->setFilter(req.get(
+                    reactions["url"].asString().unwrapOr("")
+                ));
+            };
+        load();
+        return react_row;
+    }
+    return CCNode::create();
+};
 
 class RznLayer : public CCLayer {
 public:
@@ -504,7 +639,7 @@ inline RznLayer* RznUserLayer(github::user* user) {
 
         auto text1 = std::stringstream();
         auto dot = "<c-DDDDDD>\\- </c>";
-        text1 << "## [" << user->m_name << "]("<< user->m_html_url << ")" << std::endl;
+        text1 << "## [" << (user->m_name.empty() ? user->m_login : user->m_name) << "]("<< user->m_html_url << ")" << std::endl;
         text1 << "<c-999999>" << user->m_login << ", id: " << user->m_id << "</c>" << std::endl << std::endl;
         if (user->m_bio.size() > 1) text1 << "`" << user->m_bio << "`" << std::endl << std::endl;
         if (user->m_json["followers"].isNumber()) text1 << dot << "<c-AAAAAA>Followers: </c>" << user->m_json["followers"].asInt().unwrapOrDefault();
@@ -619,9 +754,43 @@ inline RznLayer* RznPostLayer(RznPost* post) {
         auto paddingx = 160.f;
         CCSize size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - 22 };
 
+        center_menu->setContentWidth(size.width);
         __this->addChild(center_menu);
 
         center_menu->addChild(RznPostItem(post, size.width));
+
+        if (auto middle_line = CCMenu::create()) {
+            center_menu->addChild(middle_line);
+            middle_line->setContentWidth(center_menu->getContentWidth());
+
+            auto reactions = RznReactionsRow(post->m_issue, 292.f);
+            reactions->setAnchorPoint({ 0,0.5f });
+            middle_line->addChild(reactions);
+
+            if (auto downloadBtn = ButtonSprite::create("Download", "goldFont.fnt", "GJ_button_05.png")) {
+                if (fs::exists("download_path")) {
+                    downloadBtn->m_label->setString("Update");
+                    downloadBtn->m_label->setScale(
+                        (downloadBtn->m_BGSprite->getContentWidth() - 15) / downloadBtn->m_label->getContentWidth()
+                    );
+                }
+                if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
+                downloadBtn->setScale(0.8f);
+                downloadBtn->setID("downloadBtn");
+                auto item = CCMenuItemExt::createSpriteExtra(downloadBtn, [](auto){});
+                item->setID("download");
+                middle_line->addChild(item);
+            }
+
+            middle_line->setLayout(RowLayout::create()
+                ->setGrowCrossAxis(true)
+                ->setAxisAlignment(AxisAlignment::Between)
+                ->setCrossAxisAlignment(AxisAlignment::Start)
+                ->setCrossAxisLineAlignment(AxisAlignment::Start)
+            );
+
+        }
+
 
         auto debug = MDTextArea::create(
             fmt::format("\n## issue\n```\n{}\n```\n## user\n```\n{}\n```\n", post->m_issue.dump(), post->m_user->m_json.dump()), { size.width, 260 }
@@ -692,171 +861,186 @@ inline RznLayer* RznListLayer() {
         }
     );
 
-    auto paddingx = 160.f;
-    auto paddingt = 0.f;
-    CCSize scroll_size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt };
+    CCMenuItem* profile = CCMenuItem::create();
+    CCMenuItem* reload = CCMenuItem::create();
 
-    ScrollLayer* scroll;
+    std::function<void()> setupList = [](){};
+    std::function<void()> setupListLoad = []() {};
+    if ("shitcode") {
 
-    auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value issues)
-        {
-            log::debug("posts: {}", issues.dump());
-            auto scroll = dynamic_cast<ScrollLayer*>(__this->getChildByID("scroll"));
-            if (not scroll) return;
+        auto paddingx = 160.f;
+        auto paddingt = 0.f;
+        CCSize scroll_size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - paddingt };
 
-            scroll->m_contentLayer->removeAllChildrenWithCleanup(0);
+        ScrollLayer* scroll;
 
-            for (auto issue : issues) {
-                auto post = RznPost::create(issue);
-                auto item = RznPostItem(post, scroll->m_contentLayer->getContentWidth());
-                scroll->m_contentLayer->addChild(item);
-            }
+        auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value issues)
+            {
+                log::debug("posts: {}", issues.dump());
+                auto scroll = dynamic_cast<ScrollLayer*>(__this->getChildByID("scroll"));
+                if (not scroll) return;
 
-            scroll->m_contentLayer->setLayout(RowLayout::create()
-                ->setGrowCrossAxis(1)
-                ->setCrossAxisAlignment(AxisAlignment::End)
-                ->setAxisAlignment(AxisAlignment::Start)
-            );
+                scroll->m_contentLayer->removeAllChildrenWithCleanup(0);
 
-            auto bg = CCLayerColor::create({0,0,0,90});
-            bg->setContentSize(scroll->getContentSize());
-            bg->setPosition(scroll->getPosition());
-            bg->setScale(1.05f);
-            scroll->getParent()->addChild(bg, -1);
-
-            auto scrlbar = Scrollbar::create(scroll);
-            scrlbar->setPosition(scroll->getPosition());
-            scrlbar->setPositionX(scroll->getPositionX() + scroll->getContentWidth());
-            scrlbar->setAnchorPoint({ -0.250f, 0.f });
-            scrlbar->getChildByType(0)->setScaleY(5.f);
-            scrlbar->getChildByType(1)->setScaleY(0.475f);
-            scroll->getParent()->addChild(scrlbar);
-
-            auto leftb = Scrollbar::create(scroll);
-            leftb->setPosition(scroll->getPosition());
-            leftb->setAnchorPoint({ 1.250f, 0.f });
-            leftb->getChildByType(0)->setScaleY(5.f);
-            leftb->getChildByType(1)->setVisible(0);
-            scroll->getParent()->addChild(leftb);
-
-            //fix
-            if (scroll->m_contentLayer->getContentHeight() > scroll->getContentHeight()) {
-            }
-            else {
-                scroll->m_disableMovement = 1;
-            }
-
-        };
-
-    auto setupListLoadFinish = [__this, setupListStep4](web::WebResponse* res)
-        {
-            //resp
-            std::string data = res->string().unwrapOr("");
-            //json
-            auto parse = matjson::parse(data);
-            auto json_val = parse.unwrapOrDefault();
-            if (parse.isErr()) data = ("Error parsing JSON: " + parse.unwrapErr().message + " in :" + data);
-            //a
-            if (res->code() > 399) {
-                auto message = data;
-                auto parse = matjson::parse(message);
-                auto json = parse.unwrapOrDefault();
-                if (json.contains("message")) {
-                    message = json["message"].asString().unwrapOrDefault();
+                for (auto issue : issues) {
+                    auto post = RznPost::create(issue);
+                    auto item = RznPostItem(post, scroll->m_contentLayer->getContentWidth());
+                    scroll->m_contentLayer->addChild(item);
                 }
-                auto asd = geode::createQuickPopup(
-                    "Request exception",
-                    message,
-                    "Nah", nullptr, 420.f, nullptr, false
+
+                scroll->m_contentLayer->setLayout(RowLayout::create()
+                    ->setGrowCrossAxis(1)
+                    ->setCrossAxisAlignment(AxisAlignment::End)
+                    ->setAxisAlignment(AxisAlignment::Start)
                 );
-                asd->m_scene = __this;
-                asd->show();
-            }
-            else {
-                // do something with the catgirls :3
-                setupListStep4(json_val);
-                auto local_issues_save = getMod()->getSaveDir() / "issues.json";
-                fs::create_directories(local_issues_save.parent_path(), fs::last_err_code);
-                std::ofstream(local_issues_save.string().c_str()) << json_val.dump();
-            }
-        };
 
-    auto setupListLoad = [__this, scroll, setupListLoadFinish]()
-        {
-            auto per_page = Mod::get()->getSettingValue<int64_t>("per_page");
-            auto issues_repo = Mod::get()->getSettingValue<std::string>("issues_repo");
-            //auto page = dynamic_cast<TextInput*>(__this->getChildByIDRecursive("page"));
-            //auto sort = dynamic_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
-            auto urlapi = fmt::format(
-                "https://api.github.com/repos/{}/issues?per_page={}&page={}&sort={}&",
-                issues_repo, per_page, "1", "created"//page->getString().data(), sort->getString()
-            );
-            auto downloadListTaskListener = new EventListener<web::WebTask>;
-            auto req = github::web_request();
-            downloadListTaskListener->bind(
-                [setupListLoadFinish](web::WebTask::Event* e) {
-                    if (web::WebResponse* res = e->getValue()) setupListLoadFinish(res);
+                auto bg = CCLayerColor::create({0,0,0,90});
+                bg->setContentSize(scroll->getContentSize());
+                bg->setPosition(scroll->getPosition());
+                bg->setScale(1.05f);
+                bg->setID("scroll-bg");
+                scroll->getParent()->removeChildByID("scroll-bg");
+                scroll->getParent()->addChild(bg, -1);
+
+                auto scrlbar = Scrollbar::create(scroll);
+                scrlbar->setPosition(scroll->getPosition());
+                scrlbar->setPositionX(scroll->getPositionX() + scroll->getContentWidth());
+                scrlbar->setAnchorPoint({ -0.250f, 0.f });
+                scrlbar->getChildByType(0)->setScaleY(5.f);
+                scrlbar->getChildByType(1)->setScaleY(0.475f);
+                scrlbar->setID("scroll-scrlbar");
+                scroll->getParent()->removeChildByID("scroll-scrlbar");
+                scroll->getParent()->addChild(scrlbar);
+
+                auto leftb = Scrollbar::create(scroll);
+                leftb->setPosition(scroll->getPosition());
+                leftb->setAnchorPoint({ 1.250f, 0.f });
+                leftb->getChildByType(0)->setScaleY(5.f);
+                leftb->getChildByType(1)->setVisible(0);
+                leftb->setID("scroll-leftb");
+                scroll->getParent()->removeChildByID("scroll-leftb");
+                scroll->getParent()->addChild(leftb);
+
+                //fix
+                if (scroll->m_contentLayer->getContentHeight() > scroll->getContentHeight()) {
                 }
-            );
-            downloadListTaskListener->setFilter(req.send("GET", urlapi));
-        };
+                else {
+                    scroll->m_disableMovement = 1;
+                }
 
-    auto setupList = [__this, scroll_size, paddingx, &scroll, setupListLoad]()
-        {
-            scroll = ScrollLayer::create(scroll_size);
-            scroll->setID("scroll");
-            scroll->m_contentLayer->setLayout(
-                ColumnLayout::create()
-                ->setGap(0.f)
-                ->setAutoScale(false)
-                ->setAxisReverse(true)
-                ->setAxisAlignment(AxisAlignment::End)
-            );
-            scroll->setPositionX(paddingx / 2 + 2);
-            __this->addChild(scroll);
-            setupListLoad();
-        };
+            };
 
+        auto setupListLoadFinish = [__this, setupListStep4](web::WebResponse* res)
+            {
+                //resp
+                std::string data = res->string().unwrapOr("");
+                //json
+                auto parse = matjson::parse(data);
+                auto json_val = parse.unwrapOrDefault();
+                if (parse.isErr()) data = ("Error parsing JSON: " + parse.unwrapErr().message + " in :" + data);
+                //a
+                if (res->code() > 399) {
+                    auto message = data;
+                    auto parse = matjson::parse(message);
+                    auto json = parse.unwrapOrDefault();
+                    if (json.contains("message")) {
+                        message = json["message"].asString().unwrapOrDefault();
+                    }
+                    auto asd = geode::createQuickPopup(
+                        "Request exception",
+                        message,
+                        "Nah", nullptr, 420.f, nullptr, false
+                    );
+                    asd->m_scene = __this;
+                    asd->show();
+                }
+                else {
+                    // do something with the catgirls :3
+                    setupListStep4(json_val);
+                    auto local_issues_save = getMod()->getSaveDir() / "issues.json";
+                    fs::create_directories(local_issues_save.parent_path(), fs::last_err_code);
+                    std::ofstream(local_issues_save.string().c_str()) << json_val.dump();
+                }
+            };
+
+        setupListLoad = [__this, scroll, setupListLoadFinish]()
+            {
+                auto per_page = Mod::get()->getSettingValue<int64_t>("per_page");
+                auto issues_repo = Mod::get()->getSettingValue<std::string>("issues_repo");
+                //auto page = dynamic_cast<TextInput*>(__this->getChildByIDRecursive("page"));
+                //auto sort = dynamic_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
+                auto urlapi = fmt::format(
+                    "https://api.github.com/repos/{}/issues?per_page={}&page={}&sort={}&",
+                    issues_repo, per_page, "1", "created"//page->getString().data(), sort->getString()
+                );
+                auto downloadListTaskListener = new EventListener<web::WebTask>;
+                auto req = github::web_request();
+                downloadListTaskListener->bind(
+                    [setupListLoadFinish](web::WebTask::Event* e) {
+                        if (web::WebResponse* res = e->getValue()) setupListLoadFinish(res);
+                    }
+                );
+                downloadListTaskListener->setFilter(req.send("GET", urlapi));
+            };
+
+        setupList = [__this, scroll_size, paddingx, &scroll, setupListLoad]()
+            {
+                scroll = ScrollLayer::create(scroll_size);
+                scroll->setID("scroll");
+                scroll->m_contentLayer->setLayout(
+                    ColumnLayout::create()
+                    ->setGap(0.f)
+                    ->setAutoScale(false)
+                    ->setAxisReverse(true)
+                    ->setAxisAlignment(AxisAlignment::End)
+                );
+                scroll->setPositionX(paddingx / 2 + 2);
+                __this->addChild(scroll);
+                setupListLoad();
+            };
+
+    };
     setupList();
 
-    auto menu = CCMenu::create();
-    __this->addChild(menu);
+    if (auto menu = CCMenu::create()) {
+        __this->addChild(menu);
 
-    if (auto Ryzen_profileButton_001 = CCSprite::create("Ryzen_profileButton_001.png"_spr)) {
-        Ryzen_profileButton_001->setScale(0.9f);
-        auto profileButton = CCMenuItemExt::createSpriteExtra(Ryzen_profileButton_001, 
-            [](auto) {
-                auto scene = CCScene::create();
-                scene->addChild(github::account::user->m_id > 0 ? RznUserLayer(github::account::user) : RznAuthLayer());
-                CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
-            }
-        );
-        profileButton->setID("profileButton");
-        profileButton->setLayoutOptions(
-            AnchorLayoutOptions::create()
-            ->setAnchor(Anchor::BottomLeft)
-            ->setOffset({ 33.f, 33.f })
-        );
-        menu->addChild(profileButton);
+        if (auto Ryzen_profileButton_001 = CCSprite::create("Ryzen_profileButton_001.png"_spr)) {
+            Ryzen_profileButton_001->setScale(0.9f);
+            auto profile = CCMenuItemExt::createSpriteExtra(Ryzen_profileButton_001,
+                [](auto) {
+                    auto scene = CCScene::create();
+                    scene->addChild(github::account::user->m_id > 0 ? RznUserLayer(github::account::user) : RznAuthLayer());
+                    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
+                }
+            );
+            profile->setID("profile");
+            profile->setLayoutOptions(
+                AnchorLayoutOptions::create()
+                ->setAnchor(Anchor::BottomLeft)
+                ->setOffset({ 33.f, 33.f })
+            );
+            menu->addChild(profile);
+        }
+
+        if (auto Ryzen_ReloadBtn_001 = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
+            Ryzen_ReloadBtn_001->setScale(0.9f);
+            reload = CCMenuItemExt::createSpriteExtra(Ryzen_ReloadBtn_001,
+                [setupListLoad](auto) {
+                    setupListLoad();
+                }
+            );
+            reload->setID("reload");
+            reload->setLayoutOptions(
+                AnchorLayoutOptions::create()
+                ->setAnchor(Anchor::BottomRight)
+                ->setOffset({ -33.f, 33.f })
+            );
+            menu->addChild(reload);
+        }
+
+        menu->setLayout(AnchorLayout::create());
     }
-
-    if (auto Ryzen_ReloadBtn_001 = CCSprite::create("Ryzen_ReloadBtn_001.png"_spr)) {
-        Ryzen_ReloadBtn_001->setScale(0.9f);
-        auto ReloadBtn = CCMenuItemExt::createSpriteExtra(Ryzen_ReloadBtn_001,
-            [setupListLoad, &scroll](auto) {
-                setupListLoad();
-            }
-        );
-        ReloadBtn->setID("ReloadBtn");
-        ReloadBtn->setLayoutOptions(
-            AnchorLayoutOptions::create()
-            ->setAnchor(Anchor::BottomRight)
-            ->setOffset({ -33.f, 33.f })
-        );
-        menu->addChild(ReloadBtn);
-    }
-
-    menu->setLayout(AnchorLayout::create());
 
     return __this;
 }
@@ -947,6 +1131,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                 -
                 main_row->getChildByType(-1)->getPosition().getDistance(main_row->getChildByType(-1)->getPosition())
             );
+            left_row->setContentHeight(main_row->getContentHeight());
 
             if (auto line1 = CCNode::create()) {
                 line1->setAnchorPoint(CCPointMake(0.f, 0.9f));
@@ -1045,22 +1230,18 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                 //tags
                 for (auto catgirl : post->m_issue["labels"]) {
                     auto color = cocos::cc3bFromHexString(catgirl["color"].asString().unwrapOrDefault()).unwrapOr(ccColor3B(190, 190, 200));
-                    auto lighter_color_dark_amount = 70;
-                    auto lighter_color_boost = 60;
-                    auto lighter_color = /*color;*/ ccColor3B(
-                        color.r < lighter_color_dark_amount ? color.r + lighter_color_boost : color.r,
-                        color.g < lighter_color_dark_amount ? color.g + lighter_color_boost : color.g,
-                        color.b < lighter_color_dark_amount ? color.b + lighter_color_boost : color.b
-                    );
                     //label
                     auto label = CCLabelBMFont::create(catgirl["name"].asString().unwrapOrDefault().c_str(), "geode.loader/mdFontB.fnt");
-                    label->setAnchorPoint(CCPointZero);
-                    label->setColor(lighter_color);
-                    label->setScale(0.5f);
+                    auto hsv = cchsv(0, 0.1, 0.30, 1, 1);
+                    label->setColor(GameToolbox::transformColor(color, hsv));
                     label->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
+                    label->setScale(0.5f);
+                    auto label_sel = CCLabelBMFont::create(label->getString(), label->getFntFile());
+                    label_sel->setColor(color);
+                    label_sel->setScale(0.5f);
                     //item
-                    auto item = CCMenuItemExt::createSpriteExtra(
-                        label, [catgirl, label](CCMenuItem* item){
+                    auto item = CCMenuItemExt::createSprite(
+                        label, label_sel, [catgirl, label](CCMenuItem* item){
                             //node
                             if (!item) return;
                             //pop
@@ -1078,6 +1259,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                             pop->show();
                         }
                     );
+                    item->setContentSize(label->getScaledContentSize());
                     item->setID(catgirl["id"].dump());
                     line3->addChild(item);
                 }
@@ -1091,10 +1273,12 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
             }
 
             left_row->setAnchorPoint(CCPointMake(0.f, 1.f));
-            left_row->setLayout(RowLayout::create()
+            left_row->setLayout(ColumnLayout::create()
                 ->setGrowCrossAxis(true)
-                ->setAxisAlignment(AxisAlignment::Start)
-                ->setCrossAxisLineAlignment(AxisAlignment::End)
+                ->setAxisReverse(true)
+                ->setAxisAlignment(AxisAlignment::Even)
+                ->setCrossAxisAlignment(AxisAlignment::Start)
+                ->setCrossAxisLineAlignment(AxisAlignment::Start)
             );
         }
 

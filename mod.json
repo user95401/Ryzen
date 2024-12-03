@@ -25,11 +25,20 @@
 		}
 	],
 	"resources": {
-		"files": [ "files/*" ],
-		"sprites": [ "sprites/*.png", "*.png" ],
+		"sprites": [
+			"resources/sprites/*.png",
+			"resources/sprites/**/*.png"
+		],
 		"spritesheets": {
-			"rzn_sprites": [ "sprites/*.png", "*.png" ]
-		}
+			"main": [
+				"resources/sprites/*.png",
+				"resources/sprites/**/*.png"
+			]
+		},
+		"files": [
+			"resources/files/*",
+			"resources/files/**/*"
+		]
 	},
 	"settings": {
 		"rzn_menu_music": {

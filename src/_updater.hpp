@@ -1,13 +1,12 @@
+#include <_main.hpp>
 //geode
 #include <Geode/Geode.hpp>
 using namespace geode::prelude;
 
 #include <Geode/utils/web.hpp>
 
-#include <_fs.hpp>
-
 inline auto repo = Mod::get()->getMetadata().getLinks().getSourceURL().value_or("");
-inline auto raw_repo_content = string::replace(repo, "github.com", "raw.githubusercontent.com") + "/master/";
+inline auto raw_repo_content = string::replace(repo, "github.com", "raw.githubusercontent.com") + "/main/";
 inline auto latest_release = repo + "/releases/latest/download/";
 
 inline void download(std::string url = "", fs::path path = "", std::function<void()> onDownloadingEnd = []() {}) {
@@ -23,7 +22,7 @@ inline void download(std::string url = "", fs::path path = "", std::function<voi
     downloadingLabel->setLayoutOptions(AnchorLayoutOptions::create()
         ->setAnchor(Anchor::Top)
         ->setOffset({ 0.f, -12.f }
-    ));
+        ));
     downloadingLabel->setScale(0.600f);
     layer->addChild(downloadingLabel);
 
@@ -83,7 +82,7 @@ class $modify(MenuLayerExt, MenuLayer) {
         EventListener<web::WebTask> m_getJsonListener;
     };
     $override bool init() {
-        
+
         //get mod json
         m_fields->m_getJsonListener.bind(
             [this](web::WebTask::Event* e) {
@@ -93,7 +92,7 @@ class $modify(MenuLayerExt, MenuLayer) {
 
                     auto parse = matjson::parse(str);
 
-                    if (not parse.ok()) 
+                    if (not parse.ok())
                         return log::error("parse err: {}", parse.unwrapErr());
 
                     auto actualMetaDataResult = ModMetadata::create(parse.unwrap());
@@ -119,7 +118,7 @@ class $modify(MenuLayerExt, MenuLayer) {
                             "\n "
                             , Mod::get()->getVersion().toVString(), actualMetaData.getVersion().toVString()
                         ),
-                        "", "", [](CCNode*pop, auto) {
+                        "", "", [](CCNode* pop, auto) {
                             SceneManager::get()->forget(pop);
                             pop->removeFromParent();
                         }, false
@@ -188,7 +187,7 @@ class $modify(MenuLayerExt, MenuLayer) {
                                 << std::endl;
                             pop->m_alertProtocol->FLAlert_Clicked(pop, 0);
 
-                            });}
+                            }); }
                     ), 0, 4);
 
                     pop->m_buttonMenu->addChild(CCMenuItemExt::createSpriteExtra(
@@ -199,7 +198,7 @@ class $modify(MenuLayerExt, MenuLayer) {
                                 << "delete it to bring back checks";
                             pop->m_alertProtocol->FLAlert_Clicked(pop, 0);
 
-                            });}
+                            }); }
                     ), 0, 5);
 
                     pop->m_buttonMenu->setLayout(AxisLayout::create()->setGrowCrossAxis(1));
