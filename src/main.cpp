@@ -266,7 +266,7 @@ public:
 
 inline CCNode* RznPostItem(RznPost* post, float width);
 inline CCNode* RznCommentItem(matjson::Value json, float width) {
-    
+    return nullptr;//to-do yooo
 };
 inline CCNode* RznReactionsRow(matjson::Value json, float width) {
     //react_row
@@ -1251,7 +1251,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                                 "OK"
                             );
                             public_cast(pop, m_closeBtn)->setVisible(0);
-                            if (auto title = pop->m_mainLayer->getChildByType<CCLabelBMFont*>(-1)) {
+                            if (auto title = pop->m_mainLayer->getChildByType<CCLabelBMFont>(-1)) {
                                 title->setFntFile(label->getFntFile());
                                 title->setColor(label->getColor());
                                 title->setBlendFunc({ GL_SRC_ALPHA, GL_ONE });
