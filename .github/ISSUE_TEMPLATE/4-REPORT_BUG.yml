@@ -12,3 +12,4 @@ body:
                Hi @user95401, here is a bug in Ryzen:
           
     - type: textarea
+      label: "The report body"
