@@ -9,8 +9,14 @@ body:
     - type: markdown
       attributes:
           value: |
-               Hi @user95401, here is a bug in Ryzen:
-          
+               Hi @user95401, here is a bug in Ryzen!
+    
     - type: textarea
+      id: what-happened
       attributes:
-        label: true
+        label: What happened?
+        description: Also tell us, what did you expect to happen?
+        placeholder: Tell us what you see!
+        value: "A bug happened! But i am will not sent any helpful info :)"
+      validations:
+        required: true
