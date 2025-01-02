@@ -1,0 +1,36 @@
+name: "Resourses Mod (.zip texture pack)"
+description: "Fill important info about yor resource pack in main section."
+
+labels: "pack,gd-2.206,android,win"
+title: "Unnamed Resource Pack"
+
+body:
+
+- type: textarea
+  attributes:
+    label: "Main Section"
+    value: |
+      [main]
+      
+      ; Description about your mod in 1-2 text lines 
+      desc = Just cool texture pack, trust we
+      
+      ; If mod not yours or whatever (not important key)
+      developer = 
+
+      ; Pack download link!
+      download = 
+      
+      ; logo image (not important key)
+      icon = 
+  validations:
+    required: true
+    
+- type: textarea
+  attributes:
+    label: "body:"
+    value: |
+      # My tp
+      soo thats template text ya here you can write your content
+  validations:
+    required: true

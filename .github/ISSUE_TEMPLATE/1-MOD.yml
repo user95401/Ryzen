@@ -1,0 +1,37 @@
+name: "Mod (.geode or .dll)"
+description: "Ryzen will get all info from main section data you write."
+
+labels: "mod,gd-2.206,android,win"
+title: "Unnamed Mod"
+
+body:
+
+- type: textarea
+  attributes:
+    label: "Main Section"
+    value: |
+      [main]
+      
+      ; Description about your mod in 1-2 text lines 
+      desc = Just cool mod, trust me
+      
+      ; If mod not yours or whatever (not important key)
+      developer = 
+
+      ; Mod download link
+      download = 
+      
+      ; Custom link to logo image (not important key)
+      icon = 
+      
+  validations:
+    required: true
+    
+- type: textarea
+  attributes:
+    label: "body:"
+    value: |
+      # My mod
+      soo thats template text ya here you can write your content
+  validations:
+    required: true

@@ -1,0 +1,75 @@
+name: Update issue
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+      - edited
+permissions:
+  issues: write
+env: 
+ body: ${{ github.event.issue.body }}
+jobs:
+  Main:
+   runs-on: ubuntu-latest 
+   steps:
+    - name: Close issue
+      uses: actions-cool/issues-helper@v3
+      with:
+          actions: 'close-issue'
+    - name: Add invalid label
+      uses: actions-cool/issues-helper@v3
+      with:
+          actions: 'add-labels'
+          labels: 'invalid' 
+    - name: Send comment
+      uses: actions-cool/issues-helper@v3
+      with:
+         actions: "create-comment" 
+         issue-number: ${{ github.event.issue.number }}
+         body: |
+          The validation goes here:
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          > Issue is invalid if `invalid` label is not got removed for minute. 
+    - name: bruh
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - run: pip install git+https://github.com/HugeBrain16/iniparser2.git
+    - uses: jannekem/run-python-script-action@v1
+      name: run PY script
+      with:
+        script: |
+          import os
+          import base64
+          def b64e(s):
+              return base64.b64encode(s.encode()).decode()
+          print("env body: " + os.environ["body"])
+          new_body = os.environ["body"]
+          new_body = new_body.replace("### [mod]", "[mod]")
+          set_env("body", b64e(new_body))
+          import iniparser2
+          parser = iniparser2.INI()
+          parser.read(new_body)
+          set_env("ini_repo", parser["mod"]["repo"])
+    - uses: akiojin/decode-base64-github-action@v0.1.0
+      id: decode-base64
+      with:
+        base64: ${{ env.body }}
+    - name: Fix body
+      run: gh issue edit "${{ github.event.issue.number }}" --body "${{ steps.decode-base64.outputs.decoded }}"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_REPO: ${{ github.repository }}
+    - uses: actions/checkout@v4
+      with:
+        repository: ${{ env.ini_repo}}
+    - name: Remove invalid label
+      uses: actions-cool/issues-helper@v3
+      with:
+          actions: 'remove-labels'
+          labels: 'invalid'
+    - name: Open issue
+      uses: actions-cool/issues-helper@v3
+      with:
+          actions: 'open-issue'
