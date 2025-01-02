@@ -1,28 +1,14 @@
-name: "Report User"
-description: "Make bad user getting banned!"
+name: "Report Bug"
+description: "Pls REPORT ANY BUGS YOU SEE IN RYZEN ITSELF"
 
-labels: "report"
-title: "Report User"
+labels: "bug"
+title: "Report Bug"
 
 body:
     
     - type: markdown
       attributes:
           value: |
-               Hi @user95401, here is a user that break rules!
-          
-    - type: input
-      attributes:
-          label: "Username or Link (link pls)"
-      validations:
-        required: true
-          
-    - type: input
-      attributes:
-        label: "Crime Scene (mod id or issue number for example)"
-      validations:
-        required: true
+               Hi @user95401, here is a bug in Ryzen:
           
     - type: textarea
-      attributes:
-        label: "More..."
