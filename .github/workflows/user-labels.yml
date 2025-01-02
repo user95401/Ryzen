@@ -1,0 +1,42 @@
+name: Add label
+on:
+  issue_comment:
+    types:
+      - created
+      - edited
+permissions:
+  issues: write
+env: 
+ labels: ${{ github.event.comment.body }}
+jobs:
+  Main:
+   runs-on: ubuntu-latest 
+   if: github.event.comment.user.id == github.event.issue.user.id && startsWith(github.event.comment.body, '!setlabels ') && false == contains(github.event.comment.body, 'verified') && false == contains(github.event.comment.body, 'featured') 
+   steps:
+    - name: bruh
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - uses: jannekem/run-python-script-action@v1
+      with:
+        script: |
+          import os
+          print("env labels: " + os.environ["labels"])
+          
+          import re
+          s = os.environ["labels"]
+          s = re.sub('!setlabels ', '', s)
+          
+          os.environ["labels"] = s
+          print("s: " + os.environ["labels"])
+
+          env_file = os.getenv('GITHUB_ENV')
+          with open(env_file, "a") as myfile:
+              myfile.write("labels=" + s)
+    - name: Toggle label
+      uses: actions-cool/issues-helper@v3
+      with:
+       actions: 'toggle-labels'
+       token: ${{ secrets.GITHUB_TOKEN }}
+       issue-number: ${{ github.event.issue.number }}
+       labels: ${{ env.labels }}
