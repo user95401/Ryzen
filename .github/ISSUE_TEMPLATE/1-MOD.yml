@@ -19,19 +19,11 @@ body:
       developer = 
 
       ; Mod download link
-      download_link = 
+      download = 
       
-      ; Custom link to logo image  (not important key)
-      logo_url = 
+      ; Custom link to logo image (not important key)
+      icon = 
       
-      ; not important key
-      website_link = 
-      
-      ; not important key
-      custom_bg_link = 
-      
-      ; not important key
-      overlay_link = 
   validations:
     required: true
     
