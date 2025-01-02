@@ -3,6 +3,101 @@
 #include <GeodeUI.hpp>
 #include <Geode/utils/web.hpp>
 
+class ShittyDragThing : public ScrollLayer {
+public:
+    void drugs(float) {
+        if (!this) return;
+        auto pos = this->m_contentLayer->getPosition();
+        auto parent = this->getParent();
+        if (pos != CCPointZero) {
+            parent->setPosition(
+                parent->getPositionX() + pos.x,
+                parent->getPositionY() + pos.y
+            );
+        };
+        this->m_contentLayer->setPosition(CCPointZero);
+    }
+    static auto createScroll(CCNode* tar, CCSize size) {
+        auto scroll = ScrollLayer::create(size, 0, 0);
+        tar->addChild(scroll);
+        scroll->m_disableHorizontal = 0;
+        scroll->m_disableVertical = 0;
+        scroll->setPosition(scroll->getContentSize() / -2);
+        scroll->schedule(schedule_selector(ShittyDragThing::drugs));
+        return scroll;
+    }
+};
+
+class MDImagesLoader : public MDTextArea {
+public:
+    void aminateLoadingLabels() {
+        findFirstChildRecursive<CCLabelBMFont>(
+            this, [](CCLabelBMFont* label) {
+                if (string::containsAll(label->getString(), { "Loading ", "..." })) {
+                    label->runAction(CCRepeatForever::create(CCSequence::create(
+                        CCEaseSineInOut::create(CCFadeTo::create(0.5f, 90)),
+                        CCEaseSineInOut::create(CCFadeTo::create(0.5f, 160)),
+                        nullptr
+                    )));
+                }
+                return false;
+            }
+        );
+    }
+    void loadit(std::string link) {
+        //return void();
+        link = string::replace(link, "frame:", "");//bruh
+        link = string::replace(link, ":scale_factor=2.0", "");//BRUH
+        //log::debug("{}->{}({})", this, __FUNCTION__, link);
+
+        auto filep = dirs::getTempDir() / ("." + std::string(ZipUtils::base64URLEncode(link).c_str()));
+        auto req = web::WebRequest();
+        auto listener = new EventListener<web::WebTask>;
+        listener->bind(
+            [this, filep, link](web::WebTask::Event* e) {
+                if (web::WebResponse* res = e->getValue()) {
+                    if (res->code() < 399) {
+                        res->into(filep);
+                        CCTextureCache::get()->removeTextureForKey(filep.string().c_str());
+                        CCSpriteFrameCache::get()->removeSpriteFrameByName(link.c_str());
+                        CCSpriteFrameCache::get()->addSpriteFrame(
+                            CCSprite::create((filep.string() + ":scale_factor=2.0").c_str())->displayFrame(),
+                            link.c_str()
+                        );
+                        if (this and this->isRunning()) this->setString(this->getString());
+                        this->aminateLoadingLabels();
+                        fs::remove(filep, *(new std::error_code()));
+                    }
+                }
+            }
+        );
+        listener->setFilter(req.send("GET", link));
+
+    }
+    static auto attach(MDTextArea* tar) {
+        //set links as frames
+        {
+            tar->setString(std::regex_replace(
+                tar->getString(),
+                std::regex("!\\[(.*?)\\]\\((.*?)\\)"), "![Loading $1...](frame:$2:scale_factor=2.0)"
+            ).c_str());
+        };
+        //download links
+        {
+            auto str = std::string(tar->getString());
+            std::regex re("!\\[(.*?)\\]\\((.*?)\\)");
+            std::sregex_token_iterator it(str.begin(), str.end(), re, 2);
+            std::sregex_token_iterator end;
+            for (; it != end; ++it) {
+                auto link = it->str();
+                reinterpret_cast<MDImagesLoader*>(tar)->loadit(link);
+            }
+        };
+        reinterpret_cast<MDImagesLoader*>(tar)->aminateLoadingLabels();
+        return tar;
+    }
+};
+
 class WebImageNode : public CCNodeRGBA {
 public:
     static auto create(std::string url = "", CCSize size = { 30.f, 30.f }, std::function<void(CCSprite*)> loaded = [](auto) {}) {
@@ -28,6 +123,7 @@ public:
                     if (res->code() < 399) {
                         res->into(filep);
                         if (temp) temp->setVisible(0);
+                        CCTextureCache::get()->removeTextureForKey(filep.string().c_str());
                         auto sprite = CCSprite::create(filep.string().c_str());
                         sprite->setScale(size.width / sprite->getContentSize().width);
                         limitNodeSize(sprite, size, 1337.f, 0.1f);
@@ -215,8 +311,11 @@ namespace github {
 class RznPost : public CCNode {
 public:
     std::string m_name = "unnamed post";
+    std::string m_developer = "unnamed post";
     std::string m_desc = "no description";
+    std::string m_icon = "";
     std::string m_download = "";
+    std::string m_body = "";
     github::user* m_user;
     matjson::Value m_issue;
     CSimpleIni* m_ini;
@@ -229,14 +328,31 @@ public:
     }
 
     void update(matjson::Value issue) {
+
         m_issue = issue;
         m_user = github::user::create(issue["user"]);
-        m_name = m_issue["title"].asString().unwrapOr(RznPost().m_name);
+
+        auto issue_body = m_issue["body"].asString().unwrapOrDefault();
 
         m_ini = new CSimpleIni;
-        m_ini->LoadData(m_issue["body"].asString().unwrap());
+        m_ini->LoadData(issue_body);
 
-        m_desc = m_ini->GetValue("main", "desc", m_desc.c_str());
+        m_name = m_issue["title"].asString().unwrapOr(m_name);
+        m_developer = m_ini->GetValue("main", "developer", m_user->m_login.c_str());
+        m_desc = m_ini->GetValue("main", "desc", fmt::format("The {} by {}", m_name, m_developer).c_str());
+        m_icon = m_ini->GetValue("main", "icon", m_user->m_avatar_url.c_str());
+        m_download = m_ini->GetValue("main", "download", m_download.c_str());
+
+        m_body = fmt::format("# {}\n{}", m_name, m_desc);
+        if (issue_body.find("body:") != std::string::npos) {
+            //pointas
+            auto start = issue_body.find("body:") + 7;
+            auto end = issue_body.find("^^^");
+            if (end == std::string::npos) end = issue_body.size();
+            //a
+            std::string substring = issue_body.substr(start, end - start);
+            m_body = substring;
+        }
     }
 
     void reload(std::function<void()> onFinish = [] {}, std::function<void()> onFault = [] {}) {
@@ -260,6 +376,177 @@ public:
         listener->setFilter(req.send(
             "GET", m_issue["url"].asString().unwrapOrDefault()
         ));
+    }
+
+    void download() {
+        //endpoint
+        auto endpoint = m_download;
+        auto filename = fs::path(endpoint).filename().string();
+        auto path = dirs::getModsDir() / filename;
+        auto root = dirs::getGeodeDir();
+        ;;;;;;;;;;; path = (string::contains(filename, ".geode")) ? root / "mods" / filename : path;
+        path = (string::containsAny(filename, { ".dll", ".so" })) ? root / "libs" / filename : path;
+        ;;;;;; path = (string::containsAny(filename, { ".zip" })) ? root / "config" / "geode.texture-loader" / "packs" / filename : path;
+        //Popup
+        auto pop = createQuickPopup(
+            "Download File?",
+            "\n \n \n \n \n \n \n",
+            "Abort", "Start",
+            400.f,
+            [this, endpoint, path](auto, bool btn2) {
+                if (not this) return;
+                if (not btn2) return;
+                //updateCustomDownloads();
+                //loadingBar
+                Ref<Slider> loadingBar = nullptr;
+                {
+                    loadingBar = Slider::create(this, nullptr);
+                    loadingBar->getThumb()->setVisible(0);
+                    loadingBar->setID("loadingBar");
+                    loadingBar->setPosition(CCPointMake(118.f, 14.f));
+                    loadingBar->setZOrder(999);
+                    SceneManager::get()->keepAcrossScenes(loadingBar); //this->addChild(loadingBar);
+                    //labels
+                    auto loadingBarTitle = CCLabelBMFont::create("Loading...", "goldFont.fnt");
+                    loadingBarTitle->setAlignment(kCCTextAlignmentCenter);
+                    loadingBarTitle->limitLabelWidth(200.f, 0.5f, 0.3f);
+                    loadingBarTitle->setID("loadingBarTitle");
+                    loadingBarTitle->setPositionY(24.f);
+                    loadingBar->addChild(loadingBarTitle);
+                    //labels
+                    auto closeBtn = CCMenu::createWithItem(CCMenuItemExt::createSpriteExtraWithFrameName(
+                        "edit_delBtnSmall_001.png", 0.8f, [loadingBar](auto) {
+                            createQuickPopup("Cancel Download",
+                                "Are you sure you want to cancel the downloading?",
+                                "NO", "Yes",
+                                [loadingBar](CCNode*, bool ok) {
+                                    if (!ok) return;
+                                    SceneManager::get()->forget(loadingBar);
+                                    loadingBar->removeFromParent();
+                                }
+                            );
+                        }
+                    ));
+                    closeBtn->setID("loadingBarCloseBtn");
+                    closeBtn->setPosition(CCPointMake(106.f, 32.f));
+                    loadingBar->addChild(closeBtn);
+                    //drag
+                    auto dragTouchZone = ShittyDragThing::createScroll(loadingBar, { 212.f, 48.f });
+                    dragTouchZone->setPositionY(-10.f);
+                    //bg
+                    auto bg = CCScale9Sprite::create("square02_small.png");
+                    bg->setOpacity(120);
+                    bg->setAnchorPoint({ 0.5f, 0.2f });
+                    bg->setContentSize({ 226.f, 48.f });
+                    loadingBar->addChild(bg, -1);
+                }
+                //req
+                auto req = web::WebRequest();
+                auto listener = new EventListener<web::WebTask>;
+                listener->bind(
+                    [this, endpoint, path, loadingBar](web::WebTask::Event* e) {
+                        auto l_end = [this, path](web::WebResponse* res)
+                            {
+                                res->into(path);
+                                if (string::contains(path.string(), "geode.texture-loader")) {
+                                    FLAlertLayer* asd = geode::createQuickPopup(
+                                        "Pack Downloaded",
+                                        "You can go back to packs select menu and apply it...",
+                                        "OK", nullptr,
+                                        [](auto, auto) {
+                                            //if (PackSelectLayer::lastCreatedOne) PackSelectLayer::lastCreatedOne->reloadList();
+                                        }
+                                    );
+                                }
+                                else {
+                                    FLAlertLayer* asd = geode::createQuickPopup(
+                                        "Restart Game?",
+                                        "To load new mod",
+                                        "Later", "Yes",
+                                        [](auto, bool btn2) {
+                                            if (btn2) utils::game::restart();
+                                        }
+                                    );
+                                }
+                            };
+                        auto l_prog = [this, loadingBar, e](web::WebProgress* prog) {
+                            if (!loadingBar or !loadingBar->isRunning()) return e->cancel();
+                            double d1_of100 = prog->downloadProgress().value_or(0.0);
+                            double d1 = prog->downloaded();
+                            double d2 = prog->downloadTotal();
+                            /*log::debug(
+                                "\n"
+                                "d1_of100:{}\n"
+                                "      d1:{}\n"
+                                "      d2:{}",
+                                d1_of100, d1, d2
+                            );*/
+                            //return;
+                            if (d1 <= 0) return;
+                            if (d2 <= 0) return;
+                            if (this == nullptr) return;
+                            //vars
+                            auto strProgOneOf = fmt::format("{} of {}", string::size(d1), string::size(d2));
+                            auto strName = fmt::format("{}", this->m_name);
+                            //loadingBar
+                            if (loadingBar) {
+                                if (d1 == d2) {
+                                    SceneManager::get()->forget(loadingBar);
+                                    loadingBar->setVisible(0);
+                                    loadingBar->removeFromParent();
+                                }
+                                else {
+                                    if (loadingBar) loadingBar->setValue(d1_of100 / 100);
+                                    if (auto loadingBarTitle = typeinfo_cast<CCLabelBMFont*>(loadingBar->getChildByIDRecursive("loadingBarTitle")))
+                                        loadingBarTitle->setString((strName + "\n" + strProgOneOf).data());
+                                };
+                            }
+                            };
+                        auto l_error = [this, endpoint](std::string const& error) {
+                            auto asd = geode::createQuickPopup(
+                                "Request exception",
+                                error + "\n" + endpoint,
+                                "Nah", nullptr, 420.f, nullptr, false
+                            );
+                            asd->m_scene = this;
+                            asd->show();
+                            };
+                        if (web::WebProgress* prog = e->getProgress()) {
+                            l_prog(prog);
+                        }
+                        if (web::WebResponse* res = e->getValue()) {
+                            std::string data = res->string().unwrapOr("no res");
+                            //call the some shit
+                            if (res->code() < 399) l_end(res);
+                            else l_error(data);
+                        }
+                    }
+                );
+                listener->setFilter(req.send("GET", endpoint));
+            }
+        );
+        if (pop) {
+            auto body_data = fmt::format(
+                "# From:" "\n"
+                "{}" "\n"
+                "# To:" "\n"
+                "<cj>__{}__",
+                endpoint,
+                path.string()
+            );
+            auto mdtextarea = MDTextArea::create(body_data, { 360.f, 140.f });
+            mdtextarea->setPositionY(96.f);//(-(mdtextarea->getContentSize() / 2));
+            pop->m_buttonMenu->addChild(mdtextarea);
+            handleTouchPriority(pop);
+            if (auto delte_btnspr = ButtonSprite::create("   Uninstall   ", "goldFont.fnt", "GJ_button_05.png")) {
+                delte_btnspr->setScale(0.7f);
+                auto delete_item = CCMenuItemSpriteExtra::create(delte_btnspr, this, nullptr);
+                delete_item->setID("delete");
+                delete_item->setAnchorPoint({ 0.5f, 1.f });
+                delete_item->setPositionY(-33.f);
+                if (fs::exists(path)) pop->m_buttonMenu->addChild(delete_item);
+            }
+        };
     }
 
 };
@@ -751,8 +1038,7 @@ inline RznLayer* RznPostLayer(RznPost* post) {
 
     if (auto center_menu = CCMenu::create()) {
 
-        auto paddingx = 160.f;
-        CCSize size = { CCDirector::get()->getScreenRight() - paddingx - 4, CCDirector::get()->getScreenTop() - 22 };
+        auto size = CCSizeMake(450.f, 350.f);
 
         center_menu->setContentWidth(size.width);
         __this->addChild(center_menu);
@@ -760,6 +1046,7 @@ inline RznLayer* RznPostLayer(RznPost* post) {
         center_menu->addChild(RznPostItem(post, size.width));
 
         if (auto middle_line = CCMenu::create()) {
+            middle_line->setID("middle_line");
             center_menu->addChild(middle_line);
             middle_line->setContentWidth(center_menu->getContentWidth());
 
@@ -777,7 +1064,11 @@ inline RznLayer* RznPostLayer(RznPost* post) {
                 if (downloadBtn->m_label->getScale() > 0.9f) downloadBtn->m_label->setScale(0.9f);
                 downloadBtn->setScale(0.8f);
                 downloadBtn->setID("downloadBtn");
-                auto item = CCMenuItemExt::createSpriteExtra(downloadBtn, [](auto){});
+                auto item = CCMenuItemExt::createSpriteExtra(downloadBtn, 
+                    [post](auto){
+                        post->download();
+                    }
+                );
                 item->setID("download");
                 middle_line->addChild(item);
             }
@@ -788,19 +1079,30 @@ inline RznLayer* RznPostLayer(RznPost* post) {
                 ->setCrossAxisAlignment(AxisAlignment::Start)
                 ->setCrossAxisLineAlignment(AxisAlignment::Start)
             );
-
         }
 
 
-        auto debug = MDTextArea::create(
-            fmt::format("\n## issue\n```\n{}\n```\n## user\n```\n{}\n```\n", post->m_issue.dump(), post->m_user->m_json.dump()), { size.width, 260 }
-        );
-        center_menu->addChild(debug);
+        auto body = MDImagesLoader::attach(MDTextArea::create(post->m_body, { size.width + 10, 260 }));
+        center_menu->addChild(body);
 
         center_menu->setContentSize(size);
         center_menu->setLayout(ColumnLayout::create()
             ->setAxisReverse(1)
         );
+
+        auto limitation = __this->getContentSize();
+        limitation.height -= 12.f;
+        limitation.width -= 160.f;
+        limitNodeSize(center_menu, limitation, 7.77f, 0.3f);
+
+        //lol
+        if (auto aw = center_menu->getChildByIDRecursive("middle_line")) {
+            aw->setAnchorPoint(CCPointMake(0.5f, 0.f));
+            auto line = CCSprite::createWithSpriteFrameName("floorLine_01_001.png");
+            line->setAnchorPoint(CCPointMake(0.f, 6.5f));
+            line->setScaleX(aw->getContentWidth() / line->getContentWidth());
+            aw->addChild(line);
+        }
 
     };
 
@@ -877,7 +1179,7 @@ inline RznLayer* RznListLayer() {
         auto setupListStep4 = [__this, scroll, scroll_size](matjson::Value issues)
             {
                 log::debug("posts: {}", issues.dump());
-                auto scroll = dynamic_cast<ScrollLayer*>(__this->getChildByID("scroll"));
+                auto scroll = typeinfo_cast<ScrollLayer*>(__this->getChildByID("scroll"));
                 if (not scroll) return;
 
                 scroll->m_contentLayer->removeAllChildrenWithCleanup(0);
@@ -967,8 +1269,8 @@ inline RznLayer* RznListLayer() {
             {
                 auto per_page = Mod::get()->getSettingValue<int64_t>("per_page");
                 auto issues_repo = Mod::get()->getSettingValue<std::string>("issues_repo");
-                //auto page = dynamic_cast<TextInput*>(__this->getChildByIDRecursive("page"));
-                //auto sort = dynamic_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
+                //auto page = typeinfo_cast<TextInput*>(__this->getChildByIDRecursive("page"));
+                //auto sort = typeinfo_cast<CCLabelTTF*>(__this->getChildByIDRecursive("sort"));
                 auto urlapi = fmt::format(
                     "https://api.github.com/repos/{}/issues?per_page={}&page={}&sort={}&",
                     issues_repo, per_page, "1", "created"//page->getString().data(), sort->getString()
@@ -1045,39 +1347,6 @@ inline RznLayer* RznListLayer() {
     return __this;
 }
 
-#include <Geode/modify/CCLayer.hpp>
-class ModsLayer : public CCNode {};
-class $modify(ModsLayerExt, CCLayer) {
-	void customSetup() {
-		if (auto actions_menu = typeinfo_cast<CCMenu*>(getChildByIDRecursive("actions-menu"))) {
-
-			auto image = CircleButtonSprite::createWithSprite(
-				"Ryzen_LogoIcon_001.png"_spr, 1.0f, 
-				!Loader::get()->getLoadedMod("geode.loader")->getSettingValue<bool>("enable-geode-theme") ? 
-				CircleBaseColor::Green : CircleBaseColor::DarkPurple
-			);
-			image->setScale(0.8f);
-
-			CCMenuItemSpriteExtra* rzn_openup_btn = CCMenuItemExt::createSpriteExtra(
-				image, [](CCNode*) {
-                    auto scene = CCScene::create();
-                    scene->addChild(RznListLayer());
-                    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
-				}
-			);
-			rzn_openup_btn->setID("rzn_openup_btn"_spr);
-			actions_menu->addChild(rzn_openup_btn);
-			actions_menu->updateLayout();
-
-		}
-	}
-	bool init() {
-		if (!CCLayer::init()) return false;
-		if (typeinfo_cast<ModsLayer*>(this)) queueInMainThread([this] { customSetup(); });
-		return true;
-	}
-};
-
 inline CCNode* RznPostItem(RznPost* post, float width) {
 
     auto item = CCNode::create();
@@ -1100,7 +1369,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
         );
 
 
-        auto image = WebImageNode::create(post->m_user->m_avatar_url, { 64, 64 });
+        auto image = WebImageNode::create(post->m_icon, { 64, 64 });
         image->setID("image");
 
         auto image_item = CCMenuItemExt::createSpriteExtra(
@@ -1167,7 +1436,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
                 name_item->getParent()->setAnchorPoint(CCPointMake(0.f, 0.0f));
 
                 auto user = CCLabelBMFont::create(
-                    ("by " + post->m_user->m_login).c_str(),
+                    ("by " + post->m_developer).c_str(),
                     "chatFont.fnt"
                 );
                 user->setID("user");
@@ -1225,6 +1494,7 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
             if (auto line3 = CCMenu::create()) {
                 line3->setAnchorPoint(CCPointMake(0.f, 0.9f));
                 line3->setContentWidth(left_row->getContentWidth());
+                line3->setContentHeight(0.f);
                 line3->setID("line3");
 
                 //tags
@@ -1297,8 +1567,91 @@ inline CCNode* RznPostItem(RznPost* post, float width) {
     bg->setID("bg");
     bg->setContentSize(item->getContentSize());
     bg->setPosition(item->getContentSize() / 2);
-    bg->setOpacity(120);
+    bg->setOpacity(75);
     item->addChild(bg, -1);
 
     return item;
 }
+
+
+//your favorite part
+class ModsLayer : public CCNode {};
+
+#include <Geode/modify/CCLayer.hpp>
+class $modify(ModsLayerExt, CCLayer) {
+    void customSetup() {
+        if (auto actions_menu = typeinfo_cast<CCMenu*>(getChildByIDRecursive("actions-menu"))) {
+
+            auto image = CircleButtonSprite::createWithSprite(
+                "Ryzen_LogoIcon_001.png"_spr, 1.0f,
+                !Loader::get()->getLoadedMod("geode.loader")->getSettingValue<bool>("enable-geode-theme") ?
+                CircleBaseColor::Green : CircleBaseColor::DarkPurple
+            );
+            image->setScale(0.8f);
+
+            CCMenuItemSpriteExtra* rzn_openup_btn = CCMenuItemExt::createSpriteExtra(
+                image, [](CCNode*) {
+                    auto scene = CCScene::create();
+                    scene->addChild(RznListLayer());
+                    CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, scene));
+                }
+            );
+            rzn_openup_btn->setID("rzn_openup_btn"_spr);
+            actions_menu->addChild(rzn_openup_btn);
+            actions_menu->updateLayout();
+
+        }
+    }
+    $override bool init() {
+        if (!CCLayer::init()) return false;
+        if (typeinfo_cast<ModsLayer*>(this)) queueInMainThread([this] { customSetup(); });
+        return true;
+    }
+};
+
+#include <Geode/modify/CCSprite.hpp>
+class $modify(CCSpriteExt, CCSprite) {
+    static void onModify(auto & self) {
+        auto names = {
+            "cocos2d::CCSprite::create",
+            "cocos2d::CCSprite::createWithSpriteFrameName",
+        };
+        for (auto name : names) if (!self.setHookPriorityPost(name, Priority::Last)) {
+            log::error("Failed to set hook priority for {}.", name);
+        }
+    }
+    $override static CCSprite* create(const char* pszFileName) {
+        std::string str = pszFileName;
+        std::regex re(":scale_factor=([0-9.]+)");
+        std::smatch match;
+        if (std::regex_search(str, match, re)) {
+
+            auto target_factor = std::stof(match[1].str());
+            auto old_factor = CC_CONTENT_SCALE_FACTOR();
+
+            CCDirector::sharedDirector()->setContentScaleFactor(target_factor);
+            auto sprite = CCSprite::create(std::regex_replace(str, re, "").c_str());
+            CCDirector::sharedDirector()->setContentScaleFactor(old_factor);
+
+            return sprite;
+        }
+        return CCSprite::create(pszFileName);
+    }
+    $override static CCSprite* createWithSpriteFrameName(const char* pszSpriteFrameName) {
+        std::string str = pszSpriteFrameName;
+        std::regex re(":scale_factor=([0-9.]+)");
+        std::smatch match;
+        if (std::regex_search(str, match, re)) {
+
+            auto target_factor = utils::numFromString<float>(match[1].str()).unwrapOr(1.f);
+            auto old_factor = CC_CONTENT_SCALE_FACTOR();
+
+            CCDirector::sharedDirector()->setContentScaleFactor(target_factor);
+            auto sprite = CCSprite::createWithSpriteFrameName(std::regex_replace(str, re, "").c_str());
+            CCDirector::sharedDirector()->setContentScaleFactor(old_factor);
+
+            return sprite;
+        }
+        return CCSprite::createWithSpriteFrameName(pszSpriteFrameName);
+    }
+};

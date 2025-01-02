@@ -2153,6 +2153,10 @@ CSimpleIniTempl<SI_CHAR,SI_STRLESS,SI_CONVERTER>::GetValue(
         }
     }
 
+    if (std::string(iKeyVal->second).empty()) {
+        return a_pDefault;
+    }
+
     return iKeyVal->second;
 }
 

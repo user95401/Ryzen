@@ -160,6 +160,38 @@ namespace geode::cocos {
 };
 
 namespace geode::utils::string {
+    inline std::string size(size_t size) {
+        static const char* SIZES[] = { "B", "KB", "MB", "GB" };
+        int div = 0;
+        size_t rem = 0;
+        while (size >= 1024 && div < (sizeof SIZES / sizeof * SIZES)) {
+            rem = (size % 1024);
+            div++;
+            size /= 1024;
+        }
+        //roundOff size_d
+        double size_d = (float)size + (float)rem / 1024.0;
+        double d = size_d * 100.0;
+        int i = d + 0.5;
+        d = (float)i / 100.0;
+        //result
+        std::string result = fmt::to_string(d) + "" + SIZES[div];
+        return result;
+    }
+    inline std::string abbreviateNumber(int num) {
+        double n = static_cast<double>(num);
+        char suffix = 0;
+        if (num >= 1000000) {
+            n /= 1000000;
+            suffix = 'M';
+        }
+        else if (num >= 1000) {
+            n /= 1000;
+            suffix = 'K';
+        }
+        else return fmt::format("{}", num);
+        return fmt::format("{:.1f}{}", n, suffix);
+    }
     inline std::vector<std::string> explode(std::string separator, std::string input) {
         std::vector<std::string> vec;
         for (int i{ 0 }; i < input.length(); ++i) {

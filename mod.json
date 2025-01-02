@@ -6,7 +6,7 @@
 		"mac": "2.2074",
 		"ios": "2.2074"
 	},
-	"version": "v1.0.0",
+	"version": "v1.0.0-beta.1",
 	"id": "user95401.ryzen",
 	"name": "Ryzen - Mods & TPs Place",
 	"developer": "user95401",
@@ -48,7 +48,7 @@
 		},
 		"tpldr_old_look": {
 			"name": "TpLdr old look ext.",
-			"description": "Make textureldr select layer\nlooks like original mod.\n(just enable it and look if its good for u)",
+			"description": "Make textureldr select layer\nlook like original mod\nby adding corners and stuff.",
 			"type": "bool",
 			"default": true
 		},
@@ -57,7 +57,7 @@
 			"description": "https://github.com/{issues_repo}",
 			"type": "string",
 			"filter": "=+_-/0123456789QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm",
-			"default": "user95401/Ryzen-Pubs"
+			"default": "user95401/Ryzen"
 		},
 		"per_page": {
 			"name": "Items per page",
